@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CartStatus {
+  ACTIVE
+  CONVERTED
+}
+
+enum OrderStatus {
+  NEW
+  CONFIRMED
+  PREPARING
+  DELIVERING
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  COD
+  BANK_TRANSFER
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+}
+
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String
+  slug        String    @unique
+  description String?
+  sortOrder   Int       @default(0)
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("categories")
+}
+
+model Product {
+  id             Int        @id @default(autoincrement())
+  categoryId     Int
+  category       Category   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  name           String
+  slug           String
+  description    String     @default("")
+  price          Int        // giá gốc, VND
+  salePrice      Int?       // giá bán khi giảm, null = không giảm
+  images         String[]
+  tags           String[]   // slug dịp: sinh-nhat, khai-truong, ...
+  isFastDelivery Boolean    @default(false)
+  isActive       Boolean    @default(true)
+  sortOrder      Int        @default(0)
+  cartItems      CartItem[]
+  orderItems     OrderItem[]
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@unique([categoryId, slug])
+  @@index([categoryId, isActive, sortOrder])
+  @@map("products")
+}
+
+model Cart {
+  id        String     @id @default(cuid())
+  token     String     @unique   // chuỗi ngẫu nhiên do ứng dụng sinh, lưu trong cookie
+  status    CartStatus @default(ACTIVE)
+  items     CartItem[]
+  order     Order?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  expiresAt DateTime
+
+  @@index([status, expiresAt])
+  @@map("carts")
+}
+
+model CartItem {
+  id        Int      @id @default(autoincrement())
+  cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cartId, productId])
+  @@map("cart_items")
+}
+
+model ShippingZone {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  fee       Int      // VND
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+
+  @@map("shipping_zones")
+}
+
+model Order {
+  id             Int           @id @default(autoincrement())
+  code           String        @unique
+  cartId         String?       @unique
+  cart           Cart?         @relation(fields: [cartId], references: [id], onDelete: SetNull)
+  senderName     String
+  senderPhone    String
+  senderEmail    String?
+  receiverName   String
+  receiverPhone  String
+  address        String
+  area           String        // tên khu vực giao tại thời điểm đặt
+  deliveryDate   DateTime      @db.Date
+  deliverySlot   String
+  cardMessage    String?
+  note           String?
+  subtotal       Int
+  shippingFee    Int
+  total          Int
+  paymentMethod  PaymentMethod
+  paymentStatus  PaymentStatus @default(UNPAID)
+  status         OrderStatus   @default(NEW)
+  items          OrderItem[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([status, createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        Int      @id @default(autoincrement())
+  orderId   Int
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId Int?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  name      String   // bản chụp tại thời điểm đặt
+  price     Int      // giá đơn vị đã chốt (VND)
+  quantity  Int
+  image     String?
+
+  @@map("order_items")
+}
