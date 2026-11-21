@@ -1,21 +1,26 @@
 import { getHomeData } from "@/lib/queries";
-import Hero from "@/components/home/Hero";
-import CategoryGrid from "@/components/home/CategoryGrid";
-import FeaturedProducts from "@/components/home/FeaturedProducts";
+import { heroSlides } from "@/config/home";
+import HeroSlider from "@/components/ui/HeroSlider";
+import UspStrip from "@/components/layout/UspStrip";
 import OccasionChips from "@/components/home/OccasionChips";
-import WhyUs from "@/components/home/WhyUs";
+import CategorySection from "@/components/home/CategorySection";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const { categories, featured } = await getHomeData();
+  const { categories } = await getHomeData();
+  // Mỗi danh mục có sản phẩm là một khối; danh mục không có sản phẩm
+  // thì không hiện khối (mục 5.1 phụ lục). Hiện có 4 danh mục đều có
+  // sản phẩm → 4 khối, số SP mỗi khối 4, 3, 2, 3.
+  const sections = categories.filter((c) => c.products.length > 0);
   return (
     <>
-      <Hero />
-      <CategoryGrid categories={categories} />
-      <FeaturedProducts products={featured} />
+      <HeroSlider slides={heroSlides} />
+      <UspStrip />
       <OccasionChips />
-      <WhyUs />
+      {sections.map((c) => (
+        <CategorySection key={c.slug} category={c} products={c.products} />
+      ))}
     </>
   );
 }

@@ -45,6 +45,26 @@ Mở http://localhost:8080 (hệ thống: PostgreSQL, máy chủ: `db`).
 
 Sửa `SHOP_NAME` trong file `.env` rồi chạy lại `docker compose up -d`.
 
+## Cấu trúc URL
+
+URL tối đa 2 cấp. Trang danh mục ở cấp 1, trang chi tiết sản phẩm ở cấp 2:
+
+| URL | Trang |
+|---|---|
+| `/` | Trang chủ |
+| `/<slug-danh-mục>` | Trang danh mục, ví dụ `/hoa-tuoi` |
+| `/<slug-danh-mục>/<slug-sản-phẩm>` | Trang chi tiết sản phẩm (Ngày 4) |
+| `/gio-hang`, `/thanh-toan` | Giỏ hàng, thanh toán (Ngày 4–5) |
+
+Tham số của trang danh mục (kết hợp được, giá trị sai bị bỏ qua):
+
+| Tham số | Giá trị | Ý nghĩa |
+|---|---|---|
+| `dip` | `sinh-nhat`, `khai-truong`, `chuc-mung`, `tinh-yeu`, `chia-buon`, `tham-benh`, `qua-tang` | Lọc theo dịp |
+| `gia` | `duoi-1tr`, `1-2tr`, `tren-2tr` | Lọc theo giá hiện tại (giá giảm nếu có) |
+| `sx` | `gia-tang`, `gia-giam` | Sắp xếp theo giá hiện tại |
+| `trang` | số nguyên dương | Trang hiện tại (8 sản phẩm/trang) |
+
 ## Thông tin liên hệ
 
 Hotline, Zalo, địa chỉ và giờ mở cửa đọc từ file `.env`, đổi không cần sửa code:

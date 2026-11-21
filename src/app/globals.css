@@ -1,20 +1,86 @@
 @import "tailwindcss";
 
 @theme {
-  --color-cream: #fffaf7;
-  --color-ink: #1f2937;
-  --color-muted: #4b5563;
-  --color-brand: #b4234a;
-  --color-brand-hover: #8f1b3a;
-  --color-fast: #2f6f4e;
-  --color-line: #e7e0da;
-  --color-card: #ffffff;
+  /* Token màu — giá trị cuối đã lấy mẫu thật từ ảnh mockup (xem báo cáo UI-1):
+     green-900 #01321f (top bar / banner / footer M13), green-800 #0d6532
+     (nút xanh M12), gold-300 #db9b3a (nút vàng "Mua ngay" M12). */
+  --color-green-900: #01321f;
+  --color-green-800: #0d6532;
+  --color-green-700: #0f5c43;
+  --color-gold-500: #b8862b;
+  --color-gold-text: #8a6414;
+  --color-gold-300: #db9b3a;
+  --color-cream-50: #faf8f4;
+  --color-cream-100: #f1ece2;
+  --color-line: #e8e2d6;
+  --color-ink: #123c2e;
+  --color-ink-soft: #4d5c54;
+  --color-muted: #5d6b63;
+  --color-danger: #b91c1c;
+  --color-success: #15803d;
+
+  /* Bí danh đúng tên mục 2 phụ lục (--green-900, ...) để :root có đủ biến
+     theo tiêu chí UI-2; Tailwind v4 chỉ sinh utility từ --color-*. */
+  --green-900: #01321f;
+  --green-800: #0d6532;
+  --green-700: #0f5c43;
+  --gold-500: #b8862b;
+  --gold-text: #8a6414;
+  --gold-300: #db9b3a;
+  --cream-50: #faf8f4;
+  --cream-100: #f1ece2;
+  --line: #e8e2d6;
+  --ink: #123c2e;
+  --ink-soft: #4d5c54;
+  --muted: #5d6b63;
+  --danger: #b91c1c;
+  --success: #15803d;
+
   --font-sans: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Playfair Display", Georgia, "Times New Roman", serif;
+
+  /* Token chuyển động (mục 3.2 phụ lục). */
+  --dur-fast: 150ms;
+  --dur-base: 250ms;
+  --dur-slow: 400ms;
+  --dur-slide: 600ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-inout: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
 @layer base {
+  /* Biến đúng tên mục 2 phụ lục trên :root (Tailwind v4 tree-shake biến
+     @theme không được dùng, nên bí danh trong @theme không đủ — cần khối
+     :root thường này để UI-2 đo được giá trị thật). */
+  :root {
+    --green-900: #01321f;
+    --green-800: #0d6532;
+    --green-700: #0f5c43;
+    --gold-500: #b8862b;
+    --gold-text: #8a6414;
+    --gold-300: #db9b3a;
+    --cream-50: #faf8f4;
+    --cream-100: #f1ece2;
+    --line: #e8e2d6;
+    --ink: #123c2e;
+    --ink-soft: #4d5c54;
+    --muted: #5d6b63;
+    --danger: #b91c1c;
+    --success: #15803d;
+    --dur-fast: 150ms;
+    --dur-base: 250ms;
+    --dur-slow: 400ms;
+    --dur-slide: 600ms;
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-inout: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
-    background-color: var(--color-cream);
+    background-color: var(--color-cream-50);
     color: var(--color-ink);
     font-family: var(--font-sans);
     font-size: 1rem;
@@ -22,8 +88,234 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(2rem, 4vw, 3rem);
+    line-height: 1.15;
+  }
+
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+  }
+
   :focus-visible {
-    outline: 2px solid var(--color-brand);
+    outline: 2px solid var(--color-gold-500);
     outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Khung nội dung chung: tối đa 1360px, lề co theo màn hình. */
+  .shell {
+    margin-inline: auto;
+    width: 100%;
+    max-width: 1360px;
+    padding-inline: clamp(16px, 3vw, 45px);
+  }
+
+  /* Gạch vàng dưới mục menu: chạy scaleX(0 -> 1) từ trái sang phải. */
+  .nav-underline {
+    position: relative;
+  }
+  .nav-underline::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 2px;
+    height: 2px;
+    background-color: var(--color-gold-500);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform var(--dur-base) var(--ease-out);
+  }
+  .nav-underline:hover::after,
+  .nav-underline:focus-visible::after,
+  .nav-underline.is-active::after {
+    transform: scaleX(1);
+  }
+
+  /* Reveal khi cuộn: chỉ ẩn khi JS đã gắn class `js` vào <html>
+     (tắt JS thì toàn bộ nội dung hiển thị). */
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+  .js .reveal {
+    opacity: 0;
+    transform: translateY(16px);
+    transition:
+      opacity 500ms var(--ease-out),
+      transform 500ms var(--ease-out);
+  }
+  .js .reveal.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Thẻ sản phẩm: hover nâng -6px + bóng, ảnh zoom 1.06 (400ms). */
+  .product-card {
+    box-shadow: 0 1px 2px rgba(8, 56, 42, 0.06);
+    transition:
+      transform var(--dur-slow) var(--ease-out),
+      box-shadow var(--dur-slow) var(--ease-out);
+  }
+  .product-card-img {
+    transition: transform var(--dur-slow) var(--ease-out);
+  }
+  @media (hover: hover) {
+    .product-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 12px 28px rgba(8, 56, 42, 0.14);
+    }
+    .product-card:hover .product-card-img {
+      transform: scale(1.06);
+    }
+  }
+
+  /* Hero slider: slide ẩn/mở bằng crossfade; ảnh nền thu từ scale(1.04) về 1. */
+  .hero-slide {
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity var(--dur-slide) var(--ease-inout),
+      visibility 0s linear var(--dur-slide);
+  }
+  .hero-slide.is-active {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity var(--dur-slide) var(--ease-inout);
+  }
+  .hero-slide .hero-slide-art {
+    transform: scale(1.04);
+    transition: transform var(--dur-slide) var(--ease-out);
+  }
+  .hero-slide.is-active .hero-slide-art {
+    transform: scale(1);
+  }
+  .hero-anim {
+    animation: hero-rise var(--dur-slide) var(--ease-out) both;
+  }
+
+  /* Vòng sóng nút nổi: tối đa 3 lần rồi dừng (không lặp vô hạn). */
+  .animate-ripple-ring {
+    animation: ripple-ring 1.2s ease-out 3 both;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ripple-ring {
+  from {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+@keyframes topbar-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fade-in 300ms ease-out both;
+  }
+  .animate-shimmer {
+    background-image: linear-gradient(
+      90deg,
+      var(--color-cream-100) 25%,
+      #ffffff 50%,
+      var(--color-cream-100) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s linear infinite;
+  }
+  .animate-topbar-fade {
+    animation: topbar-fade 400ms ease-out both;
+  }
+  .animate-pop {
+    animation: pop 400ms ease-out both;
+  }
+}
+
+/* Một khối giảm chuyển động duy nhất, ở cuối file (mục 3.4 phụ lục). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .js .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .product-card,
+  .product-card:hover {
+    transform: none !important;
+  }
+  .product-card-img,
+  .product-card:hover .product-card-img {
+    transform: none !important;
+  }
+  .hero-slide .hero-slide-art,
+  .hero-slide.is-active .hero-slide-art {
+    transform: none !important;
+  }
+  .hero-anim {
+    animation: none !important;
   }
 }

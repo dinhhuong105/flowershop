@@ -1,0 +1,116 @@
+import { notFound } from "next/navigation";
+import type { Metadata } from "next";
+import Image from "next/image";
+import { PAGE_SIZE } from "@/config/catalog";
+import { getCategoryPage } from "@/lib/catalog";
+import { hasActiveFilter, parseCatalogParams } from "@/lib/catalog-params";
+import Breadcrumb from "@/components/catalog/Breadcrumb";
+import FilterBar from "@/components/catalog/FilterBar";
+import ProductGrid from "@/components/catalog/ProductGrid";
+import Pagination from "@/components/catalog/Pagination";
+import EmptyState from "@/components/catalog/EmptyState";
+import SortForm from "@/components/catalog/SortForm";
+
+export const dynamic = "force-dynamic";
+
+type Props = {
+  params: Promise<{ category: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+// Mô tả ngắn cho banner danh mục (dữ liệu mẫu chưa có mô tả danh mục thật).
+const CATEGORY_DESCRIPTIONS: Record<string, string> = {
+  "hoa-tuoi": "Hoa tươi cắt cành mỗi sáng — bó hoa, giỏ hoa và lẵng hoa cho mọi dịp.",
+  "gio-trai-cay": "Giỏ trái cây tươi ngon, chọn lọc kỹ càng — quà tặng thiết thực và tinh tế.",
+  "hop-trai-cay": "Hộp trái cây mix nhiều loại, nhỏ gọn và tiện lợi cho mọi dịp.",
+  "lan-ho-diep": "Lan hồ điệp tuyển chọn — chậu lan sang trọng, quà tặng đẳng cấp.",
+};
+
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
+  const { category: slug } = await params;
+  const parsed = parseCatalogParams(await searchParams);
+  const data = await getCategoryPage(slug, parsed);
+  if (!data) return {};
+  const { category } = data;
+  const canonical =
+    parsed.trang > 1 && !hasActiveFilter(parsed) ? `/${slug}?trang=${parsed.trang}` : `/${slug}`;
+  return {
+    title: category.name,
+    description:
+      CATEGORY_DESCRIPTIONS[slug] ??
+      `Mua ${category.name.toLowerCase()} tươi đẹp, giao tận nơi trong ngày.`,
+    alternates: { canonical },
+    ...(hasActiveFilter(parsed) ? { robots: { index: false, follow: true } } : {}),
+  };
+}
+
+export default async function CategoryPage({ params, searchParams }: Props) {
+  const { category: slug } = await params;
+  const parsed = parseCatalogParams(await searchParams);
+  const data = await getCategoryPage(slug, parsed);
+  if (!data) notFound();
+  // trang lớn hơn tổng số trang thì 404; nếu rỗng (0 trang) chỉ trang=1 hợp lệ.
+  if (data.totalPages === 0 ? parsed.trang !== 1 : parsed.trang > data.totalPages) {
+    notFound();
+  }
+  const { category, products, total, totalPages, availableTags } = data;
+  const from = total === 0 ? 0 : (parsed.trang - 1) * PAGE_SIZE + 1;
+  const to = Math.min(parsed.trang * PAGE_SIZE, total);
+
+  return (
+    <>
+      {/* Banner danh mục (mục 5.2 phụ lục): nền xanh đậm ~160px, breadcrumb
+          + tiêu đề Playfair trắng + mô tả ngắn; họa tiết lá vàng SVG bên
+          trái, hình hoa cách điệu bên phải. */}
+      <section className="relative overflow-hidden bg-green-900 text-white" data-testid="category-banner">
+        <svg
+          width="220"
+          height="220"
+          viewBox="0 0 220 220"
+          fill="none"
+          aria-hidden="true"
+          className="absolute -left-8 -top-10 hidden text-gold-500/70 sm:block"
+        >
+          <path
+            d="M30 200C30 120 90 50 180 30c-10 90-70 150-150 170Z"
+            stroke="currentColor"
+            strokeWidth="2"
+          />
+          <path d="M40 190C70 130 120 90 170 60" stroke="currentColor" strokeWidth="2" />
+          <path d="M60 170c20-30 50-55 85-70M80 150c15-25 40-45 70-55" stroke="currentColor" strokeWidth="1.5" />
+        </svg>
+        <Image
+          src="/images/hero-flower.svg"
+          alt=""
+          width={360}
+          height={360}
+          unoptimized
+          className="absolute -right-6 top-1/2 hidden h-[130%] w-auto -translate-y-1/2 opacity-90 md:block"
+        />
+        <div className="shell relative py-10 sm:py-12">
+          <Breadcrumb categoryName={category.name} tone="dark" />
+          <h1 className="mt-4 text-white">{category.name}</h1>
+          <p className="mt-2 max-w-2xl text-base text-white/85">
+            {CATEGORY_DESCRIPTIONS[slug] ??
+              `Mua ${category.name.toLowerCase()} tươi đẹp, giao tận nơi trong ngày.`}
+          </p>
+        </div>
+      </section>
+      <div className="shell pb-12">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+          <p data-testid="result-count" data-total={total} className="text-base text-ink">
+            Hiển thị {from} – {to} của {total} sản phẩm
+          </p>
+          <SortForm dip={parsed.dip} gia={parsed.gia} sx={parsed.sx} />
+        </div>
+        <FilterBar slug={slug} params={parsed} availableTags={availableTags} />
+        {total === 0 ? (
+          <EmptyState slug={slug} />
+        ) : (
+          <ProductGrid products={products} />
+        )}
+        <Pagination slug={slug} params={parsed} totalPages={totalPages} />
+      </div>
+    </>
+  );
+}

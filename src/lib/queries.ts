@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { db } from "@/lib/db";
 
 export type NavCategory = {
@@ -12,30 +13,40 @@ export type HomeCategory = {
   productCount: number;
 };
 
-export type FeaturedProduct = {
+// Tóm tắt sản phẩm dùng chung cho thẻ sản phẩm (trang chủ, danh mục).
+export type ProductSummary = {
   id: number;
   name: string;
   slug: string;
   categorySlug: string;
+  categoryName: string;
   price: number;
   salePrice: number | null;
   images: string[];
   isFastDelivery: boolean;
 };
 
+export type FeaturedProduct = ProductSummary;
+
 // Danh mục cho menu điều hướng, theo sortOrder, chỉ lấy name và slug.
-export async function getNavCategories(): Promise<NavCategory[]> {
+// Bọc bằng React cache để header và footer dùng chung một truy vấn trong
+// một lần tải trang.
+export const getNavCategories = cache(async (): Promise<NavCategory[]> => {
   return db.category.findMany({
     orderBy: { sortOrder: "asc" },
     select: { name: true, slug: true },
   });
-}
+});
 
-// Dữ liệu trang chủ: danh mục kèm số sản phẩm đang bán, và 8 sản phẩm
-// nổi bật (2 sản phẩm đầu theo sortOrder, chỉ isActive, của mỗi danh mục).
+// Dữ liệu trang chủ: mỗi danh mục kèm tối đa 4 sản phẩm đầu theo
+// sortOrder (chỉ isActive). Danh mục không có sản phẩm thì mảng rỗng
+// và trang chủ không hiện khối đó (mục 5.1 phụ lục).
+export type HomeCategorySection = HomeCategory & {
+  products: ProductSummary[];
+};
+
 export async function getHomeData(): Promise<{
-  categories: HomeCategory[];
-  featured: FeaturedProduct[];
+  categories: HomeCategorySection[];
 }> {
   const categories = await db.category.findMany({
     orderBy: { sortOrder: "asc" },
@@ -58,33 +69,35 @@ export async function getHomeData(): Promise<{
       images: true,
       isFastDelivery: true,
       categoryId: true,
-      category: { select: { slug: true } },
+      category: { select: { slug: true, name: true } },
     },
   });
 
-  const homeCategories: HomeCategory[] = categories.map((c) => ({
-    id: c.id,
-    name: c.name,
-    slug: c.slug,
-    productCount: c.products.length,
-  }));
+  const homeCategories: HomeCategorySection[] = categories.map((c) => {
+    const firstFour = products
+      .filter((p) => p.categoryId === c.id)
+      .slice(0, 4)
+      .map(
+        (p): ProductSummary => ({
+          id: p.id,
+          name: p.name,
+          slug: p.slug,
+          categorySlug: p.category.slug,
+          categoryName: p.category.name,
+          price: p.price,
+          salePrice: p.salePrice,
+          images: p.images,
+          isFastDelivery: p.isFastDelivery,
+        }),
+      );
+    return {
+      id: c.id,
+      name: c.name,
+      slug: c.slug,
+      productCount: c.products.length,
+      products: firstFour,
+    };
+  });
 
-  const featured: FeaturedProduct[] = [];
-  for (const category of categories) {
-    const firstTwo = products.filter((p) => p.categoryId === category.id).slice(0, 2);
-    for (const p of firstTwo) {
-      featured.push({
-        id: p.id,
-        name: p.name,
-        slug: p.slug,
-        categorySlug: p.category.slug,
-        price: p.price,
-        salePrice: p.salePrice,
-        images: p.images,
-        isFastDelivery: p.isFastDelivery,
-      });
-    }
-  }
-
-  return { categories: homeCategories, featured };
+  return { categories: homeCategories };
 }
