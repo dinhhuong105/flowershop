@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { formatVND } from "@/lib/format";
 import { siteConfig, telHref, zaloHref } from "@/config/site";
 import { buyNow } from "@/app/actions/cart";
+import { asFormAction } from "@/lib/form-action";
 
 // Thanh mua hàng cố định trang chi tiết (mục 5.2 đặc tả Ngày 4):
 // chỉ di động (≤767px), hiện khi hộp mua hàng (#pdp-buy-box) đã cuộn
@@ -116,7 +117,7 @@ export default function StickyBuyBar({
               Zalo
             </a>
           ) : null}
-          <form action={buyNow as unknown as (formData: FormData) => Promise<void>} className="shrink-0">
+          <form action={asFormAction(buyNow)} className="shrink-0">
             <input type="hidden" name="productId" value={productId} />
             <input type="hidden" name="quantity" value={1} />
             <button

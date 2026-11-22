@@ -2,7 +2,9 @@
   "dependencies": {
     "@fontsource/playfair-display": "5.3.0",
     "@prisma/client": "6.19.3",
+    "@types/qrcode": "^1.5.5",
     "next": "15.5.29",
+    "qrcode": "^1.5.4",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
@@ -30,8 +32,10 @@
     "cleanup:carts": "tsx scripts/cleanup-carts.ts",
     "dev": "next dev",
     "lint": "eslint",
+    "postbuild": "rm -f .next/standalone/.env .next/standalone/.env.*",
+    "resend:notifications": "tsx scripts/resend-notifications.ts",
     "start": "next start",
-    "test": "tsx --test src/lib/catalog-params.test.ts src/lib/cart-rules.test.ts src/lib/related.test.ts",
+    "test": "tsx --test src/lib/catalog-params.test.ts src/lib/cart-rules.test.ts src/lib/related.test.ts src/lib/delivery-rules.test.ts src/lib/checkout-validation.test.ts src/lib/vietqr.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "version": "0.1.0"

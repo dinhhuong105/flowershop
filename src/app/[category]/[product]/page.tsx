@@ -35,7 +35,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const p = await getProduct(category, product);
   if (!p) notFound();
   const description = truncateAtWord(p.description, 155);
-  const title = `${p.name} | ${siteConfig.name}`;
+  // G-1: chỉ đặt title = tên sản phẩm; layout đã có template
+  // "%s | Hoa Tươi Demo" nên không tự thêm đuôi tên shop nữa
+  // (trước đây title thành "Tên | Hoa Tươi Demo | Hoa Tươi Demo").
+  const title = p.name;
   return {
     title,
     description,
@@ -43,7 +46,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // Chưa có og:image cho đến khi có ảnh thật (không dùng SVG giữ chỗ
     // làm ảnh chia sẻ — mục 5.1 đặc tả Ngày 4).
     openGraph: {
-      title,
+      // og:title không chịu template của layout nên ghi đủ tên shop.
+      title: `${p.name} | ${siteConfig.name}`,
       description,
       type: "website",
       locale: "vi_VN",

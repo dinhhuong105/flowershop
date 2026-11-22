@@ -6,6 +6,7 @@ import Link from "next/link";
 import { formatVND } from "@/lib/format";
 import { MAX_QTY } from "@/config/cart";
 import { removeItem, updateQuantity } from "@/app/actions/cart";
+import { asFormAction } from "@/lib/form-action";
 import type { CartLine } from "@/lib/cart";
 
 // Một dòng giỏ hàng (mục 7 đặc tả Ngày 4): ảnh, tên (liên kết tới trang
@@ -110,7 +111,7 @@ function Line({ item }: { item: CartLine }) {
                 <>
                   <div className="flex items-stretch">
                     <form
-                      action={updateQuantity as unknown as (formData: FormData) => Promise<void>}
+                      action={asFormAction(updateQuantity)}
                       onSubmit={(event) => {
                         event.preventDefault();
                         if (!pending) void changeQty(event.currentTarget);
@@ -136,7 +137,7 @@ function Line({ item }: { item: CartLine }) {
                       {item.quantity}
                     </span>
                     <form
-                      action={updateQuantity as unknown as (formData: FormData) => Promise<void>}
+                      action={asFormAction(updateQuantity)}
                       onSubmit={(event) => {
                         event.preventDefault();
                         if (!pending) void changeQty(event.currentTarget);
@@ -157,7 +158,7 @@ function Line({ item }: { item: CartLine }) {
                   <p className="text-base font-bold text-ink">{formatVND(item.lineTotal)}</p>
                 </>
               )}
-              <form action={removeItem as unknown as (formData: FormData) => Promise<void>} onSubmit={onRemove}>
+              <form action={asFormAction(removeItem)} onSubmit={onRemove}>
                 <input type="hidden" name="itemId" value={item.itemId} />
                 <button
                   type="submit"

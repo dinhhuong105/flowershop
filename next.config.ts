@@ -15,6 +15,15 @@ const nextConfig: NextConfig = {
   // Ngày 4 (D4-30/F-6).
   htmlLimitedBots:
     /Mediapartners-Google|Slurp|DuckDuckBot|baiduspider|yandex|sogou|bitlybot|tumblr|vkShare|quora link preview|redditbot|ia_archiver|Bingbot|BingPreview|applebot|facebookexternalhit|facebookcatalog|Twitterbot|LinkedInBot|Slackbot|Discordbot|WhatsApp|SkypeUriPreview|Chrome-Lighthouse/i,
+  // Trang đơn hàng chứa thông tin cá nhân: không cho cache (mục 7 Ngày 5).
+  async headers() {
+    return [
+      {
+        source: "/don-hang/:code",
+        headers: [{ key: "Cache-Control", value: "no-store" }],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { formatVND } from "@/lib/format";
 import { getDisplayPrice } from "@/lib/pricing";
 import { buyNow } from "@/app/actions/cart";
+import { asFormAction } from "@/lib/form-action";
 import type { FeaturedProduct } from "@/lib/queries";
 
 // Thẻ sản phẩm (Ngày 4, theo M12/M14 + mục 3.3 phụ lục).
@@ -86,13 +87,16 @@ export default function ProductCard({
           ) : null}
         </p>
         <div className="relative z-10 mt-auto flex gap-2 pt-3">
+          {/* G-8a: aria-label riêng từng thẻ ("Xem chi tiết {tên}") vì
+              nhiều liên kết cùng nhãn "Xem chi tiết" trên một trang. */}
           <Link
             href={detailHref}
+            aria-label={`Xem chi tiết ${product.name}`}
             className="flex min-h-11 flex-1 items-center justify-center rounded-[3px] border border-green-800 px-2 text-sm font-bold text-green-800 transition-colors duration-150 hover:bg-cream-100 active:scale-[0.97]"
           >
             Xem chi tiết
           </Link>
-          <form action={buyNow as unknown as (formData: FormData) => Promise<void>} className="flex-1">
+          <form action={asFormAction(buyNow)} className="flex-1">
             <input type="hidden" name="productId" value={product.id} />
             <input type="hidden" name="quantity" value={1} />
             <button

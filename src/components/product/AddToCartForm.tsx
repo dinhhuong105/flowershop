@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { addToCart, buyNow } from "@/app/actions/cart";
+import { asFormAction } from "@/lib/form-action";
 import QuantityStepper from "./QuantityStepper";
 
 // Hộp mua hàng trang chi tiết (mục 5.2 + 4.4 đặc tả Ngày 4).
@@ -48,18 +49,21 @@ export default function AddToCartForm({
 
   return (
     <div id="pdp-buy-box">
-      <form action={addToCart as unknown as (formData: FormData) => Promise<void>} onSubmit={handleSubmit} className="mt-5">
+      <form action={asFormAction(addToCart)} onSubmit={handleSubmit} className="mt-5">
         <input type="hidden" name="productId" value={productId} />
         <div className="flex items-center gap-3">
           <span className="text-sm font-semibold text-ink">Số lượng:</span>
           <QuantityStepper disabled={!inStock} />
         </div>
         <div className="mt-4 flex gap-3">
+          {/* G-8c: chữ 13px, không giãn khoảng cách chữ, padding hẹp hơn
+              để "THÊM VÀO GIỎ HÀNG" vừa một dòng ở 390px (trước đây
+              xuống 2 dòng vì text-sm + tracking-wide + px-3). */}
           <button
             type="submit"
             disabled={!inStock || pending}
             data-testid="add-to-cart"
-            className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[3px] border border-green-800 bg-white px-3 text-sm font-bold uppercase tracking-wide text-green-800 transition-all duration-150 hover:bg-cream-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[3px] border border-green-800 bg-white px-2 text-[13px] font-bold uppercase text-green-800 transition-all duration-150 hover:bg-cream-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {pending ? (
               <span

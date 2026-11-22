@@ -35,17 +35,12 @@ export default function CartSummary({
           <dd className="font-bold text-ink">{formatVND(subtotal)}</dd>
         </div>
       </dl>
-      <button
-        type="button"
-        disabled
-        aria-disabled="true"
-        className="mt-5 flex min-h-11 w-full cursor-not-allowed items-center justify-center rounded-[3px] bg-gold-300 px-3 text-sm font-bold uppercase tracking-wide text-green-900 opacity-40"
+      <Link
+        href="/thanh-toan"
+        className="mt-5 flex min-h-11 w-full items-center justify-center rounded-[3px] bg-gold-300 px-3 text-sm font-bold uppercase tracking-wide text-green-900"
       >
         Tiến hành thanh toán
-      </button>
-      <p className="mt-2 text-center text-xs text-muted">
-        Thanh toán sẽ mở trong bản cập nhật sắp tới
-      </p>
+      </Link>
       <p className="mt-4 text-center">
         <Link
           href="/"

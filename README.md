@@ -78,7 +78,7 @@ tạo giỏ; giỏ chỉ được tạo khi thêm món lần đầu.
   tắt JavaScript.
 - Trang giỏ `/gio-hang`: đổi số lượng, xóa dòng, tạm tính theo giá hiện
   tại trong DB (đổi giá bằng SQL phản ánh ngay). Nút "Tiến hành thanh
-  toán" đang vô hiệu — thanh toán mở ở Ngày 5.
+  toán" dẫn tới `/thanh-toan` (Ngày 5).
 - Mỗi sản phẩm có mã `SKU` (quy tắc: tiền tố danh mục + số thứ tự, vd
   `HT-001`) và cờ `inStock`; hết hàng hiện "Tạm hết hàng" và vô hiệu hóa
   các nút mua (kể cả khi gửi yêu cầu giả).
@@ -97,6 +97,57 @@ kẹp ở 20):
 ```powershell
 npm test
 ```
+
+## Thanh toán và đơn hàng (Ngày 5)
+
+- Trang `/thanh-toan` (một trang): người đặt, người nhận ("Giống người
+  đặt" mặc định bật), khu vực giao hàng, phương thức giao (giao nhanh 2
+  giờ / giao trong ngày / hẹn ngày giờ), lời nhắn trên thiệp (tối đa 200
+  ký tự), ghi chú (tối đa 300 ký tự), thanh toán COD hoặc chuyển khoản.
+  Tắt JavaScript vẫn đặt được (form thường, máy chủ kiểm tra lại toàn bộ).
+- Đơn tạo trong một giao dịch DB: giỏ ACTIVE → CONVERTED có điều kiện
+  (chặn đặt trùng khi gửi song song), tính lại toàn bộ số tiền từ dữ liệu
+  máy chủ, mã đơn 10 ký tự Crockford base32. Trang `/don-hang/[mã]` là
+  trang xác nhận kiêm theo dõi đơn (không lập chỉ mục, header
+  `Cache-Control: no-store`).
+- Chuyển khoản: mã QR VietQR tự dựng tại máy chủ (chuỗi payload EMVCo +
+  CRC16), không gọi dịch vụ ngoài. Chỉ hiện lựa chọn "Chuyển khoản" khi
+  đã cấu hình đủ `BANK_BIN`, `BANK_NAME`, `BANK_ACCOUNT`,
+  `BANK_ACCOUNT_NAME` trong `.env`.
+- Các giá trị mặc định tạm (giờ làm việc 07:30–21:00, khung giờ giao,
+  thời gian chuẩn bị tối thiểu 120 phút, đặt trước tối đa 30 ngày, 4 khu
+  vực mẫu) nằm trong `src/config/delivery.ts` — Henry cần xác nhận hoặc
+  sửa trước khi mở bán thật.
+
+### Báo đơn qua Telegram
+
+1. Mở Telegram, nhắn cho `@BotFather`, gửi `/newbot` và làm theo hướng
+   dẫn để lấy token.
+2. Nhắn một tin bất kỳ cho bot vừa tạo.
+3. Mở `https://api.telegram.org/bot<token>/getUpdates` trong trình
+   duyệt, tìm `chat.id` trong kết quả.
+4. Điền `TELEGRAM_BOT_TOKEN` và `TELEGRAM_CHAT_ID` vào `.env`, chạy lại
+   ứng dụng. Thiếu hai biến này thì đơn vẫn tạo bình thường, chỉ không
+   gửi báo.
+
+Gửi lại báo cho các đơn chưa được báo (khi Telegram từng lỗi):
+
+```powershell
+npm run resend:notifications
+```
+
+## Chạy bản standalone (không dùng Docker)
+
+Sau `npm run build`, Next tạo thư mục `.next/standalone/` chứa máy chủ
+độc lập. Script `postbuild` tự xóa `.next/standalone/.env*` (file này có
+thể chứa mật khẩu DB thật) nên không bao giờ chạy máy chủ bằng file đó.
+Chạy bằng biến môi trường từ `.env` của dự án:
+
+```powershell
+node --env-file=.env .next/standalone/server.js
+```
+
+(Ngày 10: chạy trên VPS theo cách này, xem thêm hướng dẫn triển khai.)
 
 ## Thông tin liên hệ
 

@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -81,11 +82,17 @@ export async function ensureCartId(): Promise<string> {
 }
 
 // Id giỏ hợp lệ hiện tại, null nếu không có (không tạo mới).
-export async function getValidCartId(): Promise<string | null> {
+// G-6: bọc bằng React cache() — layout (getCartCount) và trang (getCart)
+// gọi trong cùng một lần tải trang thì chỉ truy vấn DB một lần. Khóa
+// theo cookie token của request (như bài học của getCategoryPage);
+// cookie không đổi trong một request nên cache theo request là đủ.
+// Lưu ý: ensureCartId KHÔNG dùng hàm này mà gọi findValidCart trực
+// tiếp, để không cache nhầm null trước khi tạo giỏ mới.
+export const getValidCartId = cache(async (): Promise<string | null> => {
   const token = await readToken();
   const cart = await findValidCart(token);
   return cart ? cart.id : null;
-}
+});
 
 // Làm mới hạn giỏ mỗi lần ghi.
 async function touchCart(cartId: string): Promise<void> {
@@ -136,49 +143,57 @@ export async function removeItem(cartId: string, itemId: number): Promise<boolea
 // Đọc giỏ kèm dữ liệu sản phẩm hiện tại; giá tính lại bằng getDisplayPrice.
 // Dòng isActive = false hoặc inStock = false → unavailable, không tính
 // vào tạm tính và count.
+//
+// G-6: một câu SQL JOIN duy nhất thay cho findMany của Prisma (trước đây
+// Prisma tách thành 3 truy vấn: cart_items, products, categories). Nhờ
+// vậy một lần tải /gio-hang (2 dòng) chỉ còn 4 truy vấn: danh mục menu,
+// cartId (đã cache), câu này, và SUM của getCartCount.
+type CartRow = {
+  itemId: number;
+  quantity: number;
+  productId: number;
+  name: string;
+  slug: string;
+  price: number;
+  salePrice: number | null;
+  images: string[];
+  isActive: boolean;
+  inStock: boolean;
+  sku: string | null;
+  categorySlug: string;
+  categoryName: string;
+};
+
 export async function getCart(): Promise<CartData> {
   const empty: CartData = { items: [], count: 0, subtotal: 0 };
   const cartId = await getValidCartId();
   if (!cartId) return empty;
-  const rows = await db.cartItem.findMany({
-    where: { cartId },
-    orderBy: { id: "asc" },
-    select: {
-      id: true,
-      quantity: true,
-      product: {
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          price: true,
-          salePrice: true,
-          images: true,
-          isActive: true,
-          inStock: true,
-          sku: true,
-          category: { select: { slug: true, name: true } },
-        },
-      },
-    },
-  });
+  const rows = await db.$queryRaw<CartRow[]>(Prisma.sql`
+    SELECT ci.id AS "itemId", ci.quantity,
+      p.id AS "productId", p.name, p.slug, p.price, p."salePrice", p.images,
+      p."isActive", p."inStock", p.sku,
+      c.slug AS "categorySlug", c.name AS "categoryName"
+    FROM "cart_items" ci
+    JOIN "products" p ON p.id = ci."productId"
+    JOIN "categories" c ON c.id = p."categoryId"
+    WHERE ci."cartId" = ${cartId}
+    ORDER BY ci.id ASC`);
   const items: CartLine[] = rows.map((r) => {
-    const p = r.product;
-    const price = getDisplayPrice(p);
-    const unavailable = !p.isActive || !p.inStock;
+    const price = getDisplayPrice(r);
+    const unavailable = !r.isActive || !r.inStock;
     return {
-      itemId: r.id,
-      productId: p.id,
-      name: p.name,
-      slug: p.slug,
-      categorySlug: p.category.slug,
-      categoryName: p.category.name,
-      image: p.images[0] ?? "/images/placeholder.svg",
+      itemId: r.itemId,
+      productId: r.productId,
+      name: r.name,
+      slug: r.slug,
+      categorySlug: r.categorySlug,
+      categoryName: r.categoryName,
+      image: r.images[0] ?? "/images/placeholder.svg",
       price: price.current,
       originalPrice: price.original,
       quantity: r.quantity,
       lineTotal: unavailable ? 0 : price.current * r.quantity,
-      sku: p.sku,
+      sku: r.sku,
       unavailable,
     };
   });
