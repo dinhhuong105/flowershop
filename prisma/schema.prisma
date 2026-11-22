@@ -57,6 +57,8 @@ model Product {
   tags           String[]   // slug dịp: sinh-nhat, khai-truong, ...
   isFastDelivery Boolean    @default(false)
   isActive       Boolean    @default(true)
+  sku            String?    @unique // mã sản phẩm hiển thị, ví dụ HT-001
+  inStock        Boolean    @default(true) // false = tạm hết hàng (vẫn hiển thị, không cho mua)
   sortOrder      Int        @default(0)
   cartItems      CartItem[]
   orderItems     OrderItem[]

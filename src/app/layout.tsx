@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { siteConfig } from "@/config/site";
 import { getNavCategories } from "@/lib/queries";
+import { getCartCount } from "@/lib/cart";
 import TopBar from "@/components/layout/TopBar";
 import Header from "@/components/layout/Header";
-import UspStrip from "@/components/layout/UspStrip";
 import Footer from "@/components/layout/Footer";
 import FloatingContact from "@/components/layout/FloatingContact";
 import BackToTop from "@/components/ui/BackToTop";
+import Toast from "@/components/ui/Toast";
 import "@fontsource/playfair-display/latin-600.css";
 import "@fontsource/playfair-display/vietnamese-600.css";
 import "./globals.css";
@@ -36,6 +37,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const categories = await getNavCategories();
+  const cartCount = await getCartCount();
   return (
     <html lang="vi">
       {/* Gắn class `js` để hiệu ứng reveal không giấu nội dung khi tắt JS. */}
@@ -52,12 +54,15 @@ export default async function RootLayout({
           Bỏ qua tới nội dung chính
         </a>
         <TopBar />
-        <Header categories={categories} />
+        <Header categories={categories} cartCount={cartCount} />
         <main id="noi-dung-chinh">{children}</main>
-        <UspStrip />
+        {/* Dải USP KHÔNG render ở layout nữa (F-2): trang chủ tự render
+            USP dưới hero; các trang khác render USP trên footer trong
+            chính page của mình. */}
         <Footer />
         <FloatingContact />
         <BackToTop />
+        <Toast />
       </body>
     </html>
   );

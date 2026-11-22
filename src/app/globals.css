@@ -204,6 +204,33 @@
   .animate-ripple-ring {
     animation: ripple-ring 1.2s ease-out 3 both;
   }
+
+  /* Hàng chip cuộn ngang (F-4): thanh cuộn mảnh, giữ cuộn bằng vuốt
+     và bàn phím; không còn vạch xám dày trên di động. */
+  .chip-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line) transparent;
+  }
+  .chip-scroll::-webkit-scrollbar {
+    height: 4px;
+  }
+  .chip-scroll::-webkit-scrollbar-thumb {
+    background-color: var(--color-line);
+    border-radius: 2px;
+  }
+  .chip-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Liên kết kéo dài toàn thẻ (stretched link, Ngày 4): lớp ::after
+     phủ toàn bộ thẻ ProductCard để bấm vào đâu cũng vào trang chi tiết,
+     trừ hai nút (nút nằm trên lớp này nhờ relative + z-10). */
+  .stretched-link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
 }
 
 @keyframes fade-in {
@@ -267,6 +294,28 @@
   }
 }
 
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes qty-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @layer utilities {
   .animate-fade-in {
     animation: fade-in 300ms ease-out both;
@@ -286,6 +335,12 @@
   }
   .animate-pop {
     animation: pop 400ms ease-out both;
+  }
+  .toast-slide-in {
+    animation: toast-in 250ms var(--ease-out) both;
+  }
+  .animate-qty-slide {
+    animation: qty-slide-in 150ms var(--ease-out) both;
   }
 }
 

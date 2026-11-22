@@ -14,6 +14,8 @@ export type HomeCategory = {
 };
 
 // Tóm tắt sản phẩm dùng chung cho thẻ sản phẩm (trang chủ, danh mục).
+// Ngày 4 thêm inStock, sku (để thẻ hiện "Tạm hết hàng" và vô hiệu hóa
+// "Mua ngay" khi hết hàng).
 export type ProductSummary = {
   id: number;
   name: string;
@@ -24,6 +26,8 @@ export type ProductSummary = {
   salePrice: number | null;
   images: string[];
   isFastDelivery: boolean;
+  inStock: boolean;
+  sku: string | null;
 };
 
 export type FeaturedProduct = ProductSummary;
@@ -68,6 +72,8 @@ export async function getHomeData(): Promise<{
       salePrice: true,
       images: true,
       isFastDelivery: true,
+      inStock: true,
+      sku: true,
       categoryId: true,
       category: { select: { slug: true, name: true } },
     },
@@ -88,6 +94,8 @@ export async function getHomeData(): Promise<{
           salePrice: p.salePrice,
           images: p.images,
           isFastDelivery: p.isFastDelivery,
+          inStock: p.inStock,
+          sku: p.sku,
         }),
       );
     return {

@@ -76,6 +76,8 @@ async function fetchCategoryPage(
         salePrice: true,
         images: true,
         isFastDelivery: true,
+        inStock: true,
+        sku: true,
       },
     });
     const byId = new Map(found.map((p) => [p.id, p]));
@@ -93,6 +95,8 @@ async function fetchCategoryPage(
           salePrice: p.salePrice,
           images: p.images,
           isFastDelivery: p.isFastDelivery,
+          inStock: p.inStock,
+          sku: p.sku,
         },
       ];
     });

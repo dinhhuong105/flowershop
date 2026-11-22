@@ -1,10 +1,16 @@
 import Link from "next/link";
 
+// Breadcrumb 2 cấp (Trang chủ › danh mục) hoặc 3 cấp (Trang chủ ›
+// danh mục › sản phẩm, khi truyền productName + categorySlug).
 export default function Breadcrumb({
   categoryName,
+  categorySlug,
+  productName,
   tone = "light",
 }: {
   categoryName: string;
+  categorySlug?: string;
+  productName?: string;
   tone?: "light" | "dark";
 }) {
   const linkClass =
@@ -38,9 +44,28 @@ export default function Breadcrumb({
         <li aria-hidden="true" className={tone === "dark" ? "text-white/60" : "text-muted"}>
           ›
         </li>
-        <li aria-current="page" className={currentClass}>
-          {categoryName}
-        </li>
+        {productName ? (
+          <>
+            <li>
+              <Link
+                href={categorySlug ? `/${categorySlug}` : "#"}
+                className={`flex min-h-11 items-center ${linkClass}`}
+              >
+                {categoryName}
+              </Link>
+            </li>
+            <li aria-hidden="true" className={tone === "dark" ? "text-white/60" : "text-muted"}>
+              ›
+            </li>
+            <li aria-current="page" className={currentClass}>
+              {productName}
+            </li>
+          </>
+        ) : (
+          <li aria-current="page" className={currentClass}>
+            {categoryName}
+          </li>
+        )}
       </ol>
     </nav>
   );

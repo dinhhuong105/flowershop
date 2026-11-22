@@ -6,14 +6,19 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 // cuộn mượt đúng một "trang" thẻ, nút mờ đi (disabled) ở hai đầu,
 // vuốt/kéo tự nhiên. Dùng cho "Sản phẩm liên quan" ở Ngày 4; gói UI-1
 // tạo sẵn theo danh sách file mục 6.
+//
+// gridOnDesktop (Ngày 4): từ 768px trở lên xếp lưới 4 cột, ẩn nút
+// cuộn; dưới 768px vẫn cuộn ngang snap như cũ.
 export default function Carousel({
   children,
   title,
   ariaLabel = "Danh sách sản phẩm",
+  gridOnDesktop = false,
 }: {
   children: ReactNode;
   title?: string;
   ariaLabel?: string;
+  gridOnDesktop?: boolean;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [canPrev, setCanPrev] = useState(false);
@@ -46,7 +51,7 @@ export default function Carousel({
       {title ? (
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-2xl text-ink sm:text-3xl">{title}</h2>
-          <div className="flex gap-2">
+          <div className={`flex gap-2 ${gridOnDesktop ? "md:hidden" : ""}`}>
             <button
               type="button"
               aria-label="Cuộn về trước"
@@ -73,7 +78,11 @@ export default function Carousel({
         onScroll={update}
         role="region"
         aria-label={ariaLabel}
-        className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-2"
+        className={
+          gridOnDesktop
+            ? "mt-6 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-2 md:grid md:grid-cols-4 md:gap-4 md:overflow-visible md:snap-none md:pb-0"
+            : "mt-6 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-2"
+        }
       >
         {children}
       </div>

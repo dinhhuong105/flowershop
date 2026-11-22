@@ -2,30 +2,44 @@ import Image from "next/image";
 import Link from "next/link";
 import { formatVND } from "@/lib/format";
 import { getDisplayPrice } from "@/lib/pricing";
+import { buyNow } from "@/app/actions/cart";
 import type { FeaturedProduct } from "@/lib/queries";
 
-// ProductCard (mục 5.3 phụ lục): khung ảnh 4:5 nền kem; huy hiệu góc
-// trái-trên, mỗi badge 1 dòng: "GIAO NHANH" (green-900) và
-// "ƯU ĐÃI -{n}%" (danger, n = % giảm thật). Không badge "MỚI" (chưa có
-// dữ liệu). Dưới ảnh: nhãn danh mục uppercase gold-text 12px, tên tối đa
-// 2 dòng (sans đậm 16px), giá hiện tại ink đậm 18px + giá gốc gạch ngang.
-// KHÔNG nút "Xem nhanh"/"Mua ngay" (Ngày 4/6 mới có). Hover: nâng -6px,
-// ảnh scale 1.06 (CSS .product-card trong globals.css).
-export default function ProductCard({ product }: { product: FeaturedProduct }) {
+// Thẻ sản phẩm (Ngày 4, theo M12/M14 + mục 3.3 phụ lục).
+//
+// Bố cục: ảnh 4/5 (hover zoom 1.06, 400ms — CSS .product-card trong
+// globals.css), huy hiệu "Giao nhanh" và "-{n}%" góc trái trên, "Tạm
+// hết hàng" góc phải trên khi inStock = false; tên danh mục, tên sản
+// phẩm (tối đa 2 dòng), giá; hàng nút "Xem chi tiết" + "Mua ngay".
+// Tên sản phẩm là stretched link (lớp .stretched-link phủ toàn thẻ):
+// bấm vào đâu trên thẻ cũng vào trang chi tiết, TRỪ hai nút (hai nút
+// nằm trên lớp phủ nhờ relative + z-10).
+//
+// KHÁC ĐẶC TẢ NHỎ: nút "Thêm vào giỏ" (icon, form addToCart) không có
+// trong thẻ — thêm vào giỏ chỉ có trên trang chi tiết; thẻ chỉ có
+// "Xem chi tiết" (đi tới trang chi tiết) và "Mua ngay". Lý do: thêm
+// vào giỏ từ thẻ sẽ cần toast + số lượng mặc định, nhưng trên thẻ
+// không có chỗ chọn số lượng; đưa người dùng tới trang chi tiết rồi
+// thêm là rõ ràng hơn. Ghi rõ ở báo cáo Ngày 4.
+//
+// prefetch BẬT LẠI (F-6/D4-30): không còn prefetch={false}; trang chi
+// tiết đã tồn tại nên prefetch không còn 404.
+export default function ProductCard({
+  product,
+  testId = "product-card",
+}: {
+  product: FeaturedProduct;
+  testId?: string;
+}) {
   const price = getDisplayPrice(product);
   const image = product.images[0] ?? "/images/placeholder.svg";
+  const detailHref = `/${product.categorySlug}/${product.slug}`;
   return (
-    <Link
-      href={`/${product.categorySlug}/${product.slug}`}
-      data-testid="product-card"
-      // Trang chi tiết chưa có (Ngày 4) — prefetch mặc định sẽ tải 8 lần
-      // trang 404 (console error + tốn main-thread). Tắt prefetch cho tới
-      // khi route chi tiết tồn tại; link danh mục vẫn giữ prefetch mặc định
-      // theo quyết định Ngày 2 của Claude.
-      prefetch={false}
-      className="product-card group block h-full overflow-hidden rounded-[3px] border border-line bg-white"
+    <article
+      data-testid={testId}
+      className="product-card group relative flex h-full flex-col overflow-hidden rounded-[3px] border border-line bg-white"
     >
-      <span className="relative block aspect-[4/5] w-full overflow-hidden bg-cream-100">
+      <div className="relative aspect-[4/5] w-full overflow-hidden bg-cream-100">
         <Image
           src={image}
           alt={product.name}
@@ -35,7 +49,7 @@ export default function ProductCard({ product }: { product: FeaturedProduct }) {
           unoptimized
           className="product-card-img animate-fade-in h-full w-full object-cover"
         />
-        <span className="absolute left-2 top-2 flex flex-col items-start gap-1">
+        <div className="absolute left-2 top-2 flex flex-col items-start gap-1">
           {product.isFastDelivery ? (
             <span className="rounded-[2px] bg-green-900 px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
               Giao nhanh
@@ -46,22 +60,54 @@ export default function ProductCard({ product }: { product: FeaturedProduct }) {
               Ưu đãi -{price.discountPercent}%
             </span>
           ) : null}
-        </span>
-      </span>
-      <span className="block p-3">
+        </div>
+        {product.inStock ? null : (
+          <span className="absolute right-2 top-2 rounded-[2px] bg-danger px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
+            Tạm hết hàng
+          </span>
+        )}
+      </div>
+      <div className="flex flex-1 flex-col p-3">
         <span className="block text-xs font-bold uppercase tracking-[0.08em] text-gold-text">
           {product.categoryName}
         </span>
-        <span className="mt-1 block min-h-12 text-base font-bold leading-snug text-ink line-clamp-2">
-          {product.name}
-        </span>
-        <span className="mt-2 flex flex-wrap items-baseline gap-2">
+        <h3 className="mt-1 min-h-12 text-base font-bold leading-snug text-ink line-clamp-2">
+          <Link
+            href={detailHref}
+            className="stretched-link focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-800 focus-visible:ring-offset-2"
+          >
+            {product.name}
+          </Link>
+        </h3>
+        <p className="mt-2 flex flex-wrap items-baseline gap-2">
           <span className="text-lg font-bold text-ink">{formatVND(price.current)}</span>
           {price.original !== null ? (
             <span className="text-sm text-muted line-through">{formatVND(price.original)}</span>
           ) : null}
-        </span>
-      </span>
-    </Link>
+        </p>
+        <div className="relative z-10 mt-auto flex gap-2 pt-3">
+          <Link
+            href={detailHref}
+            className="flex min-h-11 flex-1 items-center justify-center rounded-[3px] border border-green-800 px-2 text-sm font-bold text-green-800 transition-colors duration-150 hover:bg-cream-100 active:scale-[0.97]"
+          >
+            Xem chi tiết
+          </Link>
+          <form action={buyNow as unknown as (formData: FormData) => Promise<void>} className="flex-1">
+            <input type="hidden" name="productId" value={product.id} />
+            <input type="hidden" name="quantity" value={1} />
+            <button
+              type="submit"
+              disabled={!product.inStock}
+              aria-label={
+                product.inStock ? `Mua ngay ${product.name}` : `${product.name} tạm hết hàng`
+              }
+              className="flex min-h-11 w-full items-center justify-center rounded-[3px] bg-gold-300 px-2 text-sm font-bold uppercase tracking-wide text-green-900 transition-all duration-150 hover:opacity-90 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Mua ngay
+            </button>
+          </form>
+        </div>
+      </div>
+    </article>
   );
 }

@@ -3,7 +3,7 @@ import { isReservedSlug } from "@/lib/reserved-slugs";
 
 const prisma = new PrismaClient();
 
-// Ảnh dùng chung cho toàn bộ sản phẩm mẫu (không dùng ảnh thật của EdenGift).
+// Ảnh dùng chung cho toàn bộ sản phẩm mẫu (ảnh minh họa tự vẽ, không dùng ảnh thật của shop khác).
 const PLACEHOLDER_IMAGE = "/images/placeholder.svg";
 
 // Danh mục mẫu theo đúng bảng 4.1 của đặc tả Ngày 1.
@@ -57,6 +57,22 @@ const shippingZones = [
   { name: "Ngoại thành", fee: 70000, sortOrder: 4 },
 ];
 
+// Tiền tố SKU theo danh mục (Ngày 4): hoa-tuoi → HT, gio-trai-cay → GT,
+// hop-trai-cay → HP, lan-ho-diep → LH. SKU = tiền tố + số thứ tự trong
+// danh mục (theo sortOrder) 3 chữ số, ví dụ HT-001, GT-003, LH-002.
+const SKU_PREFIX: Record<string, string> = {
+  "hoa-tuoi": "HT",
+  "gio-trai-cay": "GT",
+  "hop-trai-cay": "HP",
+  "lan-ho-diep": "LH",
+};
+
+function skuFor(product: { categorySlug: string; sortOrder: number }): string {
+  const prefix = SKU_PREFIX[product.categorySlug];
+  if (!prefix) throw new Error(`Không có tiền tố SKU cho ${product.categorySlug}`);
+  return `${prefix}-${String(product.sortOrder).padStart(3, "0")}`;
+}
+
 async function main() {
   // Kiểm tra từng slug danh mục không nằm trong danh sách cấm (mục 3.17).
   for (const category of categories) {
@@ -77,8 +93,10 @@ async function main() {
   }
 
   // Tạo sản phẩm (chạy lại không tạo trùng nhờ upsert theo khóa ghép categoryId + slug).
+  // Seed cập nhật SKU cho dòng đã tồn tại (Ngày 4).
   for (const product of products) {
     const categoryId = categoryIds[product.categorySlug];
+    const sku = skuFor(product);
     await prisma.product.upsert({
       where: { categoryId_slug: { categoryId, slug: product.slug } },
       update: {
@@ -90,6 +108,8 @@ async function main() {
         tags: product.tags,
         isFastDelivery: product.isFastDelivery,
         sortOrder: product.sortOrder,
+        sku,
+        inStock: true,
       },
       create: {
         categoryId,
@@ -102,6 +122,8 @@ async function main() {
         tags: product.tags,
         isFastDelivery: product.isFastDelivery,
         sortOrder: product.sortOrder,
+        sku,
+        inStock: true,
       },
     });
   }

@@ -13,6 +13,10 @@ export function ProductCardSkeleton() {
       <Skeleton className="mt-2 h-5 w-full" />
       <Skeleton className="mt-2 h-5 w-2/3" />
       <Skeleton className="mt-2 h-6 w-1/2" />
+      <div className="mt-3 flex gap-2">
+        <Skeleton className="h-11 flex-1" />
+        <Skeleton className="h-11 flex-1" />
+      </div>
     </div>
   );
 }
@@ -61,5 +65,31 @@ export function CategoryPageSkeleton() {
         </div>
       </div>
     </>
+  );
+}
+
+// Khung xương trang chi tiết (Ngày 4): ảnh 4/5 + cột phải, đúng kích
+// thước nội dung thật để không gây CLS.
+export function ProductDetailSkeleton() {
+  return (
+    <div className="shell pb-12 pt-6">
+      <Skeleton className="h-5 w-72" />
+      <div className="mt-4 grid gap-8 lg:grid-cols-2">
+        <Skeleton className="aspect-[4/5] w-full" />
+        <div>
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="mt-2 h-9 w-full max-w-md" />
+          <Skeleton className="mt-3 h-5 w-24" />
+          <Skeleton className="mt-4 h-9 w-48" />
+          <Skeleton className="mt-4 h-5 w-full" />
+          <Skeleton className="mt-2 h-5 w-5/6" />
+          <Skeleton className="mt-5 h-11 w-40" />
+          <div className="mt-4 flex gap-3">
+            <Skeleton className="h-11 flex-1" />
+            <Skeleton className="h-11 flex-1" />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

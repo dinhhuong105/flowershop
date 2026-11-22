@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { siteConfig } from "@/config/site";
@@ -38,9 +38,29 @@ function LogoMark() {
   );
 }
 
-export default function Header({ categories }: { categories: NavCategory[] }) {
+export default function Header({
+  categories,
+  cartCount,
+}: {
+  categories: NavCategory[];
+  cartCount: number;
+}) {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
+  // Hiệu ứng bump (mục 4.4): khi cartCount TĂNG, biểu tượng giỏ scale
+  // 1 → 1.25 → 1 trong 400ms (lớp animate-pop có sẵn) và huy hiệu pop.
+  const prevCount = useRef(cartCount);
+  const [bump, setBump] = useState(false);
+
+  useEffect(() => {
+    if (cartCount > prevCount.current) {
+      setBump(true);
+      const id = window.setTimeout(() => setBump(false), 400);
+      prevCount.current = cartCount;
+      return () => window.clearTimeout(id);
+    }
+    prevCount.current = cartCount;
+  }, [cartCount]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -95,24 +115,36 @@ export default function Header({ categories }: { categories: NavCategory[] }) {
         <div className="ml-auto flex items-center gap-1 sm:gap-2 lg:ml-0">
           <Link
             href="/gio-hang"
-            aria-label="Giỏ hàng"
-            className="flex min-h-11 items-center gap-2 rounded-[3px] px-2 text-ink transition-colors duration-150 hover:bg-cream-100 hover:text-green-800"
+            aria-label={cartCount > 0 ? `Giỏ hàng, ${cartCount} sản phẩm` : "Giỏ hàng"}
+            className="relative flex min-h-11 items-center gap-2 rounded-[3px] px-2 text-ink transition-colors duration-150 hover:bg-cream-100 hover:text-green-800"
           >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M6 7h12l1.2 13.2a1 1 0 0 1-1 1.1H5.8a1 1 0 0 1-1-1.1L6 7Z" />
-              <path d="M9 10V6a3 3 0 0 1 6 0v4" />
-            </svg>
+            <span className={bump ? "animate-pop inline-flex" : "inline-flex"}>
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M6 7h12l1.2 13.2a1 1 0 0 1-1 1.1H5.8a1 1 0 0 1-1-1.1L6 7Z" />
+                <path d="M9 10V6a3 3 0 0 1 6 0v4" />
+              </svg>
+            </span>
             <span className="hidden text-sm font-semibold sm:inline">Giỏ hàng</span>
+            {cartCount > 0 ? (
+              <span
+                data-testid="cart-count"
+                className={`absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[11px] font-bold text-white ${
+                  bump ? "animate-pop" : ""
+                }`}
+              >
+                {cartCount > 9 ? "9+" : cartCount}
+              </span>
+            ) : null}
           </Link>
           <MobileMenu categories={categories} />
         </div>

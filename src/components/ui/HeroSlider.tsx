@@ -12,10 +12,14 @@ import type { HeroSlide } from "@/config/home";
 // slide đang hiện nên không có 3 thẻ h1 trùng nhau trong DOM.
 export default function HeroSlider({ slides }: { slides: HeroSlide[] }) {
   const [active, setActive] = useState(0);
-  const [paused, setPaused] = useState(false);
+  // F-5: tách tạm dừng do người dùng bấm nút (dính cho tới khi bấm phát)
+  // khỏi tạm dừng thoáng qua do hover/focus/chạm.
+  const [userPaused, setUserPaused] = useState(false);
+  const [transientPaused, setTransientPaused] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const touchX = useRef<number | null>(null);
   const total = slides.length;
+  const paused = userPaused || transientPaused;
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -32,6 +36,8 @@ export default function HeroSlider({ slides }: { slides: HeroSlide[] }) {
   const next = useCallback(() => goTo(active + 1), [active, goTo]);
   const prev = useCallback(() => goTo(active - 1), [active, goTo]);
 
+  // Bộ đếm 6 giây đặt lại mỗi khi slide đổi (kể cả chuyển thủ công):
+  // effect phụ thuộc `active` nên interval được tạo lại sau mỗi lần đổi.
   useEffect(() => {
     if (paused || reducedMotion || total <= 1) return;
     const id = window.setInterval(() => {
@@ -45,7 +51,7 @@ export default function HeroSlider({ slides }: { slides: HeroSlide[] }) {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [paused, reducedMotion, total]);
+  }, [paused, reducedMotion, total, active]);
 
   const onKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === "ArrowRight") {
@@ -59,12 +65,12 @@ export default function HeroSlider({ slides }: { slides: HeroSlide[] }) {
 
   const onTouchStart = (event: React.TouchEvent) => {
     touchX.current = event.touches[0].clientX;
-    setPaused(true);
+    setTransientPaused(true);
   };
   const onTouchEnd = (event: React.TouchEvent) => {
     const startX = touchX.current;
     touchX.current = null;
-    setPaused(false);
+    setTransientPaused(false);
     if (startX === null) return;
     const delta = event.changedTouches[0].clientX - startX;
     if (delta < -50) next();
@@ -80,10 +86,10 @@ export default function HeroSlider({ slides }: { slides: HeroSlide[] }) {
       aria-roledescription="carousel"
       aria-label="Hoa nổi bật"
       onKeyDown={onKeyDown}
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onFocus={() => setPaused(true)}
-      onBlur={() => setPaused(false)}
+      onMouseEnter={() => setTransientPaused(true)}
+      onMouseLeave={() => setTransientPaused(false)}
+      onFocus={() => setTransientPaused(true)}
+      onBlur={() => setTransientPaused(false)}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
       className="relative overflow-hidden bg-green-900 text-white"
@@ -174,6 +180,28 @@ export default function HeroSlider({ slides }: { slides: HeroSlide[] }) {
           </button>
         ))}
       </div>
+
+      {/* F-5: nút Tạm dừng/Phát (WCAG 2.2.2) — bấm tạm dừng thì slider
+          không tự chạy lại cho tới khi người dùng bấm phát. */}
+      <button
+        type="button"
+        data-testid="hero-pause-toggle"
+        aria-label={userPaused ? "Phát trình chiếu" : "Tạm dừng trình chiếu"}
+        aria-pressed={userPaused}
+        onClick={() => setUserPaused((p) => !p)}
+        className={`${arrowClass} absolute bottom-4 right-3 flex`}
+      >
+        {userPaused ? (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M7 4.5v15l13-7.5-13-7.5Z" />
+          </svg>
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <rect x="6" y="4" width="4" height="16" rx="1" />
+            <rect x="14" y="4" width="4" height="16" rx="1" />
+          </svg>
+        )}
+      </button>
     </section>
   );
 }

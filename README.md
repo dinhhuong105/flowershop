@@ -65,6 +65,39 @@ Tham số của trang danh mục (kết hợp được, giá trị sai bị bỏ
 | `sx` | `gia-tang`, `gia-giam` | Sắp xếp theo giá hiện tại |
 | `trang` | số nguyên dương | Trang hiện tại (8 sản phẩm/trang) |
 
+## Giỏ hàng (Ngày 4)
+
+Giỏ hàng lưu trong cơ sở dữ liệu, nhận diện bằng cookie `cart_token`
+(`HttpOnly`, `SameSite=Lax`, `Path=/`, hạn 30 ngày). Chỉ xem trang không
+tạo giỏ; giỏ chỉ được tạo khi thêm món lần đầu.
+
+- Trang chi tiết `/<slug-danh-mục>/<slug-sản-phẩm>`: thư viện ảnh, giá
+  (giá gốc gạch ngang + "Tiết kiệm" khi có giảm giá), chọn số lượng 1–20,
+  "Thêm vào giỏ hàng" (toast + huy hiệu header) và "Mua ngay" (chuyển tới
+  `/gio-hang`). Cả hai nút đều là form + Server Action nên dùng được khi
+  tắt JavaScript.
+- Trang giỏ `/gio-hang`: đổi số lượng, xóa dòng, tạm tính theo giá hiện
+  tại trong DB (đổi giá bằng SQL phản ánh ngay). Nút "Tiến hành thanh
+  toán" đang vô hiệu — thanh toán mở ở Ngày 5.
+- Mỗi sản phẩm có mã `SKU` (quy tắc: tiền tố danh mục + số thứ tự, vd
+  `HT-001`) và cờ `inStock`; hết hàng hiện "Tạm hết hàng" và vô hiệu hóa
+  các nút mua (kể cả khi gửi yêu cầu giả).
+- Sản phẩm liên quan: tối đa 4, cùng danh mục trước rồi lấy bù từ danh
+  mục khác.
+
+Dọn giỏ hết hạn (không có đơn hàng) — chạy định kỳ, vd bằng cron:
+
+```powershell
+npm run cleanup:carts
+```
+
+Kiểm tra song song (10 lệnh thêm đồng thời rồi thêm 30 nữa, số lượng
+kẹp ở 20):
+
+```powershell
+npm test
+```
+
 ## Thông tin liên hệ
 
 Hotline, Zalo, địa chỉ và giờ mở cửa đọc từ file `.env`, đổi không cần sửa code:

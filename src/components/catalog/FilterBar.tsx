@@ -25,7 +25,7 @@ export default function FilterBar({
     <div className="mt-5 space-y-4">
       <div role="group" aria-label="Dịp">
         <p className="mb-2 text-sm font-semibold text-ink">Dịp</p>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="chip-scroll flex gap-2 overflow-x-auto pb-1">
           <Link
             href={buildCatalogHref(slug, params, { dip: null })}
             aria-current={params.dip === null ? "true" : undefined}
@@ -47,7 +47,7 @@ export default function FilterBar({
       </div>
       <div role="group" aria-label="Khoảng giá">
         <p className="mb-2 text-sm font-semibold text-ink">Khoảng giá</p>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="chip-scroll flex gap-2 overflow-x-auto pb-1">
           <Link
             href={buildCatalogHref(slug, params, { gia: null })}
             aria-current={params.gia === null ? "true" : undefined}

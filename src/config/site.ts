@@ -60,6 +60,18 @@ export const siteConfig = {
   ],
   // Chưa có URL mạng xã hội thật nào → mảng rỗng, footer không render icon.
   socialLinks: [] as Array<{ label: string; href: string }>,
+
+  // Nhãn huy hiệu "Giao nhanh" trên ảnh sản phẩm (Ngày 4).
+  fastDeliveryLabel: "Giao nhanh",
+
+  // Dòng phụ về giao hàng trên trang chi tiết (Ngày 4, vd "Giao trong 4h",
+  // "Hỗ trợ phí giao"): mặc định RỖNG → không hiện dòng nào, vì chưa có
+  // chính sách thật do Henry xác nhận.
+  deliveryNotes: [] as string[],
+
+  // Khối cam kết trên trang chi tiết (Ngày 4): mặc định RỖNG → ẩn cả khối.
+  // Khi Henry cung cấp nội dung thật, điền mảng { title, text } vào đây.
+  commitments: [] as Array<{ title: string; text: string }>,
 };
 
 // Dịp tặng hoa dùng cho trang chủ (liên kết tới /hoa-tuoi?dip=<slug>, trang đó làm ở Ngày 3)

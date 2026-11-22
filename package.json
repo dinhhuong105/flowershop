@@ -27,10 +27,11 @@
     "build": "next build",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
+    "cleanup:carts": "tsx scripts/cleanup-carts.ts",
     "dev": "next dev",
     "lint": "eslint",
     "start": "next start",
-    "test": "tsx --test src/lib/catalog-params.test.ts",
+    "test": "tsx --test src/lib/catalog-params.test.ts src/lib/cart-rules.test.ts src/lib/related.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "version": "0.1.0"

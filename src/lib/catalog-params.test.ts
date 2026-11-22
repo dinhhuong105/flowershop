@@ -42,6 +42,13 @@ describe("parseCatalogParams", () => {
     assert.equal(parseCatalogParams({ trang: "12" }).trang, 12);
   });
 
+  it("trang quá lớn bị chặn trần ở 10000 (F-1)", () => {
+    assert.equal(parseCatalogParams({ trang: "10000" }).trang, 10000);
+    assert.equal(parseCatalogParams({ trang: "10001" }).trang, 10000);
+    assert.equal(parseCatalogParams({ trang: "99999999999" }).trang, 10000);
+    assert.equal(parseCatalogParams({ trang: "9007199254740991" }).trang, 10000);
+  });
+
   it("tham số lặp lấy giá trị đầu tiên", () => {
     assert.deepEqual(
       parseCatalogParams({ dip: ["sinh-nhat", "khai-truong"] }),

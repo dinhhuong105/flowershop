@@ -10,6 +10,7 @@ import ProductGrid from "@/components/catalog/ProductGrid";
 import Pagination from "@/components/catalog/Pagination";
 import EmptyState from "@/components/catalog/EmptyState";
 import SortForm from "@/components/catalog/SortForm";
+import UspStrip from "@/components/layout/UspStrip";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,16 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   const { category: slug } = await params;
   const parsed = parseCatalogParams(await searchParams);
   const data = await getCategoryPage(slug, parsed);
-  if (!data) return {};
+  // notFound() ở đây để HTTP trả đúng 404. LƯU Ý (Ngày 4): Next 15.5.29
+  // + `loading.tsx` trong cây route làm notFound() chỉ render giao diện
+  // 404 với HTTP 200 (đã đo: chỉ cần MỘT loading.tsx là mọi notFound()
+  // trong cây đó đều trả 200). Vì vậy đã GỠ src/app/loading.tsx và
+  // src/app/[category]/loading.tsx; trang chi tiết giữ skeleton nhờ
+  // layout [product]/layout.tsx kiểm tra sản phẩm trước (xem file đó).
+  if (!data) notFound();
+  if (data.totalPages === 0 ? parsed.trang !== 1 : parsed.trang > data.totalPages) {
+    notFound();
+  }
   const { category } = data;
   const canonical =
     parsed.trang > 1 && !hasActiveFilter(parsed) ? `/${slug}?trang=${parsed.trang}` : `/${slug}`;
@@ -111,6 +121,8 @@ export default async function CategoryPage({ params, searchParams }: Props) {
         )}
         <Pagination slug={slug} params={parsed} totalPages={totalPages} />
       </div>
+      {/* Dải USP trên footer (F-2; trang chủ đã có USP riêng dưới hero). */}
+      <UspStrip />
     </>
   );
 }

@@ -30,7 +30,9 @@ export function parseCatalogParams(
   let trang = 1;
   if (trangRaw !== undefined && /^\d+$/.test(trangRaw)) {
     const n = Number(trangRaw);
-    if (Number.isSafeInteger(n) && n >= 1) trang = n;
+    // Chặn trần (F-1): trang lớn hơn 10000 bị tính là 10000, rồi trang
+    // danh mục trả 404 như thường (tránh OFFSET vượt kiểu số).
+    if (Number.isSafeInteger(n) && n >= 1) trang = Math.min(n, 10000);
   }
 
   return {
