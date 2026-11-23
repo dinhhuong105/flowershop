@@ -72,7 +72,7 @@ export async function placeOrder(
   }
 
   const cartId = await getValidCartId();
-  if (!cartId) redirect("/gio-hang");
+  if (!cartId) redirect("/cart");
 
   const now = new Date();
   const zoneId = Number(values.zoneId);
@@ -144,7 +144,7 @@ export async function placeOrder(
       return fail(values, {}, error.message);
     }
     if (error instanceof EmptyCartError) {
-      redirect("/gio-hang");
+      redirect("/cart");
     }
     console.error("[placeOrder] Lỗi không lường trước:", error instanceof Error ? error.message : error);
     return fail(values, {}, "Đã có lỗi xảy ra, vui lòng thử lại.");
@@ -159,5 +159,5 @@ export async function placeOrder(
   store.delete(CART_COOKIE);
   revalidatePath("/", "layout");
   after(() => sendOrderNotification(order.id));
-  redirect(`/don-hang/${order.code}`);
+  redirect(`/order/${order.code}`);
 }

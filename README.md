@@ -54,7 +54,15 @@ URL tối đa 2 cấp. Trang danh mục ở cấp 1, trang chi tiết sản ph�
 | `/` | Trang chủ |
 | `/<slug-danh-mục>` | Trang danh mục, ví dụ `/hoa-tuoi` |
 | `/<slug-danh-mục>/<slug-sản-phẩm>` | Trang chi tiết sản phẩm (Ngày 4) |
-| `/gio-hang`, `/thanh-toan` | Giỏ hàng, thanh toán (Ngày 4–5) |
+| `/cart`, `/checkout` | Giỏ hàng, thanh toán (Ngày 4–5) |
+| `/search` | Tìm kiếm không phân biệt dấu (Ngày 6) |
+| `/order/[mã]` | Trang xác nhận/đơn hàng (Ngày 5) |
+| `/login`, `/admin` | Đăng nhập và trang quản trị (Ngày 7) |
+
+URL cũ tiếng Việt (`/gio-hang`, `/thanh-toan`, `/tim-kiem`,
+`/don-hang`) chuyển 301 vĩnh viễn sang URL tiếng Anh tương ứng
+(quyết định của Henry, Ngày 7). Slug danh mục/sản phẩm lấy từ DB
+vẫn giữ tiếng Việt.
 
 Tham số của trang danh mục (kết hợp được, giá trị sai bị bỏ qua):
 
@@ -74,11 +82,11 @@ tạo giỏ; giỏ chỉ được tạo khi thêm món lần đầu.
 - Trang chi tiết `/<slug-danh-mục>/<slug-sản-phẩm>`: thư viện ảnh, giá
   (giá gốc gạch ngang + "Tiết kiệm" khi có giảm giá), chọn số lượng 1–20,
   "Thêm vào giỏ hàng" (toast + huy hiệu header) và "Mua ngay" (chuyển tới
-  `/gio-hang`). Cả hai nút đều là form + Server Action nên dùng được khi
+  `/cart`). Cả hai nút đều là form + Server Action nên dùng được khi
   tắt JavaScript.
-- Trang giỏ `/gio-hang`: đổi số lượng, xóa dòng, tạm tính theo giá hiện
+- Trang giỏ `/cart`: đổi số lượng, xóa dòng, tạm tính theo giá hiện
   tại trong DB (đổi giá bằng SQL phản ánh ngay). Nút "Tiến hành thanh
-  toán" dẫn tới `/thanh-toan` (Ngày 5).
+  toán" dẫn tới `/checkout` (Ngày 5).
 - Mỗi sản phẩm có mã `SKU` (quy tắc: tiền tố danh mục + số thứ tự, vd
   `HT-001`) và cờ `inStock`; hết hàng hiện "Tạm hết hàng" và vô hiệu hóa
   các nút mua (kể cả khi gửi yêu cầu giả).
@@ -100,14 +108,14 @@ npm test
 
 ## Thanh toán và đơn hàng (Ngày 5)
 
-- Trang `/thanh-toan` (một trang): người đặt, người nhận ("Giống người
+- Trang `/checkout` (một trang): người đặt, người nhận ("Giống người
   đặt" mặc định bật), khu vực giao hàng, phương thức giao (giao nhanh 2
   giờ / giao trong ngày / hẹn ngày giờ), lời nhắn trên thiệp (tối đa 200
   ký tự), ghi chú (tối đa 300 ký tự), thanh toán COD hoặc chuyển khoản.
   Tắt JavaScript vẫn đặt được (form thường, máy chủ kiểm tra lại toàn bộ).
 - Đơn tạo trong một giao dịch DB: giỏ ACTIVE → CONVERTED có điều kiện
   (chặn đặt trùng khi gửi song song), tính lại toàn bộ số tiền từ dữ liệu
-  máy chủ, mã đơn 10 ký tự Crockford base32. Trang `/don-hang/[mã]` là
+  máy chủ, mã đơn 10 ký tự Crockford base32. Trang `/order/[mã]` là
   trang xác nhận kiêm theo dõi đơn (không lập chỉ mục, header
   `Cache-Control: no-store`).
 - Chuyển khoản: mã QR VietQR tự dựng tại máy chủ (chuỗi payload EMVCo +
@@ -138,7 +146,7 @@ npm run resend:notifications
 
 ## Tìm kiếm và "Xem nhanh" (Ngày 6)
 
-- Tìm kiếm không phân biệt dấu (`/tim-kiem`): tìm trong tên, SKU, tên
+- Tìm kiếm không phân biệt dấu (`/search`): tìm trong tên, SKU, tên
   danh mục và tag; mỗi từ phải xuất hiện dưới dạng chuỗi con (phép AND);
   xếp hạng: tên chứa đủ mọi từ đứng trước, rồi `sortOrder` danh mục,
   rồi `sortOrder` sản phẩm, rồi `id`. Ô tìm trên header kèm gợi ý
@@ -153,6 +161,62 @@ npm run resend:notifications
   mở cửa sổ `<dialog>` (tải lười); khối "Những thiết kế đồng điệu" ở
   trang chi tiết giữ nút "Xem chi tiết". Tắt JS thì nút là liên kết
   tới trang chi tiết nên vẫn hoạt động.
+
+## Trang quản trị (Ngày 7)
+
+Đăng nhập bằng **tài khoản + mật khẩu** tại `/login`; quản lý sản
+phẩm tại `/admin/products` (danh sách gồm cả sản phẩm đã ẩn, thêm/sửa/
+ẩn, tải ảnh lên). Không có quản lý đơn hàng (Ngày 8), không xóa cứng
+sản phẩm (chỉ ẩn).
+
+```powershell
+# Tạo hash mật khẩu (mật khẩu đọc từ stdin, không qua tham số dòng lệnh)
+echo -n '<mật khẩu>' | npx tsx scripts/hash-admin-password.ts
+```
+
+Điền vào `.env` (xem `.env.example`):
+
+- `ADMIN_USERNAME` — mặc định `admin` khi không đặt.
+- `ADMIN_PASSWORD_HASH` — dạng `scrypt$<saltHex>$<hashHex>` do script
+  trên in ra. Thiếu hoặc sai định dạng thì mọi `/admin/*` và `/login`
+  trả **503** "Chưa cấu hình quản trị".
+- `ADMIN_COOKIE_SECURE=false` — chỉ để thử qua HTTP; **không tắt trên
+  VPS thật** (mặc định `Secure` khi `NODE_ENV=production`).
+
+Phiên đăng nhập: cookie `admin_session` (`HttpOnly`, `SameSite=Strict`,
+`Path=/`), hết hạn tuyệt đối 12 giờ; DB chỉ lưu hash sha256 của token.
+Giới hạn thử sai: quá 5 lần sai trong 15 phút theo IP, hoặc 20 lần sai
+toàn hệ thống, thì trả 429. IP lấy từ header `X-Forwarded-For` (phần
+tử đầu) do reverse proxy đặt, dự phòng `X-Real-IP` — khi chạy sau
+Caddy/Nginx phải chắc proxy chuyển tiếp header này, nếu không mọi
+lần thử sẽ tính chung một IP.
+
+### Ảnh tải lên
+
+- Tải lên qua `POST /api/admin/upload` (chỉ JPEG/PNG/WebP theo magic
+  bytes, ≤ 5 MB/ảnh, ≤ 6 ảnh/sản phẩm). Tên file do máy chủ sinh
+  (`<12 ký tự đầu sha256>.<ext>`), lưu ở `UPLOAD_DIR` (mặc định
+  `./data/uploads`, tự tạo; thư mục `data/` không commit lên Git).
+  Ảnh phục vụ ở `/uploads/<tên>` (header `immutable`, `nosniff`).
+- Ảnh không qua xử lý `sharp` (chưa có trong bản build): lưu nguyên
+  file đã kiểm, không xoay theo EXIF, không bỏ metadata.
+- Dọn file mồ côi (không sản phẩm nào dùng, cũ hơn 24 giờ):
+  `npx tsx scripts/prune-uploads.ts` (chỉ liệt kê) hoặc thêm
+  `--delete` để xóa thật.
+
+**Volume trên VPS (Ngày 10):** ảnh tải lên phải nằm ngoài image
+Docker (volume) và ghi được bởi user không phải root của container —
+vd trong `docker-compose.yml` thêm:
+
+```yaml
+volumes:
+  - uploads:/app/data/uploads
+```
+
+(kèm `UPLOAD_DIR=/app/data/uploads`). Ngày 7 chưa sửa
+`Dockerfile`/`docker-compose.yml`; việc thêm volume quyết cùng Henry
+ở Ngày 10. **Trên Vercel ảnh tải lên không bền** (filesystem tạm,
+mất khi redeploy) — chỉ dùng để xem thử, xử lý ở Ngày 10 VPS.
 
 ## Chạy bản standalone (không dùng Docker)
 

@@ -14,7 +14,7 @@ import { formatVND } from "@/lib/format";
 //
 // Truy cập (mẫu combobox): danh sách role="listbox", các mục
 // role="option"; phím ↓/↑ di chuyển, Enter chọn (mục đang chọn thì
-// tới trang sản phẩm; không chọn gì thì form gửi tới /tim-kiem?q=),
+// tới trang sản phẩm; không chọn gì thì form gửi tới /search?q=),
 // Esc đóng. Số kết quả đọc qua vùng aria-live="polite".
 // Chuyển động: hộp gợi ý opacity + translateY(-4px → 0) 150 ms; mục
 // đang chọn đổi nền 100 ms; reduced-motion tắt chuyển động (globals.css).
@@ -130,7 +130,7 @@ export default function SearchSuggestions({
         onNavigate?.();
         router.push(`/${item.categorySlug}/${item.slug}`);
       }
-      // Enter khi không chọn gì: để form gửi mặc định tới /tim-kiem?q=.
+      // Enter khi không chọn gì: để form gửi mặc định tới /search?q=.
     };
 
     const onBlur = (event: FocusEvent) => {
@@ -220,7 +220,7 @@ export default function SearchSuggestions({
           </ul>
         )}
         <Link
-          href={`/tim-kiem?q=${encodeURIComponent(query)}`}
+          href={`/search?q=${encodeURIComponent(query)}`}
           onClick={onNavigate}
           data-testid="search-suggestions-all"
           className="block border-t border-line bg-cream-100 px-4 py-2.5 text-sm font-semibold text-green-800 hover:underline"

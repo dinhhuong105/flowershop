@@ -88,14 +88,14 @@ export async function buyNow(formData: FormData): Promise<never> {
   const productId = parseIntField(formData, "productId");
   const qty = parseIntField(formData, "quantity");
   if (productId === null || qty === null || !isValidQuantity(qty)) {
-    redirect("/gio-hang");
+    redirect("/cart");
   }
   const product = await db.product.findUnique({
     where: { id: productId },
     select: { isActive: true, inStock: true },
   });
   if (!product || !product.isActive || !product.inStock) {
-    redirect("/gio-hang");
+    redirect("/cart");
   }
   const cartId = await ensureCartId();
   await addItem(cartId, productId, qty);

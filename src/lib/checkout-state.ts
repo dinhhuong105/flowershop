@@ -2,7 +2,7 @@
 // placeOrder và CheckoutForm). Đặt ở module thường, KHÔNG đặt trong
 // file "use server" — Next.js chỉ cho file đó export hàm async, các
 // export const khác sẽ thành undefined ở client (lỗi 500 trang
-// /thanh-toan ngày 22/11: useActionState nhận initialState undefined).
+// /checkout ngày 22/11: useActionState nhận initialState undefined).
 
 import type { CheckoutFormValues } from "./checkout-validation";
 

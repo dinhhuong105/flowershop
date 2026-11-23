@@ -34,6 +34,12 @@ describe("tokenizeSearchQuery (mục 2.1)", () => {
   it("giữ nguyên dấu gạch nối trong một từ (SKU ht-005)", () => {
     assert.deepEqual(tokenizeSearchQuery("ht-005"), ["ht-005"]);
   });
+  it("chuẩn hoá NFD về NFC (K-8): o + U+0302 + U+0300 → ồ", () => {
+    // "h" + "o" + dấu mũ tổ hợp + dấu huyền tổ hợp + "ng" (NFD) phải
+    // thành "hồng" như khi gõ trực tiếp (NFC) — tìm ra 6 sản phẩm.
+    assert.deepEqual(tokenizeSearchQuery("ho\u0302\u0300ng"), ["hồng"]);
+    assert.deepEqual(tokenizeSearchQuery("HO\u0302\u0300NG"), ["HỒNG"]);
+  });
 });
 
 describe("searchProducts: q rỗng không truy vấn DB (mục 2.3)", () => {

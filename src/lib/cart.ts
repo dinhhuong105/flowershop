@@ -146,7 +146,7 @@ export async function removeItem(cartId: string, itemId: number): Promise<boolea
 //
 // G-6: một câu SQL JOIN duy nhất thay cho findMany của Prisma (trước đây
 // Prisma tách thành 3 truy vấn: cart_items, products, categories). Nhờ
-// vậy một lần tải /gio-hang (2 dòng) chỉ còn 4 truy vấn: danh mục menu,
+// vậy một lần tải /cart (2 dòng) chỉ còn 4 truy vấn: danh mục menu,
 // cartId (đã cache), câu này, và SUM của getCartCount.
 type CartRow = {
   itemId: number;

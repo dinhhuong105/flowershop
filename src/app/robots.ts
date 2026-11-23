@@ -8,7 +8,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/gio-hang", "/thanh-toan", "/don-hang", "/tim-kiem", "/api/"],
+      disallow: ["/cart", "/checkout", "/order", "/search", "/admin", "/login", "/api/"],
     },
   };
 }

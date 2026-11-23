@@ -7,7 +7,7 @@ import SearchBox from "./SearchBox";
 // mở thanh tìm kiếm đầy chiều ngang dưới header (trượt xuống 250 ms,
 // tự focus vào ô; Esc hoặc nút đóng thu lại). Huy hiệu giỏ và nút menu
 // giữ nguyên chỗ. Ô tìm là SearchBox dùng chung — gửi form GET tới
-// /tim-kiem nên vẫn tìm được khi tắt JS (khi đó thanh luôn mở vì
+// /search nên vẫn tìm được khi tắt JS (khi đó thanh luôn mở vì
 // không có JS để đóng).
 //
 // Vị trí: nút nằm trong cụm phải của hàng 1; bảng trượt đặt absolute

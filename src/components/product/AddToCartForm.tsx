@@ -11,7 +11,7 @@ import QuantityStepper from "./QuantityStepper";
 //   công → nút hiện "✓ Đã thêm" ~1,2 giây, phát sự kiện `cart:added`
 //   để Toast hiện + Header bump; lỗi → hiện thông báo tiếng Việt.
 // - "Mua ngay" (nút vàng): formAction buyNow, submit thường → redirect
-//   /gio-hang (làm việc cả khi tắt JS).
+//   /cart (làm việc cả khi tắt JS).
 // - Tắt JS: form POST thẳng tới action addToCart (form action mặc định),
 //   trang tải lại; số lượng cố định 1 do stepper cần JS.
 // - Hết hàng: cả hai nút + stepper đều vô hiệu hóa, hiện "Tạm hết hàng".

@@ -1,16 +1,20 @@
 // Các đường dẫn cấp 1 cố định, không được dùng làm slug danh mục
 // (vì sẽ đụng với trang giỏ hàng, thanh toán, quản trị...).
+// Ngày 7 (quyết định của Henry 23/11): URL cố định dùng tiếng Anh —
+// /cart, /checkout, /order, /search, /admin, /login. Slug danh mục/
+// sản phẩm lấy từ DB vẫn giữ tiếng Việt.
 export const RESERVED_SLUGS: string[] = [
-  "gio-hang",
-  "thanh-toan",
-  "don-hang",
-  "tim-kiem",
+  "cart",
+  "checkout",
+  "order",
+  "search",
   "faq",
   "van-chuyen",
   "doi-tra",
   "bao-mat",
   "lien-he",
-  "quan-tri",
+  "admin",
+  "login",
   "api",
   "_next",
   "images",

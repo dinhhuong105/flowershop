@@ -18,11 +18,14 @@ import type { ProductSummary } from "./queries";
 export const MAX_SEARCH_QUERY_LENGTH = 80;
 export const MAX_SEARCH_WORDS = 6;
 
-// Tách từ khóa: cắt khoảng trắng đầu/cuối, gộp khoảng trắng thừa, bỏ
-// ký tự điều khiển và ký tự độ rộng bằng không, tối đa 80 ký tự đầu
-// và tối đa 6 từ đầu.
+// Tách từ khóa: chuẩn hoá NFC trước (K-8: chuỗi NFD dán từ một số
+// ứng dụng/bàn phím — ví dụ "o" + U+0302 + U+0300 — phải về dạng tổ
+// hợp "ồ" trước khi tách), cắt khoảng trắng đầu/cuối, gộp khoảng trắng
+// thừa, bỏ ký tự điều khiển và ký tự độ rộng bằng không, tối đa 80 ký
+// tự đầu và tối đa 6 từ đầu.
 export function tokenizeSearchQuery(raw: string): string[] {
   const cleaned = raw
+    .normalize("NFC")
     .replace(/[\x00-\x1F\x7F]+/g, " ")
     .replace(/[\u200B-\u200D\uFEFF\u2060]+/g, "")
     .replace(/\s+/g, " ")

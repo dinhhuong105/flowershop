@@ -120,7 +120,7 @@ export default function Header({
         <div className="ml-auto flex items-center gap-1 sm:gap-2 lg:ml-0">
           <MobileSearchBar />
           <Link
-            href="/gio-hang"
+            href="/cart"
             aria-label={cartCount > 0 ? `Giỏ hàng, ${cartCount} sản phẩm` : "Giỏ hàng"}
             className="relative flex min-h-11 items-center gap-2 rounded-[3px] px-2 text-ink transition-colors duration-150 hover:bg-cream-100 hover:text-green-800"
           >

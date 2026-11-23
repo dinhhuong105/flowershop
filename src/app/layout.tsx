@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { siteConfig } from "@/config/site";
 import { getNavCategories } from "@/lib/queries";
 import { getCartCount } from "@/lib/cart";
@@ -36,8 +37,15 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const categories = await getNavCategories();
-  const cartCount = await getCartCount();
+  // Khu vực quản trị (Ngày 7 §2): middleware đặt header x-admin-area
+  // cho /admin/* và /login — các trang này dùng layout quản trị riêng,
+  // KHÔNG Header/Footer của shop và KHÔNG truy vấn giỏ. (Header này
+  // do client tự gửi cũng chỉ giấu chrome shop — không phải cửa bảo
+  // mật; xác thực do requireAdmin() ở từng trang/action.)
+  const h = await headers();
+  const isAdminArea = h.get("x-admin-area") === "1";
+  const categories = isAdminArea ? [] : await getNavCategories();
+  const cartCount = isAdminArea ? 0 : await getCartCount();
   return (
     <html lang="vi">
       {/* Gắn class `js` để hiệu ứng reveal không giấu nội dung khi tắt JS. */}
@@ -47,22 +55,30 @@ export default async function RootLayout({
         }}
       />
       <body>
-        <a
-          href="#noi-dung-chinh"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-[3px] focus:bg-green-800 focus:px-4 focus:py-2 focus:text-white"
-        >
-          Bỏ qua tới nội dung chính
-        </a>
-        <TopBar />
-        <Header categories={categories} cartCount={cartCount} />
+        {isAdminArea ? null : (
+          <>
+            <a
+              href="#noi-dung-chinh"
+              className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-[3px] focus:bg-green-800 focus:px-4 focus:py-2 focus:text-white"
+            >
+              Bỏ qua tới nội dung chính
+            </a>
+            <TopBar />
+            <Header categories={categories} cartCount={cartCount} />
+          </>
+        )}
         <main id="noi-dung-chinh">{children}</main>
         {/* Dải USP KHÔNG render ở layout nữa (F-2): trang chủ tự render
             USP dưới hero; các trang khác render USP trên footer trong
             chính page của mình. */}
-        <Footer />
-        <FloatingContact />
-        <BackToTop />
-        <Toast />
+        {isAdminArea ? null : (
+          <>
+            <Footer />
+            <FloatingContact />
+            <BackToTop />
+            <Toast />
+          </>
+        )}
       </body>
     </html>
   );

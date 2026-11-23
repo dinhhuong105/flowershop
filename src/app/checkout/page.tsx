@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 export default async function CheckoutPage() {
   const cart = await getCart();
   // Giỏ trống → quay lại giỏ hàng (mục 5, D5-8).
-  if (cart.count === 0) redirect("/gio-hang");
+  if (cart.count === 0) redirect("/cart");
   const zones = await db.shippingZone.findMany({
     where: { isActive: true },
     orderBy: { sortOrder: "asc" },

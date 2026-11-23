@@ -127,7 +127,7 @@ export default function CheckoutForm({
               {state.duplicateCode ? (
                 <p className="mt-2 text-sm">
                   <Link
-                    href={`/don-hang/${state.duplicateCode}`}
+                    href={`/order/${state.duplicateCode}`}
                     className="font-semibold text-green-800 hover:underline"
                   >
                     Xem đơn hàng đã đặt →

@@ -49,6 +49,12 @@ export default function QuickViewDialog({
   const closingRef = useRef(false);
   const closeTimerRef = useRef<number | null>(null);
   const addedTimerRef = useRef<number | null>(null);
+  // K-5: KHÔNG phát sự kiện toast lúc thêm (toast bị cửa sổ che,
+  // khách chỉ thấy ~1,6 giây). Ghi lại số lượng, phát sự kiện khi
+  // cửa sổ đã đóng hẳn (trong cleanup khi unmount) để toast hiện
+  // đủ 3 giây sau khi đóng. Huy hiệu giỏ vẫn bump lúc thêm nhờ
+  // router.refresh() bên dưới (không chờ đóng cửa sổ).
+  const toastPendingRef = useRef<number | null>(null);
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [added, setAdded] = useState(false);
@@ -85,6 +91,13 @@ export default function QuickViewDialog({
       document.body.style.left = prevBodyLeft;
       document.body.style.right = prevBodyRight;
       window.scrollTo(0, scrollY);
+      // K-5: cửa sổ đã đóng hẳn — phát sự kiện toast (nếu vừa thêm
+      // vào giỏ) để toast bắt đầu đếm từ lúc này, hiện đủ 3 giây.
+      if (toastPendingRef.current !== null) {
+        const count = toastPendingRef.current;
+        toastPendingRef.current = null;
+        window.dispatchEvent(new CustomEvent("cart:added", { detail: { count } }));
+      }
       if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
       if (addedTimerRef.current) window.clearTimeout(addedTimerRef.current);
     };
@@ -117,7 +130,9 @@ export default function QuickViewDialog({
     setPending(false);
     if (res.ok) {
       setAdded(true);
-      window.dispatchEvent(new CustomEvent("cart:added", { detail: { count: res.count } }));
+      // K-5: hoãn toast tới khi cửa sổ đóng (xem toastPendingRef);
+      // chỉ làm mới huy hiệu giỏ NGAY lúc thêm để bump chạy lúc thêm.
+      toastPendingRef.current = res.count;
       // Huy hiệu giỏ ở header là dữ liệu máy chủ (layout): làm mới
       // để số lượng cập nhật ngay trên cùng trang (D6-16). Cửa sổ
       // vẫn mở (client component giữ trạng thái).
@@ -179,7 +194,7 @@ export default function QuickViewDialog({
           </div>
         ) : loading || !data ? (
           <div className="grid gap-6 p-5 sm:grid-cols-2 sm:p-6" aria-busy="true">
-            <div className="animate-shimmer aspect-[4/5] w-full rounded-[3px]" />
+            <div className="animate-shimmer aspect-[4/5] w-full rounded-[3px] max-md:aspect-auto max-md:h-[32dvh]" />
             <div className="space-y-3">
               <div className="animate-shimmer h-4 w-24 rounded-[2px]" />
               <div className="animate-shimmer h-7 w-3/4 rounded-[2px]" />
@@ -191,7 +206,9 @@ export default function QuickViewDialog({
           </div>
         ) : (
           <div className="grid gap-6 p-5 sm:grid-cols-2 sm:p-6">
-            <div className="relative aspect-[4/5] w-full overflow-hidden rounded-[3px] bg-cream-100">
+            {/* K-6: di động ảnh cao tối đa ~32dvh (trước đây aspect 4/5
+                chiếm quá nửa bảng, che mất hai nút mua). */}
+            <div className="relative aspect-[4/5] w-full overflow-hidden rounded-[3px] bg-cream-100 max-md:aspect-auto max-md:h-[32dvh]">
               <Image
                 src={image}
                 alt={data.name}
@@ -246,7 +263,14 @@ export default function QuickViewDialog({
                 <p className="mt-2 text-sm leading-relaxed text-ink-soft">{data.description}</p>
               ) : null}
               {data.sku ? <p className="mt-2 text-sm text-muted">SKU: {data.sku}</p> : null}
-              <form action={asFormAction(addToCart)} onSubmit={handleSubmit} className="mt-5">
+              {/* K-6: di động thanh hành động (số lượng + 2 nút) dính
+                  đáy bảng để tên, giá và cả hai nút luôn thấy mà không
+                  cần cuộn; phần mô tả cuộn phía dưới thanh này. */}
+              <form
+                action={asFormAction(addToCart)}
+                onSubmit={handleSubmit}
+                className="mt-5 max-md:sticky max-md:bottom-0 max-md:-mx-5 max-md:border-t max-md:border-line max-md:bg-white max-md:px-5 max-md:pb-2 max-md:pt-3"
+              >
                 <input type="hidden" name="productId" value={data.id} />
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-semibold text-ink">Số lượng:</span>

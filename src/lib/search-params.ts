@@ -1,4 +1,4 @@
-// Tham số của trang tìm kiếm /tim-kiem (mục 2.3 đặc tả Ngày 6):
+// Tham số của trang tìm kiếm /search (mục 2.3 đặc tả Ngày 6):
 // q (từ khóa, giữ nguyên), sx (gia-tang | gia-giam, lạ → null),
 // trang (số nguyên ≥ 1, trần 10000 như trang danh mục).
 export type SearchPageParams = {
@@ -33,7 +33,7 @@ export function parseSearchParams(
   };
 }
 
-// Tạo URL /tim-kiem kèm query chỉ gồm tham số có giá trị, theo thứ tự
+// Tạo URL /search kèm query chỉ gồm tham số có giá trị, theo thứ tự
 // cố định q, sx, trang; trang=1 bị bỏ khỏi URL. Khi đổi sx thì bỏ trang
 // (về trang 1).
 export function buildSearchHref(
@@ -48,5 +48,5 @@ export function buildSearchHref(
   if (next.q) parts.push(`q=${encodeURIComponent(next.q)}`);
   if (next.sx) parts.push(`sx=${encodeURIComponent(next.sx)}`);
   if (next.trang > 1) parts.push(`trang=${next.trang}`);
-  return parts.length > 0 ? `/tim-kiem?${parts.join("&")}` : "/tim-kiem";
+  return parts.length > 0 ? `/search?${parts.join("&")}` : "/search";
 }

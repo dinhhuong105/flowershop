@@ -161,3 +161,27 @@ model OrderItem {
 
   @@map("order_items")
 }
+
+// Phiên đăng nhập quản trị (Ngày 7). Chỉ lưu hash sha256 của token,
+// không bao giờ lưu token gốc. Hết hạn tuyệt đối 12 giờ.
+model AdminSession {
+  id         Int      @id @default(autoincrement())
+  tokenHash  String   @unique
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  lastSeenAt DateTime @default(now())
+
+  @@map("admin_sessions")
+}
+
+// Lần đăng nhập quản trị sai (Ngày 7): chỉ lưu hash sha256 của IP,
+// không lưu IP thô. Dùng cho giới hạn 5 lần/15 phút theo IP và
+// 20 lần/15 phút toàn hệ thống.
+model AdminLoginAttempt {
+  id        Int      @id @default(autoincrement())
+  ipHash    String
+  createdAt DateTime @default(now())
+
+  @@index([ipHash, createdAt])
+  @@map("admin_login_attempts")
+}

@@ -19,11 +19,16 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/don-hang/:code",
+        source: "/order/:code",
         headers: [{ key: "Cache-Control", value: "no-store" }],
       },
     ];
   },
+  // URL cũ (tiếng Việt) → URL mới (tiếng Anh), 301 vĩnh viễn —
+  // quyết định của Henry 23/11 (Ngày 7, xem "Khác đặc tả" báo cáo
+  // Ngày 7). Đặt trong src/middleware.ts (redirects() của Next.js
+  // trả 308, không đúng 301 yêu cầu). Đây là chỗ DUY NHẤT trong code
+  // còn nhắc URL cũ.
 };
 
 export default nextConfig;

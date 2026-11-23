@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 
 // Ô tìm kiếm trên header (mục 2.4 đặc tả Ngày 6).
 //
-// Biểu mẫu là <form method="get" action="/tim-kiem"> nên vẫn tìm
+// Biểu mẫu là <form method="get" action="/search"> nên vẫn tìm
 // được khi tắt JavaScript (D6-11). Gợi ý khi gõ là cải tiến bằng JS:
 // component SearchSuggestions chỉ tải khi người dùng focus vào ô lần
 // đầu (next/dynamic, ssr: false) để không tăng First Load JS.
@@ -32,7 +32,7 @@ export default function SearchBox({
 
   return (
     <div className={`relative ${className}`}>
-      <form method="get" action="/tim-kiem" role="search" onSubmit={onNavigate}>
+      <form method="get" action="/search" role="search" onSubmit={onNavigate}>
         <label htmlFor={id} className="sr-only">
           Tìm kiếm sản phẩm
         </label>

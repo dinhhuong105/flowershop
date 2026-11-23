@@ -61,7 +61,7 @@ export default function Toast() {
         ✓
       </span>
       <span className="leading-snug">Đã thêm vào giỏ hàng</span>
-      <Link href="/gio-hang" className="font-bold leading-snug text-green-800 hover:underline">
+      <Link href="/cart" className="font-bold leading-snug text-green-800 hover:underline">
         Xem giỏ hàng
       </Link>
       <button

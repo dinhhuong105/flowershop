@@ -36,7 +36,7 @@ export default function CartSummary({
         </div>
       </dl>
       <Link
-        href="/thanh-toan"
+        href="/checkout"
         className="mt-5 flex min-h-11 w-full items-center justify-center rounded-[3px] bg-gold-300 px-3 text-sm font-bold uppercase tracking-wide text-green-900"
       >
         Tiến hành thanh toán

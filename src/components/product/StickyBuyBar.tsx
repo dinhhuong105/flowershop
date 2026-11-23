@@ -12,7 +12,7 @@ import { asFormAction } from "@/lib/form-action";
 // khỏi màn hình (IntersectionObserver), trượt lên 250ms. Gồm giá hiện
 // tại (+ giá gốc gạch ngang), nút Gọi/Zalo (chỉ khi siteConfig có số
 // thật — hiện chưa có nên ẩn), nút "Mua ngay" (form buyNow, số lượng
-// 1, submit thường → redirect /gio-hang). Khi hiện, phát sự kiện
+// 1, submit thường → redirect /cart). Khi hiện, phát sự kiện
 // `sticky-buy:visible` để BackToTop ẩn đi, tránh chồng chéo; đồng thời
 // render một khoảng đệm 76px qua portal vào cuối document.body (sau
 // footer) để thanh không che nội dung cuối trang. Hết hàng → không
