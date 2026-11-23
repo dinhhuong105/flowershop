@@ -47,10 +47,11 @@ describe("bảng biên mục 6.2 (D5-4)", () => {
   }
 });
 
-describe("khung giờ còn chọn hôm nay (D5-5)", () => {
+describe("khung giờ còn chọn hôm nay (D5-5, sửa H-1)", () => {
   const cases: Array<[number, number, string[]]> = [
+    [8, 0, ["10-12", "13-15", "15-17", "17-19"]],
     [9, 0, ["13-15", "15-17", "17-19"]],
-    [11, 0, ["15-17", "17-19"]],
+    [11, 0, ["13-15", "15-17", "17-19"]],
     [11, 1, ["15-17", "17-19"]],
     [15, 0, ["17-19"]],
     [15, 1, []],
@@ -89,10 +90,15 @@ describe("addDays", () => {
 });
 
 describe("resolveDelivery", () => {
-  it("EXPRESS_2H lúc 09:00 → hôm nay, 'trong 2 giờ'", () =>
+  it("EXPRESS_2H lúc 09:00 → hôm nay, 'Trong 2 giờ kể từ khi shop xác nhận' (H-1)", () =>
     assert.deepEqual(resolveDelivery("EXPRESS_2H", null, null, vnDate(9, 0)), {
       deliveryDate: "2026-11-22",
-      deliverySlot: "trong 2 giờ",
+      deliverySlot: "Trong 2 giờ kể từ khi shop xác nhận",
+    }));
+  it("SAME_DAY lúc 09:00 → hôm nay, 'Trước 18:00' từ sameDayDeliverBy (H-1)", () =>
+    assert.deepEqual(resolveDelivery("SAME_DAY", null, null, vnDate(9, 0)), {
+      deliveryDate: "2026-11-22",
+      deliverySlot: "Trước 18:00",
     }));
   it("SAME_DAY lúc 17:00 → null (hết giờ)", () =>
     assert.equal(resolveDelivery("SAME_DAY", null, null, vnDate(17, 0)), null));

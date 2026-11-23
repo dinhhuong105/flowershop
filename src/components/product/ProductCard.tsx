@@ -5,6 +5,7 @@ import { getDisplayPrice } from "@/lib/pricing";
 import { buyNow } from "@/app/actions/cart";
 import { asFormAction } from "@/lib/form-action";
 import type { FeaturedProduct } from "@/lib/queries";
+import QuickViewButton from "./QuickViewButton";
 
 // Thẻ sản phẩm (Ngày 4, theo M12/M14 + mục 3.3 phụ lục).
 //
@@ -28,9 +29,14 @@ import type { FeaturedProduct } from "@/lib/queries";
 export default function ProductCard({
   product,
   testId = "product-card",
+  // Ngày 6 (mục 3.1): nút phụ mặc định là "Xem nhanh" (mở cửa sổ);
+  // khối "Những thiết kế đồng điệu" ở trang chi tiết giữ "Xem chi
+  // tiết" (đúng cách EdenGift).
+  secondaryAction = "quick",
 }: {
   product: FeaturedProduct;
   testId?: string;
+  secondaryAction?: "quick" | "detail";
 }) {
   const price = getDisplayPrice(product);
   const image = product.images[0] ?? "/images/placeholder.svg";
@@ -88,14 +94,21 @@ export default function ProductCard({
         </p>
         <div className="relative z-10 mt-auto flex gap-2 pt-3">
           {/* G-8a: aria-label riêng từng thẻ ("Xem chi tiết {tên}") vì
-              nhiều liên kết cùng nhãn "Xem chi tiết" trên một trang. */}
-          <Link
-            href={detailHref}
-            aria-label={`Xem chi tiết ${product.name}`}
-            className="flex min-h-11 flex-1 items-center justify-center rounded-[3px] border border-green-800 px-2 text-sm font-bold text-green-800 transition-colors duration-150 hover:bg-cream-100 active:scale-[0.97]"
-          >
-            Xem chi tiết
-          </Link>
+              nhiều liên kết cùng nhãn "Xem chi tiết" trên một trang.
+              Ngày 6: mặc định là "Xem nhanh" (QuickViewButton — liên kết
+              thật tới trang chi tiết, JS chặn và mở cửa sổ); khối liên
+              quan ở trang chi tiết giữ "Xem chi tiết". */}
+          {secondaryAction === "quick" ? (
+            <QuickViewButton product={product} />
+          ) : (
+            <Link
+              href={detailHref}
+              aria-label={`Xem chi tiết ${product.name}`}
+              className="flex min-h-11 flex-1 items-center justify-center rounded-[3px] border border-green-800 px-2 text-sm font-bold text-green-800 transition-colors duration-150 hover:bg-cream-100 active:scale-[0.97]"
+            >
+              Xem chi tiết
+            </Link>
+          )}
           <form action={asFormAction(buyNow)} className="flex-1">
             <input type="hidden" name="productId" value={product.id} />
             <input type="hidden" name="quantity" value={1} />

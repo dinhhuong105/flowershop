@@ -13,7 +13,7 @@ export default function RelatedProducts({ products }: { products: ProductSummary
       <Carousel title="Những thiết kế đồng điệu" ariaLabel="Sản phẩm liên quan" gridOnDesktop>
         {products.map((p) => (
           <div key={p.id} className="w-[78%] shrink-0 snap-start sm:w-[46%] md:w-auto">
-            <ProductCard product={p} testId="related-card" />
+            <ProductCard product={p} testId="related-card" secondaryAction="detail" />
           </div>
         ))}
       </Carousel>

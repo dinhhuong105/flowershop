@@ -316,6 +316,79 @@
   }
 }
 
+@keyframes suggest-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes qv-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes qv-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes qv-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes qv-out {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+}
+
+@keyframes qv-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes qv-sheet-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+
 @layer utilities {
   .animate-fade-in {
     animation: fade-in 300ms ease-out both;
@@ -341,6 +414,33 @@
   }
   .animate-qty-slide {
     animation: qty-slide-in 150ms var(--ease-out) both;
+  }
+  .suggest-drop {
+    animation: suggest-in 150ms var(--ease-out) both;
+  }
+  /* Cửa sổ "Xem nhanh" (mục 3.3 đặc tả Ngày 6): nền mờ fade 200 ms,
+     hộp scale(.96 → 1) + translateY(8px → 0) + opacity 250 ms; đóng
+     150 ms. Di động (≤ 767 px): bảng trượt từ dưới lên 300 ms. */
+  dialog.quick-view::backdrop {
+    background: rgb(1 50 31 / 0.55);
+    animation: qv-fade-in 200ms var(--ease-out) both;
+  }
+  dialog.quick-view.closing::backdrop {
+    animation: qv-fade-out 150ms var(--ease-out) both;
+  }
+  dialog.quick-view .qv-panel {
+    animation: qv-in 250ms var(--ease-out) both;
+  }
+  dialog.quick-view.closing .qv-panel {
+    animation: qv-out 150ms var(--ease-out) both;
+  }
+  @media (max-width: 767px) {
+    dialog.quick-view .qv-panel {
+      animation: qv-sheet-in 300ms var(--ease-out) both;
+    }
+    dialog.quick-view.closing .qv-panel {
+      animation: qv-sheet-out 150ms var(--ease-out) both;
+    }
   }
 }
 

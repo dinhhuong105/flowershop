@@ -11,6 +11,15 @@ import { formatVND } from "@/lib/format";
 
 export type OrderWithItems = Prisma.OrderGetPayload<{ include: { items: true } }>;
 
+// Giới hạn độ dài thông báo Telegram (H-4c, đặc tả Ngày 5 mục 9):
+// cắt ở 4000 ký tự (dưới giới hạn 4096 của Telegram).
+export const MAX_TELEGRAM_MESSAGE_LENGTH = 4000;
+
+// KHÁC ĐẶC TẢ (H-4b, Claude chấp nhận): code dùng parse_mode "HTML"
+// trong khi đặc tả nói văn bản thuần. Chấp nhận vì mọi dữ liệu khách
+// nhập đều đi qua escapeHtml — test dưới đây kiểm chứng tên/địa chỉ/
+// lời nhắn chứa <b>, &, </a> đều được thoát đúng.
+
 export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -45,24 +54,23 @@ function formatVnTime(date: Date): string {
 }
 
 export function buildTelegramMessage(order: OrderWithItems): string {
-  const lines = order.items
-    .map(
-      (item) =>
-        `- ${escapeHtml(item.name)} × ${item.quantity} — ${formatVND(item.price * item.quantity)}`,
-    )
-    .join("\n");
-  const parts = [
+  const itemLines = order.items.map(
+    (item) =>
+      `- ${escapeHtml(item.name)} × ${item.quantity} — ${formatVND(item.price * item.quantity)}`,
+  );
+  const head = [
     `<b>Đơn hàng mới ${escapeHtml(order.code)}</b>`,
     `${formatVnTime(order.createdAt)} ngày ${formatVnDate(order.createdAt)}`,
     "",
-    lines,
+  ];
+  const tail = [
     `Tạm tính: ${formatVND(order.subtotal)}`,
     `Phí giao hàng: ${formatVND(order.shippingFee)}`,
   ];
   if (order.deliverySurcharge > 0) {
-    parts.push(`Phụ phí giao hàng: ${formatVND(order.deliverySurcharge)}`);
+    tail.push(`Phụ phí giao hàng: ${formatVND(order.deliverySurcharge)}`);
   }
-  parts.push(
+  tail.push(
     `<b>Tổng cộng: ${formatVND(order.total)}</b>`,
     "",
     `Người đặt: ${escapeHtml(order.senderName)} (${escapeHtml(order.senderPhone)})`,
@@ -72,12 +80,31 @@ export function buildTelegramMessage(order: OrderWithItems): string {
     `Thanh toán: ${escapeHtml(paymentMethodLabel(order.paymentMethod))}`,
   );
   if (order.cardMessage) {
-    parts.push(`Lời nhắn trên thiệp: ${escapeHtml(order.cardMessage)}`);
+    tail.push(`Lời nhắn trên thiệp: ${escapeHtml(order.cardMessage)}`);
   }
   if (order.note) {
-    parts.push(`Ghi chú: ${escapeHtml(order.note)}`);
+    tail.push(`Ghi chú: ${escapeHtml(order.note)}`);
   }
-  return parts.join("\n");
+  // Cắt ở 4000 ký tự (H-4c): rút gọn danh sách dòng, luôn giữ phần
+  // tổng và thông tin giao. Bỏ dần dòng cuối, ghi số món còn lại.
+  const joinAll = (lines: string[], dropped: number): string => {
+    const middle =
+      dropped > 0 ? [...lines, `… và còn ${dropped} món khác`] : lines;
+    return [...head, ...middle, ...tail].join("\n");
+  };
+  let lines = itemLines;
+  let message = joinAll(lines, 0);
+  if (message.length > MAX_TELEGRAM_MESSAGE_LENGTH) {
+    while (lines.length > 0) {
+      lines = lines.slice(0, -1);
+      message = joinAll(lines, itemLines.length - lines.length);
+      if (message.length <= MAX_TELEGRAM_MESSAGE_LENGTH) break;
+    }
+    if (message.length > MAX_TELEGRAM_MESSAGE_LENGTH) {
+      message = message.slice(0, MAX_TELEGRAM_MESSAGE_LENGTH);
+    }
+  }
+  return message;
 }
 
 // Gửi báo đơn cho một đơn đã tạo. Trả true khi Telegram nhận (đã set

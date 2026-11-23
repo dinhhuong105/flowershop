@@ -55,20 +55,20 @@ export default function Toast() {
       role="status"
       data-testid="cart-toast"
       style={{ top }}
-      className="toast-slide-in fixed left-1/2 z-[70] flex min-h-11 -translate-x-1/2 items-center gap-3 rounded-[3px] border border-line bg-white px-4 py-2 text-sm font-medium text-ink shadow-[0_12px_28px_rgba(8,56,42,0.14)] sm:left-auto sm:right-4 sm:translate-x-0"
+      className="toast-slide-in fixed inset-x-4 z-[70] flex min-h-11 flex-wrap items-center gap-3 rounded-[3px] border border-line bg-white px-4 py-2 text-sm font-medium text-ink shadow-[0_12px_28px_rgba(8,56,42,0.14)] sm:inset-x-auto sm:left-auto sm:right-4 sm:max-w-md sm:flex-nowrap"
     >
-      <span aria-hidden="true" className="flex h-5 w-5 items-center justify-center rounded-full bg-success text-xs font-bold text-white">
+      <span aria-hidden="true" className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-success text-xs font-bold text-white">
         ✓
       </span>
-      <span>Đã thêm vào giỏ hàng</span>
-      <Link href="/gio-hang" className="font-bold text-green-800 hover:underline">
+      <span className="leading-snug">Đã thêm vào giỏ hàng</span>
+      <Link href="/gio-hang" className="font-bold leading-snug text-green-800 hover:underline">
         Xem giỏ hàng
       </Link>
       <button
         type="button"
         aria-label="Đóng thông báo"
         onClick={() => setVisible(false)}
-        className="flex h-8 w-8 items-center justify-center rounded-[3px] text-muted transition-colors duration-150 hover:bg-cream-100 hover:text-ink"
+        className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-[3px] text-muted transition-colors duration-150 hover:bg-cream-100 hover:text-ink sm:ml-0 sm:h-8 sm:w-8"
       >
         ✕
       </button>

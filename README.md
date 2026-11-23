@@ -136,6 +136,24 @@ Gửi lại báo cho các đơn chưa được báo (khi Telegram từng lỗi):
 npm run resend:notifications
 ```
 
+## Tìm kiếm và "Xem nhanh" (Ngày 6)
+
+- Tìm kiếm không phân biệt dấu (`/tim-kiem`): tìm trong tên, SKU, tên
+  danh mục và tag; mỗi từ phải xuất hiện dưới dạng chuỗi con (phép AND);
+  xếp hạng: tên chứa đủ mọi từ đứng trước, rồi `sortOrder` danh mục,
+  rồi `sortOrder` sản phẩm, rồi `id`. Ô tìm trên header kèm gợi ý
+  (`/api/search/suggest`, tối đa 5) — tắt JavaScript vẫn tìm được vì
+  ô tìm là form GET thường.
+- Hàm `vi_unaccent(text)` trong DB (migration `search_unaccent`) dùng
+  extension `unaccent` của PostgreSQL để bỏ dấu tiếng Việt (kể cả
+  `đ/Đ` → `d`). Với vài trăm sản phẩm không cần chỉ mục; khi quá
+  khoảng 2.000 sản phẩm thì thêm chỉ mục trigram (`pg_trgm`) trên biểu
+  thức tìm kiếm để giữ tốc độ.
+- "Xem nhanh": nút trên thẻ sản phẩm ở trang chủ, danh mục và tìm kiếm
+  mở cửa sổ `<dialog>` (tải lười); khối "Những thiết kế đồng điệu" ở
+  trang chi tiết giữ nút "Xem chi tiết". Tắt JS thì nút là liên kết
+  tới trang chi tiết nên vẫn hoạt động.
+
 ## Chạy bản standalone (không dùng Docker)
 
 Sau `npm run build`, Next tạo thư mục `.next/standalone/` chứa máy chủ

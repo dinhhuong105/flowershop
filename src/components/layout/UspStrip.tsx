@@ -1,4 +1,5 @@
 import { siteConfig } from "@/config/site";
+import { isBankConfigured } from "@/lib/bank";
 
 function UspIcon({ icon }: { icon: string }) {
   const common = {
@@ -50,7 +51,11 @@ function UspIcon({ icon }: { icon: string }) {
 }
 
 // Dải USP 4 mục (mục 4.3 phụ lục), nội dung từ siteConfig.usp.
+// H-5: câu "…hoặc chuyển khoản" ở mục "Thanh toán an toàn" chỉ hiện
+// khi đã cấu hình BANK_*; chưa cấu hình thì chỉ nhắc thanh toán khi
+// nhận hàng (nhận biết mục thanh toán qua icon "shield").
 export default function UspStrip() {
+  const bankConfigured = isBankConfigured();
   return (
     <section aria-label="Lợi ích khi mua hoa" data-testid="usp-strip" className="border-b border-line bg-cream-100">
       <div className="shell grid grid-cols-1 gap-6 py-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -62,7 +67,9 @@ export default function UspStrip() {
             <span>
               <span className="block font-semibold text-ink">{item.title}</span>
               <span className="mt-0.5 block text-sm leading-relaxed text-muted">
-                {item.text}
+                {!bankConfigured && item.icon === "shield"
+                  ? "Thanh toán khi nhận hàng."
+                  : item.text}
               </span>
             </span>
           </div>

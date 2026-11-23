@@ -60,24 +60,15 @@ export function isSameDayAvailable(now: Date): boolean {
 }
 
 // Hẹn ngày giờ: luôn chọn được; ngày từ hôm nay tới hôm nay +
-// maxAdvanceDays; nếu là hôm nay thì khung giờ phải bắt đầu sau
-// t + minLeadMinutes — NGOẠI LỆ theo bảng mục 6.2: lúc 15:00
-// (t + 120 đúng bằng 17:00) khung cuối ngày 17:00 vẫn chọn được,
-// trong khi lúc 11:00 (t + 120 đúng bằng 13:00) khung 13:00 KHÔNG
-// chọn được. Bảng là tiêu chí nghiệm thu (D5-5) nên hàm này khớp bảng
-// đúng từng ca; điểm không nhất quán này đã ghi trong báo cáo Ngày 5
-// để Claude xác nhận.
+// maxAdvanceDays; nếu là hôm nay thì khung giờ chọn được khi
+// start >= t + minLeadMinutes (bằng nhau vẫn chọn được — quy tắc
+// duy nhất ở đặc tả Ngày 5 mục 6.2; H-1 Ngày 6: bỏ ngoại lệ "khung
+// cuối ngày" từng thêm ở Ngày 5).
 export function availableSlotsToday(now: Date): string[] {
   const { minutes } = vnNow(now);
   const ready = minutes + deliveryConfig.minLeadMinutes;
-  const slots = deliveryConfig.slots;
-  return slots
-    .filter((slot, index) => {
-      const start = toMinutes(slot.start);
-      if (start > ready) return true;
-      if (start === ready && index === slots.length - 1) return true;
-      return false;
-    })
+  return deliveryConfig.slots
+    .filter((slot) => toMinutes(slot.start) >= ready)
     .map((slot) => slot.id);
 }
 
@@ -108,8 +99,10 @@ export function slotLabel(slotId: string): string | null {
 }
 
 // Ngày giao + khung giờ lưu vào đơn theo phương thức (mục 6.2/6.3):
-// EXPRESS_2H → hôm nay, "trong 2 giờ"; SAME_DAY → hôm nay, "trong
-// ngày"; SCHEDULED → ngày và khung giờ khách chọn (lưu nhãn khung giờ).
+// EXPRESS_2H → hôm nay, "Trong 2 giờ kể từ khi shop xác nhận";
+// SAME_DAY → hôm nay, "Trước <sameDayDeliverBy>" (lấy từ cấu hình,
+// không gõ cứng — H-1 Ngày 6); SCHEDULED → ngày và khung giờ khách
+// chọn (lưu nhãn khung giờ).
 // Trả null khi lựa chọn không hợp lệ tại thời điểm now.
 export function resolveDelivery(
   method: DeliveryMethodId,
@@ -120,11 +113,11 @@ export function resolveDelivery(
   const today = vnNow(now).date;
   if (method === "EXPRESS_2H") {
     if (!isExpressAvailable(now)) return null;
-    return { deliveryDate: today, deliverySlot: "trong 2 giờ" };
+    return { deliveryDate: today, deliverySlot: "Trong 2 giờ kể từ khi shop xác nhận" };
   }
   if (method === "SAME_DAY") {
     if (!isSameDayAvailable(now)) return null;
-    return { deliveryDate: today, deliverySlot: "trong ngày" };
+    return { deliveryDate: today, deliverySlot: `Trước ${deliveryConfig.sameDayDeliverBy}` };
   }
   if (!dateStr || !slotId) return null;
   if (!availableSlotsForDate(dateStr, now).includes(slotId)) return null;

@@ -8,6 +8,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { db } from "@/lib/db";
 import { CART_COOKIE } from "@/config/cart";
 import { deliveryConfig } from "@/config/delivery";
@@ -150,11 +151,13 @@ export async function placeOrder(
   }
 
   // Sau khi giao dịch commit: xóa cookie giỏ, làm mới huy hiệu giỏ,
-  // gửi báo Telegram (không throw, tối đa ~5 giây), rồi chuyển tới
-  // trang đơn hàng. redirect() là câu cuối — không đặt trong try.
+  // rồi chuyển tới trang đơn hàng NGAY — báo Telegram gửi nền bằng
+  // after() (H-4a), không chờ trong lúc đặt hàng (trước đây await
+  // sendOrderNotification làm khách đợi tới ~5 giây khi Telegram chậm).
+  // redirect() là câu cuối — không đặt trong try.
   const store = await cookies();
   store.delete(CART_COOKIE);
   revalidatePath("/", "layout");
-  await sendOrderNotification(order.id);
+  after(() => sendOrderNotification(order.id));
   redirect(`/don-hang/${order.code}`);
 }

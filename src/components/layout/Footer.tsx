@@ -1,4 +1,5 @@
 import { siteConfig, telHref, zaloHref } from "@/config/site";
+import { isBankConfigured } from "@/lib/bank";
 
 // Footer (mục 4.3 phụ lục): nền green-900, 5 cột. Cột 2–4 ("Về chúng
 // tôi", "Hỗ trợ khách hàng", "Chính sách") chưa có trang thật (Ngày 9)
@@ -96,9 +97,13 @@ export default function Footer() {
             <span className="rounded-[2px] border border-white/30 px-2 py-0.5 text-xs font-semibold text-white">
               COD
             </span>
-            <span className="rounded-[2px] border border-white/30 px-2 py-0.5 text-xs font-semibold text-white">
-              Chuyển khoản
-            </span>
+            {/* H-5: huy hiệu "Chuyển khoản" chỉ hiện khi đã cấu hình BANK_*;
+                chưa cấu hình thì không nhắc tới chuyển khoản ở đâu. */}
+            {isBankConfigured() ? (
+              <span className="rounded-[2px] border border-white/30 px-2 py-0.5 text-xs font-semibold text-white">
+                Chuyển khoản
+              </span>
+            ) : null}
           </p>
         </div>
       </div>

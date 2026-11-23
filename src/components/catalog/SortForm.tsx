@@ -5,14 +5,18 @@ import { useRef } from "react";
 // Ô sắp xếp là <select> trong <form method="get"> (gói UI-1 thay chip sắp
 // xếp của Ngày 3). dip/gia giữ bằng input ẩn, trang bị bỏ (về trang 1).
 // JS bật: tự gửi form khi đổi lựa chọn. JS tắt: bấm nút "Áp dụng".
+// Trang tìm kiếm (Ngày 6) dùng chung: truyền thêm q để giữ từ khóa
+// bằng input ẩn (form GET thay toàn bộ query nên thiếu q sẽ mất từ khóa).
 export default function SortForm({
   dip,
   gia,
   sx,
+  q,
 }: {
   dip: string | null;
   gia: string | null;
   sx: string | null;
+  q?: string;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   return (
@@ -20,6 +24,7 @@ export default function SortForm({
       <label htmlFor="sx" className="text-sm font-medium text-ink">
         Sắp xếp:
       </label>
+      {q ? <input type="hidden" name="q" value={q} /> : null}
       {dip ? <input type="hidden" name="dip" value={dip} /> : null}
       {gia ? <input type="hidden" name="gia" value={gia} /> : null}
       <select

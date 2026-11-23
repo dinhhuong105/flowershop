@@ -7,6 +7,8 @@ import { siteConfig } from "@/config/site";
 import type { NavCategory } from "@/lib/queries";
 import MegaMenu from "@/components/layout/MegaMenu";
 import MobileMenu from "@/components/layout/MobileMenu";
+import SearchBox from "@/components/search/SearchBox";
+import MobileSearchBar from "@/components/search/MobileSearchBar";
 
 // Header (mục 4.2 phụ lục): sticky; hàng 1 thu gọn + đổ bóng khi cuộn.
 // Hàng 1: logo (icon tia nắng/lá sen vàng tự vẽ + tên Playfair + tagline)
@@ -110,9 +112,13 @@ export default function Header({
             </span>
           </span>
         </Link>
-        {/* Khoảng trống chừa cho ô tìm kiếm (Ngày 6) — giữ vị trí logo/giỏ. */}
-        <div aria-hidden="true" className="hidden flex-1 lg:block" />
+        {/* Ô tìm kiếm giữa hàng đầu (Ngày 6, ≥ 1024 px): rộng tối đa
+            ~520 px; dưới 1024 px dùng MobileSearchBar (nút kính lúp). */}
+        <div className="hidden min-w-0 flex-1 justify-center lg:flex">
+          <SearchBox id="search-desktop" className="w-full max-w-[520px]" />
+        </div>
         <div className="ml-auto flex items-center gap-1 sm:gap-2 lg:ml-0">
+          <MobileSearchBar />
           <Link
             href="/gio-hang"
             aria-label={cartCount > 0 ? `Giỏ hàng, ${cartCount} sản phẩm` : "Giỏ hàng"}

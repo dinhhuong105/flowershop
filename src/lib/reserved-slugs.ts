@@ -4,6 +4,7 @@ export const RESERVED_SLUGS: string[] = [
   "gio-hang",
   "thanh-toan",
   "don-hang",
+  "tim-kiem",
   "faq",
   "van-chuyen",
   "doi-tra",

@@ -93,14 +93,11 @@ export default function CheckoutForm({
     });
   };
 
-  // Nút gửi chỉ bật khi đã chọn đủ khu vực + phương thức giao +
-  // phương thức thanh toán (+ ngày/khung giờ nếu hẹn giao). Chưa
-  // hydration thì nút luôn bật để tắt JS vẫn gửi được.
-  const ready =
-    v.zoneId !== "" &&
-    v.deliveryMethod !== "" &&
-    v.paymentMethod !== "" &&
-    (v.deliveryMethod !== "SCHEDULED" || (v.deliveryDate !== "" && v.deliverySlot !== ""));
+  // H-2 (Ngày 6): nút gửi LUÔN bấm được (trừ lúc đang gửi) — không
+  // còn khóa khi chưa chọn đủ khu vực/phương thức/thanh toán. Gửi
+  // thiếu thì máy chủ trả lỗi từng trường như các trường khác (xem
+  // validateCheckoutForm). Chưa hydration thì nút cũng bật để tắt JS
+  // vẫn gửi được.
   const dateSlotOpen = !mounted || v.deliveryMethod === "" || v.deliveryMethod === "SCHEDULED";
 
   return (
@@ -247,7 +244,7 @@ export default function CheckoutForm({
 
           <button
             type="submit"
-            disabled={(mounted && !ready) || isPending}
+            disabled={isPending}
             className="flex min-h-12 w-full items-center justify-center rounded-[3px] bg-gold-300 px-4 text-base font-bold uppercase tracking-wide text-green-900 transition-opacity duration-150 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isPending ? "Đang đặt hàng..." : "Tiến hành đặt hàng"}
