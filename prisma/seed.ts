@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { isReservedSlug } from "@/lib/reserved-slugs";
+import { shouldSeed } from "@/lib/seed-guard";
 
 const prisma = new PrismaClient();
 
@@ -74,6 +75,25 @@ function skuFor(product: { categorySlug: string; sortOrder: number }): string {
 }
 
 async function main() {
+  // CHẶN SEED HỒI SINH DỮ LIỆU DEMO (mục 1 verdict Ngày 10): lệnh
+  // build trên Vercel chạy `prisma db seed` MỖI lần deploy, mà upsert
+  // vẫn TẠO LẠI dòng đã bị xóa (kể cả với update: {}). Nên chỉ seed
+  // khi CẢ 3 bảng đều trống; DB đã có dữ liệu thì thoát ngay, không
+  // tạo lại gì cả. Chạy tay với --force để bỏ qua chặn (vd dựng lại
+  // DB sau khi xóa nhầm).
+  const force = process.argv.includes("--force");
+  const before = {
+    categories: await prisma.category.count(),
+    products: await prisma.product.count(),
+    shippingZones: await prisma.shippingZone.count(),
+  };
+  if (!shouldSeed(before, force)) {
+    console.log(
+      `DB đã có dữ liệu (${before.categories} danh mục, ${before.products} sản phẩm, ${before.shippingZones} khu vực giao) — bỏ qua seed, không tạo lại gì cả. Muốn seed lại, chạy với --force.`,
+    );
+    return;
+  }
+
   // Kiểm tra từng slug danh mục không nằm trong danh sách cấm (mục 3.17).
   for (const category of categories) {
     if (isReservedSlug(category.slug)) {

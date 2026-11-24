@@ -9,6 +9,7 @@ import {
   type OrderTab,
 } from "@/lib/admin/orders";
 import { formatVND } from "@/lib/format";
+import { orderStatusLabel } from "@/lib/order-labels";
 import OrderStatusBadge from "@/components/order/OrderStatusBadge";
 
 export const dynamic = "force-dynamic";
@@ -63,6 +64,20 @@ function pageHref(base: BaseParams, page: number): string {
   if (base.payment !== "all") parts.push(`payment=${encodeURIComponent(base.payment)}`);
   if (base.method !== "all") parts.push(`method=${encodeURIComponent(base.method)}`);
   if (base.exclude !== "") parts.push(`exclude=${encodeURIComponent(base.exclude)}`);
+  if (base.date !== "") parts.push(`date=${encodeURIComponent(base.date)}`);
+  if (page > 1) parts.push(`page=${page}`);
+  return parts.length > 0 ? `/admin/orders?${parts.join("&")}` : "/admin/orders";
+}
+
+// Link bỏ bộ lọc loại trạng thái (mục 3 verdict Ngày 10): giống
+// pageHref nhưng KHÔNG giữ exclude — giữ nguyên tab, tìm kiếm,
+// thanh toán, phương thức, ngày giao và trang hiện tại.
+function clearExcludeHref(base: BaseParams, page: number): string {
+  const parts: string[] = [];
+  if (base.tab !== "pending") parts.push(`tab=${encodeURIComponent(base.tab)}`);
+  if (base.q !== "") parts.push(`q=${encodeURIComponent(base.q)}`);
+  if (base.payment !== "all") parts.push(`payment=${encodeURIComponent(base.payment)}`);
+  if (base.method !== "all") parts.push(`method=${encodeURIComponent(base.method)}`);
   if (base.date !== "") parts.push(`date=${encodeURIComponent(base.date)}`);
   if (page > 1) parts.push(`page=${page}`);
   return parts.length > 0 ? `/admin/orders?${parts.join("&")}` : "/admin/orders";
@@ -127,6 +142,25 @@ export default async function AdminOrdersPage({
         Tìm thấy {list.total} đơn
         {list.totalPages > 1 ? ` — trang ${list.page}/${list.totalPages}` : ""}
       </p>
+
+      {/* Chip báo đang loại trạng thái (mục 3 verdict Ngày 10): từ
+          thẻ dashboard sang với exclude=CANCELLED, tab hiện
+          "Đã hủy (0)" và "Tất cả (7)" trong khi DB có đơn hủy thật
+          mà không có dấu hiệu nào cho biết đang loại — chủ shop dễ
+          hiểu nhầm. Chip này cho biết đang loại gì; bấm ✕ để bỏ
+          lọc và hiện lại tất cả các đơn (kể cả đơn đã hủy). */}
+      {exclude !== "" ? (
+        <p className="mt-3">
+          <Link
+            href={clearExcludeHref(base, list.page)}
+            data-testid="exclude-chip"
+            aria-label={`Bỏ lọc loại đơn ${orderStatusLabel(exclude)} — hiện lại tất cả các đơn`}
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-gold-300 bg-gold-300 px-4 text-sm font-bold text-green-900 transition-colors hover:opacity-90"
+          >
+            Không tính đơn {orderStatusLabel(exclude).toLowerCase()} ✕
+          </Link>
+        </p>
+      ) : null}
 
       <nav aria-label="Lọc theo trạng thái" className="mt-4 flex flex-wrap gap-2">
         {ORDER_TABS.map((t) => (

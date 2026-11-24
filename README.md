@@ -284,6 +284,19 @@ dữ liệu thật. (Trước đây `update:` ghi đầy đủ nên mỗi lần 
 ghi đè tên/giá/giá khuyến mãi/ảnh/tag/thứ tự/SKU/tình trạng còn hàng
 mà Henry đã sửa trong trang quản trị — đã sửa ở mục 1 verdict Ngày 9.)
 
+**Seed không hồi sinh dữ liệu đã xóa (mục 1 verdict Ngày 10).**
+Upsert vẫn TẠO LẠI dòng đã bị xóa dù `update: {}` — Henry xóa sản
+phẩm hay khu vực demo trong admin thì lần deploy sau nó mọc lại.
+Nên `prisma/seed.ts` tự chặn: đếm 3 bảng danh mục/sản phẩm/khu vực
+trước khi seed; chỉ seed khi CẢ 3 bảng đều trống, còn không thì
+thoát ngay (in log "DB đã có dữ liệu … — bỏ qua seed") và không tạo
+lại gì cả. Logic chặn là hàm thuần `shouldSeed` trong
+`src/lib/seed-guard.ts` (có unit test). Muốn seed lại thật sự (vd
+dựng lại DB sau khi xóa nhầm): chạy tay
+`npm run db:seed -- -- --force` — cần 2 dấu `--` (npm ăn 1, prisma
+ăn 1, còn `--force` chuyển cho script); gọi trực tiếp thì
+`npx prisma db seed -- --force`. Cờ `--force` bỏ qua chặn.
+
 - **Muốn đổi sản phẩm/danh mục/khu vực đang chạy thì sửa trong trang
   quản trị, không sửa seed** — sửa seed rồi chạy lại sẽ không áp lên
   production nữa. Đổi lớn, đổi hàng loạt thì làm bằng migration.

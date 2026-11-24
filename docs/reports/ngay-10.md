@@ -277,3 +277,94 @@ ro đặc tả nêu đều **đúng với số thật**.
   10 dòng (1 trang A5).
 - `ket-qua-smoke-live-ngay-10.log` — kết quả smoke-live.sh trên
   production (10/10 PASS).
+
+## Bổ sung sau Ngày 10 — sửa mục 1+3 theo verdict Claude
+
+Ngày 10 Phần A đã đóng (Claude, chat mới 85b8509e…). Claude nêu 5
+mục trước Phần B; Henry duyệt sửa mục 1+3 ngay (24/11 ~23:45).
+Mục 5 (đo 360 px) để sang Ngày 11, mục 4 (kiểm múi giờ sau 00:00)
+người khác tự kiểm. Không liên hệ Claude đợt này (Free hết lượt
+đến 1:20 sáng mai).
+
+### Mục 1 — Seed không hồi sinh dữ liệu demo — ĐẠT
+
+Nguy cơ đã xác minh là thật: lệnh build Vercel chạy
+`prisma db seed` MỖI lần deploy, mà upsert vẫn TẠO LẠI dòng đã bị
+xóa dù `update: {}`. Henry xóa sản phẩm/khu vực demo trong admin
+thì lần deploy sau nó mọc lại.
+- Sửa: `prisma/seed.ts` tự chặn — đếm 3 bảng
+  categories/products/shipping_zones trước khi seed; chỉ seed khi
+  CẢ 3 bảng đều trống, còn không thì thoát ngay, in log "DB đã có
+  dữ liệu … — bỏ qua seed, không tạo lại gì cả". Cờ `--force` bỏ
+  qua chặn (chạy tay khi thật sự muốn seed lại). Logic chặn là hàm
+  thuần `shouldSeed` trong `src/lib/seed-guard.ts` (mới) + unit
+  test `src/lib/seed-guard.test.ts` (mới, 3 ca).
+- README mục "## Seed và dữ liệu" (D10-6) cập nhật: cơ chế chặn +
+  cách chạy tay `npm run db:seed -- -- --force` (cần 2 dấu `--`:
+  npm ăn 1, prisma ăn 1, còn `--force` chuyển cho script) hoặc
+  `npx prisma db seed -- --force`.
+- Kiểm trực tiếp trong DB local: (a) xóa SP 3 (Bó Hướng Dương
+  Rạng Rỡ, HT-003) + khu vực 4 (Ngoại thành), chạy
+  `npm run db:seed` → log chặn, KHÔNG mọc lại (20 SP, 3 khu vực,
+  0 dòng cho slug/tên đã xóa); chạy
+  `npm run db:seed -- -- --force` → "Seed xong: 4 danh mục,
+  21 sản phẩm, 4 khu vực giao", khôi phục đúng giá trị gốc
+  (650.000 ₫ / 585.000 ₫ / HT-003; Ngoại thành 70.000 ₫).
+  Lưu ý: `npm run db:seed -- --force` (1 dấu `--`) KHÔNG chuyển
+  được cờ — prisma báo "unknown or unexpected option: --force"
+  và thoát 1; phải dùng 2 dấu `--`. (b) Chạy `npm run db:seed`
+  trên DB hiện tại (đã có dữ liệu) → no-op, dữ liệu không đổi
+  (21 SP, 4 khu vực, SP 1 giữ nguyên tên/giá).
+- Unit test 179/179 (trước 176/176, +3 ca seed-guard mới).
+
+### Mục 3 — Chip báo đang loại đơn hủy — ĐẠT
+
+- Sửa: trang `/admin/orders`, khi URL có `exclude=CANCELLED`
+  (hiện chỉ có trường hợp này từ thẻ dashboard) thì hiện chip
+  vàng "Không tính đơn đã hủy ✕" ngay dưới dòng "Tìm thấy N đơn",
+  trước khu vực lọc. Bấm ✕ tải lại danh sách KHÔNG còn tham số
+  exclude, giữ nguyên tab, tìm kiếm, thanh toán, phương thức,
+  ngày giao và trang hiện tại (hàm mới `clearExcludeHref`, mirror
+  của `pageHref` trừ exclude). Chip dùng chung nhãn
+  `orderStatusLabel` nên đúng với mọi giá trị exclude hợp lệ.
+- Kiểm bằng curl có session admin (48 đơn seed): URL
+  `?tab=all&payment=UNPAID&method=BANK_TRANSFER&exclude=CANCELLED`
+  → chip hiện 1, "Tìm thấy 7 đơn"; link ✕ là
+  `?tab=all&payment=UNPAID&method=BANK_TRANSFER` (đã bỏ exclude);
+  URL `?tab=all&exclude=CANCELLED` → "Tìm thấy 43 đơn", chip
+  hiện; cùng URL không exclude → "Tìm thấy 48 đơn", chip không
+  hiện (chênh 5 = đúng 5 đơn hủy). Lưu ý: với bộ lọc
+  BANK_TRANSFER+UNPAID, tổng vẫn 7 dù có exclude hay không, vì
+  5 đơn hủy seed không có đơn nào vừa chuyển khoản vừa chưa thu
+  (3 COD chưa thu + 2 chuyển khoản đã thu) — không phải lỗi.
+- Ảnh đã mắt kiểm: `chip-loai-don-huy-1440.png` (chip vàng rõ,
+  đúng vị trí; tab "Đã hủy (0)" / "Tất cả (7)" nay đã có chú
+  thích) và `chip-loai-don-huy-390.png` (chip vừa 1 dòng, không
+  tràn, bố cục mobile không vỡ).
+
+### Dọn nốt — PDF phiếu 5 dòng — ĐẠT
+
+Báo cáo Ngày 10 nói làm 3 PDF nhưng chỉ giao 2 file. File PDF
+đơn 5 dòng còn trong /tmp (`/tmp/d10-phieu-5dong.pdf`), đã lưu
+thành `phieu-giao-5-dong-ngay-10.pdf`; pdfinfo: 1 trang, khổ A5
+(420 × 594.96 pt).
+
+### Kiểm chứng tổng hợp (tự chạy trên bản cuối)
+- Unit test **179/179 PASS** (trước 176/176, +3 ca seed-guard);
+  test:db **8/8 PASS**; typecheck 0 lỗi; lint 0 lỗi; build OK;
+  First Load JS `/` = **115 kB** (≤ 135 kB).
+- Curl local trên server standalone cổng 3000: `/` 200; chip
+  hiện/không hiện đúng theo URL; link ✕ bỏ đúng tham số exclude.
+- DB cuối đợt: **3 đơn mẫu NEW/UNPAID, 21 sản phẩm, 4 khu vực,
+  0 phiên admin** (đã xóa 45 đơn SEED + 1 phiên; SP 3 và khu vực
+  4 đã xóa lúc kiểm seed được khôi phục đúng giá trị gốc).
+- Server verification đang chạy trên cổng 3000 phục vụ bản mới.
+
+### File thay đổi đợt bổ sung
+- `prisma/seed.ts`, `src/lib/seed-guard.ts` (mới),
+  `src/lib/seed-guard.test.ts` (mới), `package.json` (thêm test
+  vào script `test`), `README.md` — mục 1.
+- `src/app/admin/orders/page.tsx` — mục 3 (chip + helper
+  `clearExcludeHref`).
+- Ảnh/file: `chip-loai-don-huy-1440.png`,
+  `chip-loai-don-huy-390.png`, `phieu-giao-5-dong-ngay-10.pdf`.
