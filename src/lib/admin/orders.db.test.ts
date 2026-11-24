@@ -38,7 +38,9 @@ const CODE_B = "DBTST00002"; // CONFIRMED, BANK_TRANSFER, PAID
 const CODE_C = "DBTST00003"; // COMPLETED, sự kiện hoàn tất cách đây 3 ngày
 const CODE_D = "DBTST00004"; // COMPLETED, sự kiện hoàn tất cách đây 8 ngày
 const CODE_E = "DBTST00005"; // COMPLETED, HAI sự kiện hoàn tất cùng lúc
-const TEST_CODES = [CODE_A, CODE_B, CODE_C, CODE_D, CODE_E];
+const CODE_F = "DBTST00006"; // NEW, BANK_TRANSFER, UNPAID, giao hôm nay
+const CODE_G = "DBTST00007"; // CANCELLED, BANK_TRANSFER, UNPAID, giao hôm nay
+const TEST_CODES = [CODE_A, CODE_B, CODE_C, CODE_D, CODE_E, CODE_F, CODE_G];
 
 // Tạo đơn COMPLETED với các sự kiện STATUS_CHANGE → COMPLETED tại
 // đúng thời điểm cho trước (sửa 12 mục verdict Ngày 9, mục 9+10).
@@ -125,6 +127,56 @@ async function createTestOrder(code: string, status: "NEW" | "CONFIRMED") {
       paymentMethod: status === "NEW" ? "COD" : "BANK_TRANSFER",
       paymentStatus: status === "NEW" ? "UNPAID" : "PAID",
       paidAt: status === "NEW" ? null : new Date(),
+      status,
+      items: {
+        create: [
+          {
+            productId: product.id,
+            name: product.name,
+            price: unitPrice,
+            quantity: 1,
+            image: null,
+          },
+        ],
+      },
+    },
+  });
+}
+
+// Đơn test cho link thẻ dashboard (Ngày 10 D10-2): chuyển khoản chưa
+// thu + trạng thái + ngày giao tùy chọn — để kiểm số đếm dashboard
+// khớp total danh sách đích khi dùng bộ lọc mới (method + exclude).
+async function createLinkTestOrder(
+  code: string,
+  status: "NEW" | "CANCELLED",
+  deliveryDate: Date,
+) {
+  const product = await db.product.findFirst({
+    where: { id: 1 },
+    select: { id: true, name: true, salePrice: true, price: true },
+  });
+  assert.ok(product, "cần sản phẩm id 1 (chạy seed gốc trước)");
+  const unitPrice = product.salePrice ?? product.price;
+  return db.order.create({
+    data: {
+      code,
+      senderName: "DB Test",
+      senderPhone: "0900000011",
+      senderEmail: null,
+      receiverName: "Người Nhận DB",
+      receiverPhone: "0900000012",
+      address: "1 đường DB Test",
+      area: "Khu vực trung tâm",
+      deliveryDate,
+      deliverySlot: "08:00 – 10:00",
+      deliveryMethod: "SCHEDULED",
+      deliverySurcharge: 0,
+      subtotal: unitPrice,
+      shippingFee: 25000,
+      total: unitPrice + 25000,
+      paymentMethod: "BANK_TRANSFER",
+      paymentStatus: "UNPAID",
+      paidAt: null,
       status,
       items: {
         create: [
@@ -282,6 +334,106 @@ describe("số liệu dashboard trên DB thật (Ngày 9 D9-8)", () => {
       );
     } finally {
       await db.order.deleteMany({ where: { code: CODE_E } });
+    }
+  });
+});
+
+describe("link thẻ dashboard khớp số trên thẻ (Ngày 10 D10-2)", () => {
+  // Trước sửa, 2 link thẻ sai: "Đơn giao hôm nay" trỏ tới
+  // ?tab=all&date=... (lẫn đơn hủy, danh sách ra 12 trong khi thẻ
+  // ghi 11); "Chuyển khoản chưa thu" trỏ tới ?tab=all&payment=UNPAID
+  // (lẫn cả COD chưa thu, danh sách ra 24 trong khi thẻ ghi 7).
+  // Sau sửa, link mới thêm method=BANK_TRANSFER + exclude=CANCELLED
+  // (thẻ giao hôm nay chỉ thêm exclude). Test so delta số đếm
+  // dashboard với delta total danh sách đích — dùng delta để không
+  // phụ thuộc dữ liệu có sẵn trong DB.
+  it("số đếm dashboard (delta) = total danh sách đích (delta) với bộ lọc mới", async () => {
+    const before = await getAdminDashboardStats();
+    const today = new Date(`${before.todayVn}T00:00:00Z`);
+    const listBefore = {
+      bank: await listAdminOrders({
+        tab: "all",
+        payment: "UNPAID",
+        method: "BANK_TRANSFER",
+        exclude: "CANCELLED",
+        q: "DBTST",
+      }),
+      today: await listAdminOrders({
+        tab: "all",
+        date: before.todayVn,
+        exclude: "CANCELLED",
+        q: "DBTST",
+      }),
+      pending: await listAdminOrders({ tab: "pending", q: "DBTST" }),
+    };
+    // Đơn F (NEW, chuyển khoản chưa thu, giao hôm nay) cộng vào cả 3
+    // số; đơn G (đã hủy, cùng phương thức + ngày giao) không cộng
+    // vào đâu.
+    await createLinkTestOrder(CODE_F, "NEW", today);
+    await createLinkTestOrder(CODE_G, "CANCELLED", today);
+    try {
+      const after = await getAdminDashboardStats();
+      assert.equal(
+        after.pendingCount - before.pendingCount,
+        1,
+        "chỉ đơn F (NEW) cộng vào cần xử lý, đơn G đã hủy không cộng",
+      );
+      assert.equal(
+        after.todayDeliveryCount - before.todayDeliveryCount,
+        1,
+        "chỉ đơn F cộng vào giao hôm nay, đơn G đã hủy không cộng",
+      );
+      assert.equal(
+        after.unpaidBankTransferCount - before.unpaidBankTransferCount,
+        1,
+        "chỉ đơn F cộng vào chuyển khoản chưa thu, đơn G đã hủy không cộng",
+      );
+      const bankAfter = await listAdminOrders({
+        tab: "all",
+        payment: "UNPAID",
+        method: "BANK_TRANSFER",
+        exclude: "CANCELLED",
+        q: "DBTST",
+      });
+      assert.equal(
+        bankAfter.total - listBefore.bank.total,
+        after.unpaidBankTransferCount - before.unpaidBankTransferCount,
+        "link chuyển khoản chưa thu: delta danh sách = delta số trên thẻ",
+      );
+      const todayAfter = await listAdminOrders({
+        tab: "all",
+        date: after.todayVn,
+        exclude: "CANCELLED",
+        q: "DBTST",
+      });
+      assert.equal(
+        todayAfter.total - listBefore.today.total,
+        after.todayDeliveryCount - before.todayDeliveryCount,
+        "link giao hôm nay: delta danh sách = delta số trên thẻ",
+      );
+      const pendingAfter = await listAdminOrders({ tab: "pending", q: "DBTST" });
+      assert.equal(
+        pendingAfter.total - listBefore.pending.total,
+        after.pendingCount - before.pendingCount,
+        "link cần xử lý: delta danh sách = delta số trên thẻ",
+      );
+      // Hồi quy link cũ (chỉ payment=UNPAID, không method, không
+      // loại hủy): link này hiện nhiều hơn số trên thẻ (lẫn đơn COD
+      // A và đơn hủy G) nên không được dùng nữa.
+      const oldLink = await listAdminOrders({
+        tab: "all",
+        payment: "UNPAID",
+        q: "DBTST",
+      });
+      assert.ok(
+        oldLink.total >
+          after.unpaidBankTransferCount - before.unpaidBankTransferCount,
+        "link cũ payment=UNPAID hiện nhiều hơn số trên thẻ (lẫn COD + đơn hủy)",
+      );
+    } finally {
+      await db.order.deleteMany({
+        where: { code: { in: [CODE_F, CODE_G] } },
+      });
     }
   });
 });

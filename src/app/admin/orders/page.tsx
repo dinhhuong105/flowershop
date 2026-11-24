@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import type { OrderStatus } from "@prisma/client";
 import { requireAdmin } from "@/lib/admin/auth";
 import {
   ORDER_TABS,
@@ -36,12 +37,21 @@ function paymentMethodLabel(method: string): string {
   return method === "BANK_TRANSFER" ? "Chuyển khoản" : "COD";
 }
 
-type BaseParams = { tab: string; q: string; payment: string; date: string };
+type BaseParams = {
+  tab: string;
+  q: string;
+  payment: string;
+  method: string;
+  exclude: string;
+  date: string;
+};
 
 function tabHref(base: BaseParams, tab: OrderTab): string {
   const parts: string[] = [`tab=${tab}`];
   if (base.q !== "") parts.push(`q=${encodeURIComponent(base.q)}`);
   if (base.payment !== "all") parts.push(`payment=${encodeURIComponent(base.payment)}`);
+  if (base.method !== "all") parts.push(`method=${encodeURIComponent(base.method)}`);
+  if (base.exclude !== "") parts.push(`exclude=${encodeURIComponent(base.exclude)}`);
   if (base.date !== "") parts.push(`date=${encodeURIComponent(base.date)}`);
   return `/admin/orders?${parts.join("&")}`;
 }
@@ -51,6 +61,8 @@ function pageHref(base: BaseParams, page: number): string {
   if (base.tab !== "pending") parts.push(`tab=${encodeURIComponent(base.tab)}`);
   if (base.q !== "") parts.push(`q=${encodeURIComponent(base.q)}`);
   if (base.payment !== "all") parts.push(`payment=${encodeURIComponent(base.payment)}`);
+  if (base.method !== "all") parts.push(`method=${encodeURIComponent(base.method)}`);
+  if (base.exclude !== "") parts.push(`exclude=${encodeURIComponent(base.exclude)}`);
   if (base.date !== "") parts.push(`date=${encodeURIComponent(base.date)}`);
   if (page > 1) parts.push(`page=${page}`);
   return parts.length > 0 ? `/admin/orders?${parts.join("&")}` : "/admin/orders";
@@ -63,6 +75,8 @@ export default async function AdminOrdersPage({
     tab?: string;
     q?: string;
     payment?: string;
+    method?: string;
+    exclude?: string;
     date?: string;
     page?: string;
   }>;
@@ -75,10 +89,33 @@ export default async function AdminOrdersPage({
   const q = (params.q ?? "").trim();
   const payment =
     params.payment === "UNPAID" || params.payment === "PAID" ? params.payment : "all";
+  // Bộ lọc phương thức (Ngày 10 D10-2): chỉ nhận đúng 2 giá trị
+  // trong enum PaymentMethod, còn lại coi như "all" (bỏ qua).
+  const method =
+    params.method === "BANK_TRANSFER" || params.method === "COD" ? params.method : "all";
+  // Loại trạng thái (Ngày 10 D10-2): chỉ nhận đúng 1 trạng thái hợp
+  // lệ trong enum OrderStatus, còn lại bỏ qua (không loại gì).
+  const exclude: OrderStatus | "" =
+    params.exclude === "NEW" ||
+    params.exclude === "CONFIRMED" ||
+    params.exclude === "PREPARING" ||
+    params.exclude === "DELIVERING" ||
+    params.exclude === "COMPLETED" ||
+    params.exclude === "CANCELLED"
+      ? params.exclude
+      : "";
   const date = (params.date ?? "").trim();
   const page = Math.max(1, Number(params.page) || 1);
-  const list = await listAdminOrders({ tab, q, payment, date, page });
-  const base: BaseParams = { tab, q, payment, date };
+  const list = await listAdminOrders({
+    tab,
+    q,
+    payment,
+    method,
+    exclude: exclude === "" ? undefined : exclude,
+    date,
+    page,
+  });
+  const base: BaseParams = { tab, q, payment, method, exclude, date };
   const now = new Date();
 
   return (
@@ -142,6 +179,28 @@ export default async function AdminOrdersPage({
             <option value="PAID">Đã thanh toán</option>
           </select>
         </div>
+        {/* Phương thức thanh toán (Ngày 10 D10-2): thẻ dashboard
+            "Chuyển khoản chưa thu" trỏ tới đây với
+            method=BANK_TRANSFER; ô chọn để chủ shop tự lọc tay. */}
+        <div>
+          <label htmlFor="admin-order-method" className="block text-sm font-semibold text-ink">
+            Phương thức
+          </label>
+          <select
+            id="admin-order-method"
+            name="method"
+            defaultValue={method}
+            className="mt-1 block min-h-11 rounded-[3px] border border-line bg-white px-3 text-base text-ink"
+          >
+            <option value="all">Tất cả</option>
+            <option value="BANK_TRANSFER">Chuyển khoản</option>
+            <option value="COD">COD</option>
+          </select>
+        </div>
+        {/* Giữ lại tham số loại trạng thái (vd exclude=CANCELLED từ
+            thẻ dashboard) khi bấm "Lọc" — form GET chỉ gửi các
+            trường trong form, không giữ thì mất bộ lọc. */}
+        {exclude !== "" ? <input type="hidden" name="exclude" value={exclude} /> : null}
         <div>
           <label htmlFor="admin-order-date" className="block text-sm font-semibold text-ink">
             Ngày giao

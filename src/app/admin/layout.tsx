@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { logoutAction } from "@/app/actions/admin-auth";
+import AdminNav from "@/components/admin/AdminNav";
 
 export const dynamic = "force-dynamic";
 
@@ -12,58 +13,31 @@ export const metadata: Metadata = {
 // Layout quản trị RIÊNG (Ngày 7 §2): không Header/Footer của shop,
 // không truy vấn giỏ. Layout KHÔNG kiểm tra đăng nhập — mỗi trang và
 // action tự gọi requireAdmin() ở câu lệnh đầu tiên.
+//
+// ĐẦU TRANG KIỂU NGÀY 7 (Ngày 10 D10-1, quyết định của Henry 24/11
+// ~23:12: "Khôi phục kiểu Ngày 7, giữ đủ 4 mục menu"): thương hiệu
+// hiện đầy đủ "Quản trị — Hoa Tươi Demo" (không rút gọn dưới sm),
+// menu tự xuống dòng (flex-wrap) để thấy hết các mục, KHÔNG cuộn
+// ngang, KHÔNG vệt mờ mask. Giữ đủ 4 mục (Tổng quan, Sản phẩm, Đơn
+// hàng, Xem shop); thương hiệu vẫn trỏ về /admin (trang tổng quan,
+// quyết định Ngày 9 giữ nguyên).
+// ĐÁNH ĐỔI ĐÃ ĐƯỢC HENRY DUYỆT: đầu trang trên mobile cao ~2 hàng
+// thay vì 1 hàng 69 px — tiêu chí "header một hàng ≤ 69 px" trong
+// đặc tả D10-1 không còn giữ được (ưu tiên thấy đủ menu hơn giữ
+// header 1 hàng). Đo thực tế ở 390 px xem báo cáo Ngày 10.
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-dvh bg-cream-50 text-ink">
-      {/* Header quản trị gọn trên mobile (Ngày 9 D9-7): trước đây
-          flex-wrap làm header cao ~167 px ở 390 px (nhiều hàng).
-          Giờ là một hàng: thương hiệu + menu cuộn ngang + đăng xuất. */}
       <header className="border-b border-line bg-white">
-        <div className="shell flex items-center gap-3 py-3">
+        <div className="shell flex flex-wrap items-center gap-3 py-3">
           <Link
             href="/admin"
             className="flex min-h-11 shrink-0 items-center whitespace-nowrap font-display text-xl font-semibold text-green-900"
           >
-            {/* Tên đầy đủ tràn 4 px ở 390 px (thương hiệu ~264 px +
-                2 khoảng cách + nút Đăng xuất 106 px > 358 px nội dung):
-                mobile chỉ hiện "Quản trị", từ sm trở lên hiện đủ. */}
-            <span className="sm:hidden">Quản trị</span>
-            <span className="hidden sm:inline">Quản trị — Hoa Tươi Demo</span>
+            Quản trị — Hoa Tươi Demo
           </Link>
-          {/* Vệt mờ ở mép phải (sửa 12 mục verdict Ngày 9, mục 8):
-              menu cuộn ngang nhưng ở 390 px không có dấu hiệu nào cho
-              biết còn mục bị che (vd "Đơn hàng" nằm sau nút Đăng
-              xuất) — mask làm mờ dần 15% cuối để thấy còn nội dung. */}
-          <nav
-            aria-label="Quản trị"
-            className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [mask-image:linear-gradient(to_right,#000_85%,transparent)]"
-          >
-            <Link
-              href="/admin"
-              className="flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-[3px] px-3 text-sm font-semibold text-ink transition-colors hover:bg-cream-100 hover:text-green-800"
-            >
-              Tổng quan
-            </Link>
-            <Link
-              href="/admin/products"
-              className="flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-[3px] px-3 text-sm font-semibold text-ink transition-colors hover:bg-cream-100 hover:text-green-800"
-            >
-              Sản phẩm
-            </Link>
-            <Link
-              href="/admin/orders"
-              className="flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-[3px] px-3 text-sm font-semibold text-ink transition-colors hover:bg-cream-100 hover:text-green-800"
-            >
-              Đơn hàng
-            </Link>
-            <Link
-              href="/"
-              className="flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-[3px] px-3 text-sm font-semibold text-ink transition-colors hover:bg-cream-100 hover:text-green-800"
-            >
-              Xem shop ↗
-            </Link>
-          </nav>
-          <form action={logoutAction} className="shrink-0">
+          <AdminNav />
+          <form action={logoutAction} className="ml-auto shrink-0">
             <button
               type="submit"
               className="flex min-h-11 items-center whitespace-nowrap rounded-[3px] border border-line bg-white px-4 text-sm font-bold text-ink transition-colors hover:border-green-800 hover:text-green-800"

@@ -175,6 +175,16 @@ export type ListAdminOrdersOpts = {
   tab?: OrderTab;
   q?: string;
   payment?: "all" | "UNPAID" | "PAID";
+  // Bộ lọc phương thức (Ngày 10 D10-2): thẻ dashboard "Chuyển khoản
+  // chưa thu" cần lọc BANK_TRANSFER + UNPAID — trước đây chỉ có lọc
+  // payment nên bấm thẻ ra 24 đơn (lẫn cả COD chưa thu) trong khi
+  // thẻ chỉ ghi 7.
+  method?: "all" | "BANK_TRANSFER" | "COD";
+  // Loại trạng thái khỏi danh sách (Ngày 10 D10-2): thẻ "Đơn giao
+  // hôm nay" loại đơn đã hủy (thẻ ghi 11, danh sách cũ ra 12 vì lẫn
+  // 1 đơn hủy giao hôm nay); thẻ "Chuyển khoản chưa thu" cũng loại
+  // đơn hủy. Chỉ nhận giá trị là trạng thái hợp lệ trong enum.
+  exclude?: OrderStatus;
   date?: string; // YYYY-MM-DD
   page?: number;
 };
@@ -203,6 +213,21 @@ function buildOrderFilters(opts: ListAdminOrdersOpts): Prisma.Sql[] {
     // PaymentStatus — không ép thì Postgres báo 42883 (lỗi phát hiện
     // khi kiểm thử Ngày 8: lọc payment=PAID trả 500).
     conditions.push(Prisma.sql`o."paymentStatus" = ${opts.payment}::"PaymentStatus"`);
+  }
+  if (opts.method === "BANK_TRANSFER" || opts.method === "COD") {
+    // Ép kiểu như lọc payment: tham số text so cột enum
+    // PaymentMethod — không ép thì Postgres báo 42883.
+    conditions.push(Prisma.sql`o."paymentMethod" = ${opts.method}::"PaymentMethod"`);
+  }
+  if (
+    opts.exclude === "NEW" ||
+    opts.exclude === "CONFIRMED" ||
+    opts.exclude === "PREPARING" ||
+    opts.exclude === "DELIVERING" ||
+    opts.exclude === "COMPLETED" ||
+    opts.exclude === "CANCELLED"
+  ) {
+    conditions.push(Prisma.sql`o."status" <> ${opts.exclude}::"OrderStatus"`);
   }
   if (opts.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date)) {
     conditions.push(Prisma.sql`o."deliveryDate" = ${opts.date}::date`);

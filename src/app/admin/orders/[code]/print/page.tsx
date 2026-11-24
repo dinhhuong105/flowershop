@@ -53,19 +53,34 @@ export default async function AdminOrderPrintPage({
         @media print {
           header, .no-print { display: none !important; }
           body { background: #fff !important; }
+          /* Nền kem của khung quản trị (div bọc ngoài trong layout
+             admin, con của <main id="noi-dung-chinh"> ở layout gốc)
+             cũng phải trắng khi in (Ngày 10 D10-4): không có dòng
+             này thì dưới phiếu còn một dải nền kem — PDF phải "chỉ
+             có phiếu" trên nền trắng. Chỉ tác động div bọc ngoài đó,
+             không đụng tới nền đỏ của dải hủy bên trong. */
+          main#noi-dung-chinh > div { background: #fff !important; }
           main { padding: 0 !important; }
         }
       `}</style>
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      {/* Khối nút + hướng dẫn ẩn hẳn khi in (Ngày 10 D10-4):
+          nút "In" và dòng hướng dẫn đã có class no-print (ẩn bằng
+          CSS @media print bên dưới) — thêm print:hidden ở div bọc để
+          chắc chắn cả khối biến mất, không còn hàng trống trên giấy. */}
+      <div className="mb-4 flex flex-wrap items-center gap-3 print:hidden">
         <PrintButton />
         <p className="no-print text-sm text-ink-soft">
           Phiếu in khổ A5 dọc — bấm “In” rồi chọn máy in hoặc lưu thành PDF.
         </p>
       </div>
 
+      {/* Khung phiếu (Ngày 10 D10-4): trên màn hình vẫn bo góc +
+          viền + đệm; khi in thì bỏ hết (print:rounded-none,
+          print:border-0, print:p-0) để phiếu in ra sạch như giấy
+          trắng, không còn khung thừa. */}
       <section
         aria-label="Phiếu giao hàng"
-        className="mx-auto max-w-[148mm] rounded-[3px] border border-line bg-white p-6 text-ink"
+        className="mx-auto max-w-[148mm] rounded-[3px] border border-line bg-white p-6 text-ink print:rounded-none print:border-0 print:p-0"
       >
         {/* Dải đỏ in được (sửa 12 mục verdict Ngày 9, mục 3):
             print-color-adjust: exact — trình duyệt mặc định không in

@@ -274,15 +274,27 @@ bằng GET (trang chủ, chi tiết SP, giỏ, checkout, `/order/KHONGTONTAI`
 → 404 + đúng tiêu đề, `/admin/orders` khi chưa đăng nhập → 307
 `/login`). Không tạo đơn test trên production.
 
-**Seed chỉ tạo mới, không ghi đè (sửa 12 mục verdict Ngày 9, mục 1):**
-`prisma/seed.ts` dùng `upsert` với `update: {}` cho danh mục, sản phẩm
-và khu vực giao — chạy lại seed là no-op đối với dữ liệu đã có. Trước
-đây `update:` ghi đầy đủ nên mỗi lần Vercel build chạy `prisma db
-seed` lại ghi đè tên/giá/giá khuyến mãi/ảnh/tag/thứ tự/SKU/tình trạng
-còn hàng mà Henry đã sửa trong trang quản trị. Lần khởi tạo đầu vẫn
-cần chạy seed để có dữ liệu gốc (4 danh mục, 20 sản phẩm, 4 khu vực);
-muốn đổi dữ liệu gốc sau đó thì sửa trực tiếp trong trang quản trị
-hoặc bằng migration, không sửa seed rồi chạy lại.
+## Seed và dữ liệu (Ngày 10 D10-6)
+
+**Seed chỉ tạo mới, không ghi đè.** `prisma/seed.ts` dùng `upsert` với
+`update: {}` cho danh mục, sản phẩm và khu vực giao — chạy lại seed là
+no-op đối với dữ liệu đã có. Build trên Vercel chạy `prisma db seed`
+mỗi lần deploy nên seed chạy lại thường xuyên, nhưng không động vào
+dữ liệu thật. (Trước đây `update:` ghi đầy đủ nên mỗi lần build lại
+ghi đè tên/giá/giá khuyến mãi/ảnh/tag/thứ tự/SKU/tình trạng còn hàng
+mà Henry đã sửa trong trang quản trị — đã sửa ở mục 1 verdict Ngày 9.)
+
+- **Muốn đổi sản phẩm/danh mục/khu vực đang chạy thì sửa trong trang
+  quản trị, không sửa seed** — sửa seed rồi chạy lại sẽ không áp lên
+  production nữa. Đổi lớn, đổi hàng loạt thì làm bằng migration.
+- **Seed chỉ để dựng DB trống.** Lần khởi tạo đầu cần chạy seed để có
+  dữ liệu gốc (4 danh mục, 20 sản phẩm, 4 khu vực); DB đã có dữ liệu
+  thì không cần chạy seed nữa.
+- **Cách kiểm seed không ghi đè dữ liệu thật:** sửa tay tên/giá một
+  sản phẩm (hoặc phí một khu vực) trong DB rồi chạy `npm run db:seed`,
+  kiểm lại thấy giữ nguyên giá trị vừa sửa — đã kiểm trực tiếp khi
+  sửa mục 1 (đổi SP 1 thành tên/giá khác, chạy seed, vẫn giữ nguyên,
+  sau đó khôi phục đúng giá gốc).
 
 **Trạng thái 24/11 ~21:03 (ĐÃ XÁC MINH — không còn bị chặn):** redeploy
 an toàn cùng commit 821f3a7 lên Vercel xong, deployment
