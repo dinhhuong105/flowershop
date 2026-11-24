@@ -35,6 +35,68 @@ import { getAdminDashboardStats } from "./dashboard";
 
 const CODE_A = "DBTST00001"; // NEW, COD, UNPAID
 const CODE_B = "DBTST00002"; // CONFIRMED, BANK_TRANSFER, PAID
+const CODE_C = "DBTST00003"; // COMPLETED, sự kiện hoàn tất cách đây 3 ngày
+const CODE_D = "DBTST00004"; // COMPLETED, sự kiện hoàn tất cách đây 8 ngày
+const CODE_E = "DBTST00005"; // COMPLETED, HAI sự kiện hoàn tất cùng lúc
+const TEST_CODES = [CODE_A, CODE_B, CODE_C, CODE_D, CODE_E];
+
+// Tạo đơn COMPLETED với các sự kiện STATUS_CHANGE → COMPLETED tại
+// đúng thời điểm cho trước (sửa 12 mục verdict Ngày 9, mục 9+10).
+// Trả về đơn đã tạo (kèm total để test đối chiếu delta doanh thu).
+async function createCompletedTestOrder(code: string, eventDates: Date[]) {
+  const product = await db.product.findFirst({
+    where: { id: 1 },
+    select: { id: true, name: true, salePrice: true, price: true },
+  });
+  assert.ok(product, "cần sản phẩm id 1 (chạy seed gốc trước)");
+  const unitPrice = product.salePrice ?? product.price;
+  return db.order.create({
+    data: {
+      code,
+      senderName: "DB Test",
+      senderPhone: "0900000011",
+      senderEmail: null,
+      receiverName: "Người Nhận DB",
+      receiverPhone: "0900000012",
+      address: "1 đường DB Test",
+      area: "Khu vực trung tâm",
+      deliveryDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      deliverySlot: "08:00 – 10:00",
+      deliveryMethod: "SCHEDULED",
+      deliverySurcharge: 0,
+      subtotal: unitPrice,
+      shippingFee: 25000,
+      total: unitPrice + 25000,
+      paymentMethod: "COD",
+      paymentStatus: "UNPAID",
+      paidAt: null,
+      status: "COMPLETED",
+      items: {
+        create: [
+          {
+            productId: product.id,
+            name: product.name,
+            price: unitPrice,
+            quantity: 1,
+            image: null,
+          },
+        ],
+      },
+      events: {
+        create: eventDates.map((createdAt) => ({
+          type: "STATUS_CHANGE" as const,
+          fromStatus: "DELIVERING" as const,
+          toStatus: "COMPLETED" as const,
+          note: null,
+          createdAt,
+        })),
+      },
+    },
+  });
+}
+
+const daysAgo = (n: number): Date =>
+  new Date(Date.now() - n * 24 * 60 * 60 * 1000);
 
 async function createTestOrder(code: string, status: "NEW" | "CONFIRMED") {
   const product = await db.product.findFirst({
@@ -81,7 +143,7 @@ async function createTestOrder(code: string, status: "NEW" | "CONFIRMED") {
 
 before(async () => {
   await db.order.deleteMany({
-    where: { code: { in: [CODE_A, CODE_B] } },
+    where: { code: { in: TEST_CODES } },
   });
   await createTestOrder(CODE_A, "NEW");
   await createTestOrder(CODE_B, "CONFIRMED");
@@ -89,7 +151,7 @@ before(async () => {
 
 after(async () => {
   await db.order.deleteMany({
-    where: { code: { in: [CODE_A, CODE_B] } },
+    where: { code: { in: TEST_CODES } },
   });
   await db.$disconnect();
 });
@@ -160,5 +222,66 @@ describe("số liệu dashboard trên DB thật (Ngày 9 D9-8)", () => {
     assert.equal(typeof stats.revenue7Days, "number");
     assert.ok(stats.pendingCount >= 2, `pendingCount = ${stats.pendingCount}`);
     assert.ok(stats.revenue7Days >= stats.revenueToday);
+  });
+
+  // Ranh giới ngày (sửa 12 mục verdict Ngày 9, mục 9): trước đây
+  // seed đặt cả 5 sự kiện COMPLETED ở "now" nên doanh thu hôm nay
+  // luôn bằng doanh thu 7 ngày — test này chưa chứng minh được ranh
+  // giới. Đơn hoàn tất 3 ngày trước chỉ tính vào 7 ngày (không tính
+  // vào hôm nay); đơn hoàn tất 8 ngày trước bị loại khỏi cả hai.
+  // Đối chiếu bằng delta trước/sau để không phụ thuộc dữ liệu có sẵn
+  // trong DB (vd đơn mẫu Ngày 7).
+  it("ranh giới ngày: đơn 3 ngày trước chỉ vào 7 ngày, đơn 8 ngày trước bị loại", async () => {
+    const before = await getAdminDashboardStats();
+    const threeDays = await createCompletedTestOrder(CODE_C, [daysAgo(3)]);
+    // Đơn 8 ngày trước chỉ cần tồn tại (không cộng vào đâu) nên không
+    // cần giữ biến.
+    await createCompletedTestOrder(CODE_D, [daysAgo(8)]);
+    try {
+      const afterStats = await getAdminDashboardStats();
+      assert.equal(
+        afterStats.revenueToday,
+        before.revenueToday,
+        "đơn 3 ngày và 8 ngày trước không được tính vào hôm nay",
+      );
+      assert.equal(
+        afterStats.revenue7Days,
+        before.revenue7Days + threeDays.total,
+        "chỉ đơn 3 ngày trước cộng vào 7 ngày, đơn 8 ngày trước bị loại",
+      );
+      assert.ok(
+        afterStats.revenue7Days > afterStats.revenueToday,
+        "sau khi thêm đơn 3 ngày trước, doanh thu 7 ngày phải lớn hơn hôm nay",
+      );
+    } finally {
+      await db.order.deleteMany({
+        where: { code: { in: [CODE_C, CODE_D] } },
+      });
+    }
+  });
+
+  // Hồi quy tính trùng doanh thu (sửa 12 mục verdict Ngày 9, mục 10):
+  // trước sửa, dashboard cộng theo từng sự kiện STATUS_CHANGE →
+  // COMPLETED nên một đơn hoàn tất 2 lần bị tính 2 lần. Sau sửa phải
+  // gom theo orderId, chỉ tính 1 lần.
+  it("một đơn có 2 sự kiện COMPLETED chỉ tính doanh thu 1 lần", async () => {
+    const before = await getAdminDashboardStats();
+    const now = new Date();
+    const order = await createCompletedTestOrder(CODE_E, [now, now]);
+    try {
+      const afterStats = await getAdminDashboardStats();
+      assert.equal(
+        afterStats.revenueToday,
+        before.revenueToday + order.total,
+        "đơn có 2 sự kiện hoàn tất cùng lúc chỉ cộng 1 lần vào hôm nay",
+      );
+      assert.equal(
+        afterStats.revenue7Days,
+        before.revenue7Days + order.total,
+        "đơn có 2 sự kiện hoàn tất cùng lúc chỉ cộng 1 lần vào 7 ngày",
+      );
+    } finally {
+      await db.order.deleteMany({ where: { code: CODE_E } });
+    }
   });
 });

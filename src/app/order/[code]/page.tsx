@@ -41,8 +41,11 @@ export default async function OrderPage({ params }: { params: Promise<{ code: st
         <h1 className="font-display text-3xl font-semibold text-ink sm:text-4xl">
           {order.status === "CANCELLED" ? "Đơn đã hủy" : "Đặt hàng thành công"}
         </h1>
-        {/* Đơn đã hủy: không tô sáng bước nào (Ngày 9 D9-4). */}
-        <Steps current={order.status === "CANCELLED" ? null : 2} />
+        {/* Đơn đã hủy: ẨN HẲN thanh bước (sửa 12 mục verdict Ngày 9,
+            mục 5) — thanh 1→2→3 không tô bước nào thì vô nghĩa, trước
+            đây truyền current={null} vẫn hiện thanh. Đơn chưa hủy vẫn
+            hiện thanh như cũ (bước hiện tại = 2). */}
+        {order.status === "CANCELLED" ? null : <Steps current={2} />}
 
         {order.status === "CANCELLED" ? (
           <p role="alert" className="mt-6 max-w-2xl rounded-[3px] border border-danger bg-white p-5 text-sm font-medium text-danger">
@@ -71,15 +74,19 @@ export default async function OrderPage({ params }: { params: Promise<{ code: st
             <p className="mt-3">
               <OrderStatusBadge status={order.status} />
             </p>
-            <p className="mt-3 text-sm text-ink-soft">
-              {order.status === "CANCELLED"
-                ? "Đơn đã hủy"
-                : order.paymentStatus === "PAID"
+            {/* Dòng trạng thái (sửa 12 mục verdict Ngày 9, mục 5):
+                đơn đã hủy thì KHÔNG hiện dòng "Đơn đã hủy" nữa — chữ
+                "đã hủy" đã có ở tiêu đề, alert và huy hiệu, lặp lần
+                thứ tư là thừa. Đơn chưa hủy vẫn hiện như cũ. */}
+            {order.status === "CANCELLED" ? null : (
+              <p className="mt-3 text-sm text-ink-soft">
+                {order.paymentStatus === "PAID"
                   ? "Đã nhận thanh toán"
                   : order.paymentMethod === "COD"
                     ? "Thanh toán khi nhận hàng"
                     : "Chờ chuyển khoản"}
-            </p>
+              </p>
+            )}
           </section>
 
           {showBankBox && bank ? (

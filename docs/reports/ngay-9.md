@@ -238,3 +238,109 @@ tiếp từ DB (force-dynamic + header no-store, không cache):
   200 `{"ok":true}` trong 2,2 s; không cần đặt lại mật khẩu.
 - **Không còn chờ:** đặt lại `DATABASE_URL` từ Neon — đã xác minh còn
   nguyên sau redeploy 21:03 (xem D9-1).
+
+## Bổ sung sau Ngày 9 — sửa 12 mục theo verdict Claude (Henry duyệt "Sửa luôn 12 mục này" 24/11 ~22:29)
+
+Verdict Claude trong chat Ngày 9
+(https://claude.ai/chat/e9868d1c-de57-4a5b-b7dc-69ad782b8796, 24/11
+~22:26): không gắn nhãn DUYỆT chính thức — "Nhìn chung D9-1..D9-8
+đạt. Em thấy vài điểm cần xử lý trước khi coi Ngày 9 là đóng hẳn."
+12 mục dưới đây sửa trong MỘT commit mới trên `8fa1e9e` (xem
+`git log -1`; chưa push). Môi trường: VM thay mới lần 3 trong ngày —
+dựng lại PostgreSQL 16.15 + Chrome 158, DB local từ migration + seed
++ `scripts/recreate-test-data.ts` (3 đơn mẫu + SP 21 đúng giá trị
+Ngày 7). Kiểm chứng cuối: unit test **176/176**, test:db **7/7**
+(trước 5/5, +2 ca mới mục 9+10), typecheck 0, lint 0, build OK,
+First Load JS `/` = **115 kB**.
+
+1. **Seed ghi đè — ĐÃ SỬA (mục bắt buộc).** `prisma/seed.ts`: cả 3
+   `upsert` (category/product/shippingZone) đổi `update:` đầy đủ
+   thành `update: {}` — chạy lại seed là no-op với dữ liệu đã có.
+   README mục "Triển khai production" ghi rõ quy tắc này + cách đổi
+   dữ liệu gốc (sửa trong admin hoặc migration). **Bằng chứng:**
+   sửa tay trong DB (SP 1: tên "TÊN ĐÃ SỬA", giá 999.999 ₫; khu vực
+   1: phí 99.999 ₫; danh mục hoa-tuoi: "DANH MỤC ĐÃ SỬA"), chạy
+   `npm run db:seed`, kiểm lại cả 3 vẫn giữ nguyên giá trị đã sửa;
+   sau đó khôi phục về đúng giá trị gốc (890.000 ₫ / 25.000 ₫ /
+   "Hoa tươi", đã kiểm lại).
+2. **Sitemap live — KHÔNG CÒN LỖI (chỉ ghi nhận).** Đã xác minh live
+   trước khi sửa: sitemap live có **29 URL** (đúng — 20 sản phẩm,
+   SP 21 chỉ có ở local) và mọi `<loc>` đều đúng domain
+   `flowershop-steel.vercel.app`, không có localhost. Phần còn lại
+   của mục này (lastmod) sửa ở mục 12.
+3. **Dải đỏ phiếu giao không in ra — ĐÃ SỬA.** Thêm
+   `print:[print-color-adjust:exact]` cho dải đỏ ở
+   `src/app/admin/orders/[code]/print/page.tsx`. **Bằng chứng:**
+   CSS build có `@media print{.print\:[print-color-adjust\:exact\]
+   {-webkit-print-color-adjust:exact;print-color-adjust:exact}}`;
+   in thử bằng headless Chrome print-to-PDF trang phiếu giao đơn
+   hủy SEED000044, render PDF ra ảnh: dải đỏ nền đặc + chữ trắng
+   hiện đầy đủ trên giấy (ảnh `phieu-giao-huy-v2.png`).
+4. **Phiếu hủy mâu thuẫn — ĐÃ SỬA.** Khi `status === CANCELLED`,
+   dòng cuối phiếu thành "Đơn đã hủy — không thu tiền." thay cho
+   "Thanh toán khi nhận hàng (COD).". **Bằng chứng:** curl trang
+   in SEED000044 (COD, đã hủy): banner 1, dòng mới 1, dòng COD cũ
+   0, `print-cod` = "0 ₫".
+5. **Trang công khai đơn hủy — ĐÃ SỬA.** Ẩn hẳn thanh bước
+   `<Steps>` khi đơn đã hủy (trước chỉ truyền `current={null}` vẫn
+   hiện thanh); bỏ dòng trạng thái "Đơn đã hủy" thừa (giữ tiêu đề +
+   alert + huy hiệu). **Bằng chứng:** curl `/order/SEED000045`
+   (BT+PAID, đã hủy) và `/order/SEED000044` (COD, đã hủy): không
+   còn `aria-label="Các bước đặt hàng"` (0), "Đơn đã hủy" còn đúng
+   2 lần trong phần hiển thị (tiêu đề + alert; số thô 4 là do
+   payload RSC lặp lại nội dung trong `<script>`); SEED000045 hiện
+   lời nhắn hoàn tiền (1), SEED000044 không hiện (0); đơn NEW
+   (QAFNN907ZY) vẫn hiện thanh bước (1) + tiêu đề "Đặt hàng thành
+   công" (1). Ảnh `don-da-huy-cong-khai-390-v2.png` đã mắt kiểm.
+6. **PREPARING bị hở — ĐÃ GHI RÕ (giữ nguyên luồng).** Quyết định
+   giữ nguyên: PREPARING là trạng thái dự trữ, không dùng trong
+   luồng (không bước chuyển, không tab, không tính vào "Cần xử lý"
+   hay dashboard; đơn ở trạng thái này chỉ thấy trong "Tất cả").
+   Đã ghi vào README (mục "Trang quản trị", kèm dòng sửa câu cũ
+   "Không có quản lý đơn hàng (Ngày 8)" thành mô tả đúng) và tăng
+   cường comment trong `src/lib/admin/orders.ts` (bảng chuyển trạng
+   thái) + `src/lib/admin/dashboard.ts` (định nghĩa pending).
+7. **Ảnh chi tiết đơn hủy cũ — ĐÃ CHỤP LẠI.** Ảnh mới
+   `chi-tiet-don-huy-390-v2.png` (chi tiết SEED000044, 390 px, sau
+   bản sửa): header chỉ hiện "Quản trị" dưới `sm` (đúng như D9-7),
+   đã mắt kiểm.
+8. **Menu admin 390 px bị che — ĐÃ SỬA.** Thêm mask mờ dần 15%
+   cuối cho nav cuộn ngang (`[mask-image:linear-gradient(to_right,
+   #000_85%,transparent)]` trong `src/app/admin/layout.tsx`).
+   **Bằng chứng:** CSS build có
+   `mask-image:linear-gradient(90deg,#000 85%,#0000)`; ảnh
+   `dashboard-390-v2.png` (390 px) đã mắt kiểm: chữ "Sản phẩm"
+   mờ dần ở mép phải, thấy rõ còn mục cuộn được.
+9. **Test dashboard chưa chứng minh ranh giới ngày — ĐÃ SỬA.**
+   `src/lib/admin/orders.db.test.ts` thêm ca kiểm: đơn COMPLETED
+   3 ngày trước chỉ cộng vào doanh thu 7 ngày (không cộng vào hôm
+   nay), đơn 8 ngày trước bị loại khỏi cả hai — đối chiếu bằng
+   delta trước/sau để không phụ thuộc dữ liệu có sẵn. **Bằng
+   chứng:** test:db 7/7 PASS (ca mới pass).
+10. **Doanh thu tính trùng theo sự kiện — ĐÃ SỬA.**
+    `src/lib/admin/dashboard.ts`: hai truy vấn sự kiện nay lấy thêm
+    `orderId`, cộng doanh thu theo ĐƠN (distinct theo orderId) thay
+    cho cộng theo sự kiện. **Bằng chứng:** test:db thêm ca hồi
+    quy — một đơn có 2 sự kiện COMPLETED cùng lúc chỉ cộng đúng
+    1 lần vào cả hôm nay lẫn 7 ngày; 7/7 PASS.
+11. **vnDayBounds cứng -7 — CHỈ THÊM GHI CHÚ.** Không đổi hành vi:
+    comment trong `src/lib/admin/dashboard.ts` ghi rõ -7 là độ lệch
+    UTC+7 của `Asia/Ho_Chi_Minh` (deliveryConfig.timezone), VN
+    không có giờ mùa hè nên là hằng số đúng quanh năm; đổi timezone
+    thì phải đổi số này theo.
+12. **lastmod trang tĩnh = now — ĐÃ SỬA.** `src/app/sitemap.ts`:
+    bỏ `lastModified` ở 5 trang tĩnh (giữ lastmod thật theo
+    `updatedAt` cho danh mục/sản phẩm). **Bằng chứng:** curl
+    `/sitemap.xml` local 2 lần cách nhau 3 s: tổng vẫn **30 URL**,
+    5 trang tĩnh không còn `<lastmod>`; các lastmod còn lại (theo
+    updatedAt) giống hệt nhau giữa 2 lần gọi (ổn định, không đổi
+    theo request). Live vẫn 29 URL (đã xác minh trước, mục 2).
+
+Trạng thái DB local cuối đợt: 3 đơn mẫu NEW/UNPAID (QAFNN907ZY,
+0Z2DZBQNTJ, 1N0PEZH0J7), 0 đơn seed (45 đơn SEED đã xóa bằng
+`clean-test-data.ts --only=seed,sessions --delete`), 0 phiên admin,
+21 sản phẩm. Server verification chạy trên cổng 3000 phục vụ bản
+mới (build standalone sau sửa). Ảnh chụp lại tại `~/workspace/`:
+`chi-tiet-don-huy-390-v2.png`, `dashboard-390-v2.png`,
+`phieu-giao-huy-v2.png`, `don-da-huy-cong-khai-390-v2.png` (đã mắt
+kiểm cả 4 + file PDF in thử ở `/tmp/phieu-giao-huy-v2.pdf`).

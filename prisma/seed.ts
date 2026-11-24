@@ -82,35 +82,33 @@ async function main() {
   }
 
   // Tạo danh mục (chạy lại không tạo trùng nhờ upsert theo slug).
+  // CHỈ TẠO MỚI (sửa 12 mục verdict Ngày 9, mục 1): update: {} nên
+  // chạy lại seed là no-op — không ghi đè tên/thứ tự Henry đã sửa
+  // trong trang quản trị. Lần khởi tạo đầu vẫn cần chạy seed để có
+  // dữ liệu gốc; muốn đổi dữ liệu gốc sau đó thì sửa trực tiếp trong
+  // admin hoặc bằng migration, không sửa ở đây rồi chạy lại seed.
   const categoryIds: Record<string, number> = {};
   for (const category of categories) {
     const record = await prisma.category.upsert({
       where: { slug: category.slug },
-      update: { name: category.name, sortOrder: category.sortOrder },
+      update: {},
       create: category,
     });
     categoryIds[category.slug] = record.id;
   }
 
   // Tạo sản phẩm (chạy lại không tạo trùng nhờ upsert theo khóa ghép categoryId + slug).
-  // Seed cập nhật SKU cho dòng đã tồn tại (Ngày 4).
+  // CHỈ TẠO MỚI (mục 1 verdict Ngày 9): update: {} — chạy lại seed
+  // không ghi đè tên/mô tả/giá/giá khuyến mãi/ảnh/tag/isFastDelivery/
+  // thứ tự/SKU/inStock Henry đã sửa trong admin. (Trước đây update
+  // đầy đủ, nên mỗi lần Vercel build chạy `prisma db seed` lại ghi
+  // đè hết các sửa đổi đó.)
   for (const product of products) {
     const categoryId = categoryIds[product.categorySlug];
     const sku = skuFor(product);
     await prisma.product.upsert({
       where: { categoryId_slug: { categoryId, slug: product.slug } },
-      update: {
-        name: product.name,
-        description: product.description,
-        price: product.price,
-        salePrice: product.salePrice,
-        images: [PLACEHOLDER_IMAGE],
-        tags: product.tags,
-        isFastDelivery: product.isFastDelivery,
-        sortOrder: product.sortOrder,
-        sku,
-        inStock: true,
-      },
+      update: {},
       create: {
         categoryId,
         slug: product.slug,
@@ -129,10 +127,12 @@ async function main() {
   }
 
   // Tạo khu vực giao (chạy lại không tạo trùng nhờ upsert theo tên khu vực).
+  // CHỈ TẠO MỚI (mục 1 verdict Ngày 9): update: {} — không ghi đè
+  // phí giao Henry đã sửa trong admin.
   for (const zone of shippingZones) {
     await prisma.shippingZone.upsert({
       where: { name: zone.name },
-      update: { fee: zone.fee, sortOrder: zone.sortOrder },
+      update: {},
       create: zone,
     });
   }

@@ -176,8 +176,22 @@ Chấp nhận được cho giai đoạn demo; khi gặp trường hợp này, đ
 
 Đăng nhập bằng **tài khoản + mật khẩu** tại `/login`; quản lý sản
 phẩm tại `/admin/products` (danh sách gồm cả sản phẩm đã ẩn, thêm/sửa/
-ẩn, tải ảnh lên). Không có quản lý đơn hàng (Ngày 8), không xóa cứng
+ẩn, tải ảnh lên); quản lý đơn hàng tại `/admin/orders` (Ngày 8: danh
+sách theo tab, tìm/lọc, chi tiết, đổi trạng thái, phiếu giao A5) và
+tổng quan tại `/admin` (Ngày 9: 5 thẻ số liệu từ DB). Không xóa cứng
 sản phẩm (chỉ ẩn).
+
+### Trạng thái đơn hàng (sửa 12 mục verdict Ngày 9, mục 6)
+
+Luồng chính: NEW ("Đã tiếp nhận") → CONFIRMED ("Đã xác nhận") →
+DELIVERING ("Đang giao") → COMPLETED ("Đã giao"); CANCELLED ("Đã hủy")
+từ NEW/CONFIRMED/DELIVERING (cần lý do). **PREPARING ("Đang chuẩn
+bị") là trạng thái dự trữ trong enum, hiện không dùng trong luồng**:
+không có bước chuyển nào vào/ra, không có tab riêng, không tính vào
+"Cần xử lý" cũng không tính vào dashboard — đơn ở trạng thái này chỉ
+thấy trong tab "Tất cả". Muốn dùng thì phải thêm vào pending ở cả
+`src/lib/admin/orders.ts` lẫn `src/lib/admin/dashboard.ts`, đồng thời
+thêm tab + bước chuyển.
 
 ```powershell
 # Tạo hash mật khẩu (mật khẩu đọc từ stdin, không qua tham số dòng lệnh)
@@ -259,6 +273,16 @@ production (chỉ đọc) để xác nhận mọi migration đã áp; (3) kiểm
 bằng GET (trang chủ, chi tiết SP, giỏ, checkout, `/order/KHONGTONTAI`
 → 404 + đúng tiêu đề, `/admin/orders` khi chưa đăng nhập → 307
 `/login`). Không tạo đơn test trên production.
+
+**Seed chỉ tạo mới, không ghi đè (sửa 12 mục verdict Ngày 9, mục 1):**
+`prisma/seed.ts` dùng `upsert` với `update: {}` cho danh mục, sản phẩm
+và khu vực giao — chạy lại seed là no-op đối với dữ liệu đã có. Trước
+đây `update:` ghi đầy đủ nên mỗi lần Vercel build chạy `prisma db
+seed` lại ghi đè tên/giá/giá khuyến mãi/ảnh/tag/thứ tự/SKU/tình trạng
+còn hàng mà Henry đã sửa trong trang quản trị. Lần khởi tạo đầu vẫn
+cần chạy seed để có dữ liệu gốc (4 danh mục, 20 sản phẩm, 4 khu vực);
+muốn đổi dữ liệu gốc sau đó thì sửa trực tiếp trong trang quản trị
+hoặc bằng migration, không sửa seed rồi chạy lại.
 
 **Trạng thái 24/11 ~21:03 (ĐÃ XÁC MINH — không còn bị chặn):** redeploy
 an toàn cùng commit 821f3a7 lên Vercel xong, deployment

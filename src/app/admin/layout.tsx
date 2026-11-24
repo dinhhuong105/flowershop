@@ -30,7 +30,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <span className="sm:hidden">Quản trị</span>
             <span className="hidden sm:inline">Quản trị — Hoa Tươi Demo</span>
           </Link>
-          <nav aria-label="Quản trị" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+          {/* Vệt mờ ở mép phải (sửa 12 mục verdict Ngày 9, mục 8):
+              menu cuộn ngang nhưng ở 390 px không có dấu hiệu nào cho
+              biết còn mục bị che (vd "Đơn hàng" nằm sau nút Đăng
+              xuất) — mask làm mờ dần 15% cuối để thấy còn nội dung. */}
+          <nav
+            aria-label="Quản trị"
+            className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [mask-image:linear-gradient(to_right,#000_85%,transparent)]"
+          >
             <Link
               href="/admin"
               className="flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-[3px] px-3 text-sm font-semibold text-ink transition-colors hover:bg-cream-100 hover:text-green-800"

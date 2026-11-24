@@ -9,13 +9,16 @@ export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = siteConfig.url.replace(/\/$/, "");
-  const now = new Date();
+  // Trang tĩnh KHÔNG có lastmod (sửa 12 mục verdict Ngày 9, mục 12):
+  // trước đây lastModified: now đổi mỗi lần request, Google dần bỏ
+  // qua tín hiệu này. Danh mục/sản phẩm giữ lastmod thật theo
+  // updatedAt trong DB.
   const staticPages: MetadataRoute.Sitemap = [
-    { url: base, lastModified: now },
-    { url: `${base}/faq`, lastModified: now },
-    { url: `${base}/about`, lastModified: now },
-    { url: `${base}/contact`, lastModified: now },
-    { url: `${base}/policy`, lastModified: now },
+    { url: base },
+    { url: `${base}/faq` },
+    { url: `${base}/about` },
+    { url: `${base}/contact` },
+    { url: `${base}/policy` },
   ];
   const categories = await db.category.findMany({
     select: { slug: true, updatedAt: true },

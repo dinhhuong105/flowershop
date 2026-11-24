@@ -67,11 +67,15 @@ export default async function AdminOrderPrintPage({
         aria-label="Phiếu giao hàng"
         className="mx-auto max-w-[148mm] rounded-[3px] border border-line bg-white p-6 text-ink"
       >
+        {/* Dải đỏ in được (sửa 12 mục verdict Ngày 9, mục 3):
+            print-color-adjust: exact — trình duyệt mặc định không in
+            màu nền, không có dòng này thì dải đỏ + chữ trắng biến mất
+            trên giấy. */}
         {order.status === "CANCELLED" ? (
           <p
             role="alert"
             data-testid="print-cancelled-banner"
-            className="mb-4 rounded-[3px] border border-danger bg-danger px-4 py-3 text-center text-base font-bold text-white"
+            className="mb-4 rounded-[3px] border border-danger bg-danger px-4 py-3 text-center text-base font-bold text-white print:[print-color-adjust:exact]"
           >
             ĐƠN ĐÃ HỦY — KHÔNG GIAO
           </p>
@@ -149,9 +153,14 @@ export default async function AdminOrderPrintPage({
           </div>
         </dl>
         <p className="mt-5 text-sm text-ink-soft">
-          {order.paymentMethod === "COD"
-            ? "Thanh toán khi nhận hàng (COD)."
-            : "Chuyển khoản ngân hàng."}
+          {order.status === "CANCELLED"
+            ? // Đơn đã hủy thì không thu tiền (sửa 12 mục verdict
+              // Ngày 9, mục 4): trước đây vẫn ghi "Thanh toán khi
+              // nhận hàng (COD)." dù "Thu hộ" đã là 0 ₫ — mâu thuẫn.
+              "Đơn đã hủy — không thu tiền."
+            : order.paymentMethod === "COD"
+              ? "Thanh toán khi nhận hàng (COD)."
+              : "Chuyển khoản ngân hàng."}
         </p>
       </section>
     </div>

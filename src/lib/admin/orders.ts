@@ -12,9 +12,14 @@ import { orderStatusLabel } from "@/lib/order-labels";
 import { sendTelegramForOrder } from "@/lib/telegram";
 
 // Bảng chuyển trạng thái (đặc tả §2.1). PREPARING có trong enum (từ
-// Ngày 5) nhưng không nằm trong luồng Ngày 8 → không có bước chuyển
-// nào vào/ra (schema hiện có thắng đặc tả; xem "Khác đặc tả" báo cáo
-// Ngày 8). COMPLETED và CANCELLED là trạng thái cuối.
+// Ngày 5) nhưng là TRẠNG THÁI DỰ TRỮ, hiện không dùng trong luồng
+// (sửa 12 mục verdict Ngày 9, mục 6): không có bước chuyển nào vào/ra
+// (schema hiện có thắng đặc tả; xem "Khác đặc tả" báo cáo Ngày 8),
+// không có tab riêng, không tính vào "Cần xử lý" (tabCondition dưới
+// đây) cũng không tính vào dashboard (src/lib/admin/dashboard.ts) —
+// đơn ở trạng thái này chỉ thấy trong tab "Tất cả". Muốn dùng thì
+// phải thêm vào pending ở cả file này lẫn dashboard.ts, đồng thời
+// thêm tab + bước chuyển. COMPLETED và CANCELLED là trạng thái cuối.
 export const ORDER_NEXT: Record<OrderStatus, OrderStatus[]> = {
   NEW: ["CONFIRMED", "CANCELLED"],
   CONFIRMED: ["DELIVERING", "CANCELLED"],
