@@ -1,7 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { readFileSync, rmSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 import {
   buildTelegramMessage,
+  sendTelegramForOrder,
   MAX_TELEGRAM_MESSAGE_LENGTH,
   type OrderWithItems,
 } from "./telegram";
@@ -67,6 +72,92 @@ describe("buildTelegramMessage: thoát HTML (H-4b)", () => {
     // Thẻ <b> do chính mẫu tin tạo ra vẫn còn (tiêu đề + tổng cộng).
     assert.ok(msg.includes("<b>Đơn hàng mới TESTCODE01</b>"));
     assert.ok(msg.includes("<b>Tổng cộng:"));
+  });
+
+  // Ngày 9 D9-5: ghi chú của khách + dấu > cũng phải thoát (trước
+  // đây chỉ có test cho tên/địa chỉ/lời nhắn trên thiệp).
+  it("ghi chú chứa <, >, & được thoát đúng", () => {
+    const msg = buildTelegramMessage(
+      sampleOrder({
+        senderName: "An > Bình",
+        receiverName: "Lan < Chi",
+        note: "Giao <sáng> & gọi trước nhé",
+      }),
+    );
+    assert.ok(msg.includes("An &gt; Bình"));
+    assert.ok(msg.includes("Lan &lt; Chi"));
+    assert.ok(msg.includes("Ghi chú: Giao &lt;sáng&gt; &amp; gọi trước nhé"));
+    assert.ok(!msg.includes("An > Bình"));
+    assert.ok(!msg.includes("Giao <sáng>"));
+  });
+});
+
+// Ngày 9 D9-5: gửi thật tới mock Telegram (chế độ ok) phải trả 200
+// và nội dung đã thoát — nếu không, tên có < hoặc & làm Telegram trả
+// 400 và nút gửi lại thất bại vĩnh viễn với đơn đó.
+describe("sendTelegramForOrder với mock Telegram (Ngày 9 D9-5)", () => {
+  it("đơn có tên/ghi chú chứa <, >, & → mock trả 200, tin nhắn đã thoát", async () => {
+    const port = 18081;
+    const logPath = "/tmp/mock-telegram-d95-test.jsonl";
+    rmSync(logPath, { force: true });
+    const mockPath = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      "../../scripts/mock-telegram.mjs",
+    );
+    const child = spawn(process.execPath, [mockPath], {
+      env: {
+        ...process.env,
+        MOCK_TELEGRAM_PORT: String(port),
+        MOCK_TELEGRAM_MODE: "ok",
+        MOCK_TELEGRAM_LOG: logPath,
+      },
+      stdio: "ignore",
+    });
+    try {
+      // Chờ mock lắng nghe (tối đa ~5 giây).
+      const base = `http://127.0.0.1:${port}`;
+      let up = false;
+      for (let i = 0; i < 50 && !up; i++) {
+        try {
+          const res = await fetch(base, { signal: AbortSignal.timeout(500) });
+          up = res.ok;
+        } catch {
+          await new Promise((r) => setTimeout(r, 100));
+        }
+      }
+      assert.ok(up, "mock Telegram không khởi động được");
+      const prevToken = process.env.TELEGRAM_BOT_TOKEN;
+      const prevChatId = process.env.TELEGRAM_CHAT_ID;
+      const prevBase = process.env.TELEGRAM_API_BASE;
+      process.env.TELEGRAM_BOT_TOKEN = "test-token";
+      process.env.TELEGRAM_CHAT_ID = "123456";
+      process.env.TELEGRAM_API_BASE = base;
+      try {
+        const sent = await sendTelegramForOrder(
+          sampleOrder({
+            senderName: "An <b> & Bình",
+            receiverName: "Lan > Chi",
+            note: "Ghi chú <test> & xong",
+          }),
+        );
+        assert.equal(sent, true);
+      } finally {
+        if (prevToken === undefined) delete process.env.TELEGRAM_BOT_TOKEN;
+        else process.env.TELEGRAM_BOT_TOKEN = prevToken;
+        if (prevChatId === undefined) delete process.env.TELEGRAM_CHAT_ID;
+        else process.env.TELEGRAM_CHAT_ID = prevChatId;
+        if (prevBase === undefined) delete process.env.TELEGRAM_API_BASE;
+        else process.env.TELEGRAM_API_BASE = prevBase;
+      }
+      const logged = JSON.parse(readFileSync(logPath, "utf-8").trim().split("\n").pop()!);
+      const text = (logged.body as { text: string }).text;
+      assert.ok(text.includes("An &lt;b&gt; &amp; Bình"));
+      assert.ok(text.includes("Lan &gt; Chi"));
+      assert.ok(text.includes("Ghi chú: Ghi chú &lt;test&gt; &amp; xong"));
+      assert.equal((logged.body as { parse_mode?: string }).parse_mode, "HTML");
+    } finally {
+      child.kill();
+    }
   });
 });
 

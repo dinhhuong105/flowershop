@@ -1,16 +1,12 @@
 // Nhãn trạng thái đơn hàng bằng tiếng Việt (mục 7 đặc tả Ngày 5;
 // D5-19: đơn mới là "Đã tiếp nhận", không phải "Chờ xác nhận").
+// Nhãn lấy từ src/lib/order-labels.ts — một nguồn duy nhất cho cả
+// tab quản trị, huy hiệu và trang công khai (Ngày 9 D9-5).
 
 import type { OrderStatus } from "@prisma/client";
+import { ORDER_STATUS_LABEL } from "@/lib/order-labels";
 
-const STATUS_LABEL: Record<OrderStatus, string> = {
-  NEW: "Đã tiếp nhận",
-  CONFIRMED: "Đã xác nhận",
-  PREPARING: "Đang chuẩn bị",
-  DELIVERING: "Đang giao",
-  COMPLETED: "Đã giao",
-  CANCELLED: "Đã hủy",
-};
+const STATUS_LABEL: Record<OrderStatus, string> = ORDER_STATUS_LABEL;
 
 export function orderStatusLabel(status: OrderStatus): string {
   return STATUS_LABEL[status];

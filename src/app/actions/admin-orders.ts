@@ -22,6 +22,7 @@ import {
   validateInternalNote,
   type OrderMutationResult,
 } from "@/lib/admin/orders";
+import { orderStatusLabel } from "@/lib/order-labels";
 import type { OrderStatus } from "@prisma/client";
 
 export type AdminOrderActionState = { ok: boolean; error: string | null };
@@ -61,7 +62,9 @@ export async function advanceOrderAction(
   const to = parseStatus(getStr(formData, "to"));
   if (!from || !to) return fail("Trạng thái không hợp lệ.");
   if (!isValidOrderTransition(from, to)) {
-    return fail(`Không thể chuyển đơn từ ${from} sang ${to}.`);
+    return fail(
+      `Không thể chuyển đơn từ ${orderStatusLabel(from)} sang ${orderStatusLabel(to)}.`,
+    );
   }
   const result: OrderMutationResult = await transitionOrder(code, to, from);
   if (!result.ok) return fail(result.error);

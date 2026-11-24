@@ -1,13 +1,14 @@
+import Link from "next/link";
 import { siteConfig, telHref, zaloHref } from "@/config/site";
 import { isBankConfigured } from "@/lib/bank";
 
 // Footer (mục 4.3 phụ lục): nền green-900, 5 cột. Cột 2–4 ("Về chúng
-// tôi", "Hỗ trợ khách hàng", "Chính sách") chưa có trang thật (Ngày 9)
-// nên chỉ hiện tiêu đề + dòng "Đang cập nhật" — KHÔNG link tới trang
-// chưa tồn tại. Cột "Liên hệ" chỉ ghi field có giá trị thật trong
-// siteConfig (hiện chỉ còn giờ mở cửa; hotline/địa chỉ trong .env mẫu
-// là số giữ chỗ nên đã bị lọc ở site.ts). Không cột newsletter, không
-// logo VISA/Mastercard/MoMo/ZaloPay. Thanh dưới: © + badge COD, Chuyển khoản.
+// tôi", "Hỗ trợ khách hàng", "Chính sách") đã có trang thật từ Ngày 9
+// (/about, /faq, /contact, /policy) nên link tới trang đó. Cột "Liên
+// hệ" chỉ ghi field có giá trị thật trong siteConfig (hiện chỉ còn
+// giờ mở cửa; hotline/địa chỉ trong .env mẫu là số giữ chỗ nên đã bị
+// lọc ở site.ts). Không cột newsletter, không logo VISA/Mastercard/
+// MoMo/ZaloPay. Thanh dưới: © + badge COD, Chuyển khoản.
 export default function Footer() {
   const year = new Date().getFullYear();
   const hasContact =
@@ -43,17 +44,43 @@ export default function Footer() {
         </div>
         <nav aria-label="Về chúng tôi">
           <p className="font-semibold">Về chúng tôi</p>
-          <p className="mt-3 text-sm leading-relaxed text-white/70">Đang cập nhật.</p>
+          <ul className="mt-3 space-y-2 text-sm text-white/80">
+            <li>
+              <Link href="/about" className="hover:text-white hover:underline">
+                Giới thiệu
+              </Link>
+            </li>
+            <li>
+              <Link href="/faq" className="hover:text-white hover:underline">
+                Câu hỏi thường gặp
+              </Link>
+            </li>
+          </ul>
         </nav>
         <nav aria-label="Hỗ trợ khách hàng">
           <p className="font-semibold">Hỗ trợ khách hàng</p>
-          <p className="mt-3 text-sm leading-relaxed text-white/70">Đang cập nhật.</p>
+          <ul className="mt-3 space-y-2 text-sm text-white/80">
+            <li>
+              <Link href="/faq" className="hover:text-white hover:underline">
+                Câu hỏi thường gặp
+              </Link>
+            </li>
+            <li>
+              <Link href="/contact" className="hover:text-white hover:underline">
+                Liên hệ
+              </Link>
+            </li>
+          </ul>
         </nav>
         <nav aria-label="Chính sách">
           <p className="font-semibold">Chính sách</p>
-          <p className="mt-3 text-sm leading-relaxed text-white/70">
-            Nội dung mẫu, chờ cửa hàng xác nhận.
-          </p>
+          <ul className="mt-3 space-y-2 text-sm text-white/80">
+            <li>
+              <Link href="/policy" className="hover:text-white hover:underline">
+                Chính sách giao hàng, thanh toán, đổi trả
+              </Link>
+            </li>
+          </ul>
         </nav>
         <div>
           <p className="font-semibold">Liên hệ</p>

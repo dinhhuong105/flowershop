@@ -7,6 +7,8 @@
 import { Prisma, type OrderStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { deliveryConfig } from "@/config/delivery";
+import { EXPRESS_SLOT_LABEL, sameDaySlotLabel } from "@/lib/delivery-rules";
+import { orderStatusLabel } from "@/lib/order-labels";
 import { sendTelegramForOrder } from "@/lib/telegram";
 
 // Bảng chuyển trạng thái (đặc tả §2.1). PREPARING có trong enum (từ
@@ -64,6 +66,39 @@ export function normalizePhone(raw: string): string {
   return d;
 }
 
+// Số phút từ 00:00 của giờ bắt đầu giao theo nhãn khung giờ (Ngày 9
+// D9-5): giao nhanh 2 giờ → 0 (gấp nhất, xếp đầu); khung hẹn → giờ
+// bắt đầu; "Trước 18:00" → 18:00; nhãn lạ → cuối ngày (1439, xếp cuối).
+const SAME_DAY_START_MINUTES = (() => {
+  const [h, m] = deliveryConfig.sameDayDeliverBy.split(":").map(Number);
+  return h * 60 + m;
+})();
+
+export function slotStartMinutes(label: string): number {
+  if (label === EXPRESS_SLOT_LABEL) return 0;
+  const slot = deliveryConfig.slots.find((s) => s.label === label);
+  if (slot) {
+    const [h, m] = slot.start.split(":").map(Number);
+    return h * 60 + m;
+  }
+  if (label === sameDaySlotLabel()) return SAME_DAY_START_MINUTES;
+  return 24 * 60 - 1;
+}
+
+// Biểu thức CASE cho SQL, dùng cùng bảng slotStartMinutes (không xếp
+// theo chuỗi nhãn nữa — chuỗi xếp sai khi có nhãn chữ).
+function slotStartCaseSql(): Prisma.Sql {
+  const whens: Prisma.Sql[] = [
+    Prisma.sql`WHEN ${EXPRESS_SLOT_LABEL} THEN 0`,
+    ...deliveryConfig.slots.map((s) => {
+      const [h, m] = s.start.split(":").map(Number);
+      return Prisma.sql`WHEN ${s.label} THEN ${h * 60 + m}`;
+    }),
+    Prisma.sql`WHEN ${sameDaySlotLabel()} THEN ${SAME_DAY_START_MINUTES}`,
+  ];
+  return Prisma.sql`CASE o."deliverySlot" ${Prisma.join(whens, " ")} ELSE 1439 END`;
+}
+
 // Huy hiệu ngày giao (chỉ cho đơn chưa xong): "Hôm nay" khi ngày giao
 // bằng ngày hiện tại theo Asia/Ho_Chi_Minh, "Quá hạn" khi ngày giao đã
 // qua. Tính bằng Intl với timeZone cố định nên giống hệt ở TZ=UTC và
@@ -95,12 +130,15 @@ export type OrderTab =
   | "CANCELLED"
   | "all";
 
+// Nhãn tab thống nhất với huy hiệu trạng thái (Ngày 9 D9-5): NEW là
+// "Đã tiếp nhận" (không phải "Mới"), COMPLETED là "Đã giao" (không
+// phải "Hoàn tất") — xem src/lib/order-labels.ts.
 export const ORDER_TABS: Array<{ id: OrderTab; label: string }> = [
   { id: "pending", label: "Cần xử lý" },
-  { id: "NEW", label: "Mới" },
+  { id: "NEW", label: "Đã tiếp nhận" },
   { id: "CONFIRMED", label: "Đã xác nhận" },
   { id: "DELIVERING", label: "Đang giao" },
-  { id: "COMPLETED", label: "Hoàn tất" },
+  { id: "COMPLETED", label: "Đã giao" },
   { id: "CANCELLED", label: "Đã hủy" },
   { id: "all", label: "Tất cả" },
 ];
@@ -199,13 +237,12 @@ export async function listAdminOrders(
           " AND ",
         )}`
       : Prisma.sql``;
-  // "Cần xử lý": ngày giao rồi khung giờ tăng dần; các tab còn lại:
-  // mới nhất trước. Khung giờ lưu dạng nhãn ("08:00 – 10:00") nên
-  // xếp theo chuỗi — đúng với 5 khung hẹn; hai nhãn chữ ("Trong 2
-  // giờ…", "Trước 18:00") xếp sau (xem "Khác đặc tả" báo cáo Ngày 8).
+  // "Cần xử lý": ngày giao rồi giờ bắt đầu giao dạng số (CASE theo
+  // nhãn khung giờ — xem slotStartMinutes); các tab còn lại: mới nhất
+  // trước.
   const orderBy =
     tab === "pending"
-      ? Prisma.sql`ORDER BY o."deliveryDate" ASC, o."deliverySlot" ASC, o."createdAt" DESC`
+      ? Prisma.sql`ORDER BY o."deliveryDate" ASC, ${slotStartCaseSql()} ASC, o."createdAt" DESC`
       : Prisma.sql`ORDER BY o."createdAt" DESC`;
   const rows = await db.$queryRaw<
     Array<{
@@ -221,19 +258,16 @@ export async function listAdminOrders(
       paymentStatus: string;
       status: OrderStatus;
       createdAt: Date;
-      totalCount: bigint;
     }>
   >(Prisma.sql`
     SELECT o."code", o."senderName", o."receiverName", o."receiverPhone",
       o."area", o."deliveryDate", o."deliverySlot", o."total",
-      o."paymentMethod", o."paymentStatus", o."status", o."createdAt",
-      COUNT(*) OVER() AS "totalCount"
+      o."paymentMethod", o."paymentStatus", o."status", o."createdAt"
     FROM "orders" AS o
     ${listWhere}
     ${orderBy}
     LIMIT ${ADMIN_ORDERS_PAGE_SIZE} OFFSET ${(page - 1) * ADMIN_ORDERS_PAGE_SIZE}
   `);
-  const total = rows.length > 0 ? Number(rows[0].totalCount) : 0;
 
   // Số đếm từng tab (cùng bộ lọc q/thanh toán/ngày, chỉ khác trạng thái).
   const countRows = await db.$queryRaw<
@@ -259,6 +293,11 @@ export async function listAdminOrders(
     CANCELLED: byStatus.get("CANCELLED") ?? 0,
     all: [...byStatus.values()].reduce((a, b) => a + b, 0),
   };
+
+  // Tổng của tab đang xem lấy từ số đếm tab (Ngày 9 D9-3: trước sửa,
+  // tổng lấy từ COUNT(*) OVER() của trang hiện tại nên trang vượt
+  // quá (page=99) trả 0 dòng → tổng thành 0 dù vẫn có đơn).
+  const total = counts[tab];
 
   return {
     orders: rows.map((r) => ({
@@ -384,7 +423,10 @@ export async function transitionOrder(
 ): Promise<OrderMutationResult> {
   if (!ORDER_CODE_RE.test(code)) return { ok: false, error: "Không tìm thấy đơn hàng." };
   if (!isValidOrderTransition(expectedStatus, to)) {
-    return { ok: false, error: `Không thể chuyển đơn từ ${expectedStatus} sang ${to}.` };
+    return {
+      ok: false,
+      error: `Không thể chuyển đơn từ ${orderStatusLabel(expectedStatus)} sang ${orderStatusLabel(to)}.`,
+    };
   }
   if (to === "CANCELLED") {
     const reasonError = validateCancelReason(opts.reason ?? "");

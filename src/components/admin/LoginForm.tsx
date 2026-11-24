@@ -1,9 +1,9 @@
 // Form đăng nhập quản trị: TÀI KHOẢN + MẬT KHẨU.
 // Có JS: gửi JSON tới /api/admin/login, đúng thì chuyển vào
-// /admin/orders (Ngày 8: đơn hàng là trang quản trị chính), sai thì
+// /admin (Ngày 9: tổng quan là trang quản trị chính), sai thì
 // hiện lỗi ngay trong form.
 // Không JS: form gửi thường tới cùng route (action/method bên dưới),
-// route redirect về /login?error=... hoặc /admin/orders.
+// route redirect về /login?error=... hoặc /admin.
 
 "use client";
 
@@ -36,7 +36,7 @@ export default function LoginForm({
       });
       const data: unknown = await res.json().catch(() => null);
       if (res.ok && data && typeof data === "object" && (data as { ok?: unknown }).ok === true) {
-        router.push("/admin/orders");
+        router.push("/admin");
         router.refresh();
       } else {
         const message =

@@ -55,13 +55,16 @@ export default function Toast() {
       role="status"
       data-testid="cart-toast"
       style={{ top }}
-      className="toast-slide-in fixed inset-x-4 z-[70] flex min-h-11 flex-wrap items-center gap-3 rounded-[3px] border border-line bg-white px-4 py-2 text-sm font-medium text-ink shadow-[0_12px_28px_rgba(8,56,42,0.14)] sm:inset-x-auto sm:left-auto sm:right-4 sm:max-w-md sm:flex-nowrap"
+      // Một hàng trên cả mobile (Ngày 9 D9-7): trước đây flex-wrap đẩy
+      // nút ✕ xuống dòng riêng, tạo khoảng trống lớn. Nội dung không
+      // xuống dòng; nút ✕ giữ 44 px trên mobile (chuẩn chạm).
+      className="toast-slide-in fixed inset-x-4 z-[70] flex min-h-11 flex-nowrap items-center gap-2 rounded-[3px] border border-line bg-white px-3 py-2 text-sm font-medium text-ink shadow-[0_12px_28px_rgba(8,56,42,0.14)] sm:inset-x-auto sm:left-auto sm:right-4 sm:max-w-md sm:gap-3 sm:px-4"
     >
       <span aria-hidden="true" className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-success text-xs font-bold text-white">
         ✓
       </span>
-      <span className="leading-snug">Đã thêm vào giỏ hàng</span>
-      <Link href="/cart" className="font-bold leading-snug text-green-800 hover:underline">
+      <span className="whitespace-nowrap leading-snug">Đã thêm vào giỏ hàng</span>
+      <Link href="/cart" className="shrink-0 whitespace-nowrap font-bold leading-snug text-green-800 hover:underline">
         Xem giỏ hàng
       </Link>
       <button

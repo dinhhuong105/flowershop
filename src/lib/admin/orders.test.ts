@@ -2,13 +2,16 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   ORDER_CODE_RE,
+  ORDER_TABS,
   isValidOrderTransition,
   nextOrderStatuses,
   normalizePhone,
   orderDayBadge,
+  slotStartMinutes,
   validateCancelReason,
   validateInternalNote,
 } from "./orders";
+import { orderStatusLabel } from "../order-labels";
 
 describe("bảng chuyển trạng thái đơn (đặc tả §2.1)", () => {
   it("NEW → CONFIRMED / CANCELLED; không nhảy cóc, không đi lùi", () => {
@@ -107,5 +110,50 @@ describe("orderDayBadge (ngày theo Asia/Ho_Chi_Minh)", () => {
       orderDayBadge(day("2026-11-24"), new Date("2026-11-24T17:00:00Z")),
       "overdue",
     );
+  });
+});
+
+// Ngày 9 D9-5: nhãn trạng thái thống nhất giữa tab quản trị, huy hiệu
+// và trang công khai — một nguồn duy nhất (src/lib/order-labels.ts).
+describe("nhãn trạng thái thống nhất (Ngày 9 D9-5)", () => {
+  it("tab trạng thái dùng đúng nhãn của huy hiệu", () => {
+    const tabById = new Map(ORDER_TABS.map((t) => [t.id, t.label]));
+    assert.equal(tabById.get("NEW"), orderStatusLabel("NEW"));
+    assert.equal(tabById.get("CONFIRMED"), orderStatusLabel("CONFIRMED"));
+    assert.equal(tabById.get("DELIVERING"), orderStatusLabel("DELIVERING"));
+    assert.equal(tabById.get("COMPLETED"), orderStatusLabel("COMPLETED"));
+    assert.equal(tabById.get("CANCELLED"), orderStatusLabel("CANCELLED"));
+  });
+  it("NEW = 'Đã tiếp nhận', COMPLETED = 'Đã giao'", () => {
+    assert.equal(orderStatusLabel("NEW"), "Đã tiếp nhận");
+    assert.equal(orderStatusLabel("COMPLETED"), "Đã giao");
+  });
+});
+
+// Ngày 9 D9-5: "Cần xử lý" xếp theo giờ bắt đầu giao dạng số, không
+// theo chuỗi nhãn.
+describe("slotStartMinutes (Ngày 9 D9-5)", () => {
+  it("giao nhanh 2 giờ → 0 (gấp nhất); khung hẹn → giờ bắt đầu", () => {
+    assert.equal(slotStartMinutes("Trong 2 giờ kể từ khi shop xác nhận"), 0);
+    assert.equal(slotStartMinutes("08:00 – 10:00"), 480);
+    assert.equal(slotStartMinutes("10:00 – 12:00"), 600);
+    assert.equal(slotStartMinutes("13:00 – 15:00"), 780);
+    assert.equal(slotStartMinutes("15:00 – 17:00"), 900);
+    assert.equal(slotStartMinutes("17:00 – 19:00"), 1020);
+  });
+  it("'Trước 18:00' → 1080; nhãn lạ → cuối ngày (1439)", () => {
+    assert.equal(slotStartMinutes("Trước 18:00"), 1080);
+    assert.equal(slotStartMinutes("Khung giờ lạ"), 1439);
+    assert.equal(slotStartMinutes(""), 1439);
+  });
+  it("thứ tự số đúng: giao nhanh < 08:00 < 17:00 < Trước 18:00 < lạ", () => {
+    const order = [
+      "Trong 2 giờ kể từ khi shop xác nhận",
+      "08:00 – 10:00",
+      "17:00 – 19:00",
+      "Trước 18:00",
+      "Khung giờ lạ",
+    ].map(slotStartMinutes);
+    assert.deepEqual(order, [0, 480, 1020, 1080, 1439]);
   });
 });

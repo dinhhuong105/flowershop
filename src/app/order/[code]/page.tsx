@@ -41,12 +41,18 @@ export default async function OrderPage({ params }: { params: Promise<{ code: st
         <h1 className="font-display text-3xl font-semibold text-ink sm:text-4xl">
           {order.status === "CANCELLED" ? "Đơn đã hủy" : "Đặt hàng thành công"}
         </h1>
-        <Steps current={2} />
+        {/* Đơn đã hủy: không tô sáng bước nào (Ngày 9 D9-4). */}
+        <Steps current={order.status === "CANCELLED" ? null : 2} />
 
         {order.status === "CANCELLED" ? (
           <p role="alert" className="mt-6 max-w-2xl rounded-[3px] border border-danger bg-white p-5 text-sm font-medium text-danger">
-            Đơn đã hủy. Nếu bạn đã chuyển khoản cho đơn này, vui lòng liên
-            hệ shop để được hỗ trợ.
+            Đơn đã hủy.
+            {/* Chỉ hiện lời nhắn hoàn tiền khi đơn chuyển khoản và đã
+                trả tiền (Ngày 9 D9-4: trước sửa, đơn COD hủy cũng hiện
+                câu này). */}
+            {order.paymentMethod === "BANK_TRANSFER" && order.paymentStatus === "PAID"
+              ? " Nếu bạn đã chuyển khoản cho đơn này, vui lòng liên hệ shop để được hỗ trợ hoàn tiền."
+              : null}
           </p>
         ) : null}
 

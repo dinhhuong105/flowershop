@@ -36,10 +36,15 @@ export default async function AdminOrderPrintPage({
   const { code } = await params;
   const order = await getAdminOrder(code);
   if (!order) notFound();
+  // "Thu hộ": COD chưa thanh toán = tổng tiền; đã thanh toán = 0 ₫;
+  // chuyển khoản = 0 ₫. Đơn đã hủy → 0 ₫ (Ngày 9 D9-4: trước sửa,
+  // đơn hủy COD chưa trả vẫn hiện "Thu hộ" bằng tổng tiền).
   const cod =
-    order.paymentMethod === "COD" && order.paymentStatus === "UNPAID"
-      ? order.total
-      : 0;
+    order.status === "CANCELLED"
+      ? 0
+      : order.paymentMethod === "COD" && order.paymentStatus === "UNPAID"
+        ? order.total
+        : 0;
 
   return (
     <div>
@@ -62,6 +67,15 @@ export default async function AdminOrderPrintPage({
         aria-label="Phiếu giao hàng"
         className="mx-auto max-w-[148mm] rounded-[3px] border border-line bg-white p-6 text-ink"
       >
+        {order.status === "CANCELLED" ? (
+          <p
+            role="alert"
+            data-testid="print-cancelled-banner"
+            className="mb-4 rounded-[3px] border border-danger bg-danger px-4 py-3 text-center text-base font-bold text-white"
+          >
+            ĐƠN ĐÃ HỦY — KHÔNG GIAO
+          </p>
+        ) : null}
         <h1 className="font-display text-2xl font-semibold">Phiếu giao hàng</h1>
         <p className="mt-1 text-sm">
           Mã đơn: <strong data-testid="print-order-code">{order.code}</strong>

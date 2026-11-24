@@ -98,6 +98,13 @@ export function slotLabel(slotId: string): string | null {
   return deliveryConfig.slots.find((s) => s.id === slotId)?.label ?? null;
 }
 
+// Nhãn khung giờ cho hai phương thức giao nhanh (lưu vào đơn, Ngày 9
+// D9-5 dùng lại để xếp "Cần xử lý" theo giờ bắt đầu dạng số).
+export const EXPRESS_SLOT_LABEL = "Trong 2 giờ kể từ khi shop xác nhận";
+export function sameDaySlotLabel(): string {
+  return `Trước ${deliveryConfig.sameDayDeliverBy}`;
+}
+
 // Ngày giao + khung giờ lưu vào đơn theo phương thức (mục 6.2/6.3):
 // EXPRESS_2H → hôm nay, "Trong 2 giờ kể từ khi shop xác nhận";
 // SAME_DAY → hôm nay, "Trước <sameDayDeliverBy>" (lấy từ cấu hình,
@@ -113,11 +120,11 @@ export function resolveDelivery(
   const today = vnNow(now).date;
   if (method === "EXPRESS_2H") {
     if (!isExpressAvailable(now)) return null;
-    return { deliveryDate: today, deliverySlot: "Trong 2 giờ kể từ khi shop xác nhận" };
+    return { deliveryDate: today, deliverySlot: EXPRESS_SLOT_LABEL };
   }
   if (method === "SAME_DAY") {
     if (!isSameDayAvailable(now)) return null;
-    return { deliveryDate: today, deliverySlot: `Trước ${deliveryConfig.sameDayDeliverBy}` };
+    return { deliveryDate: today, deliverySlot: sameDaySlotLabel() };
   }
   if (!dateStr || !slotId) return null;
   if (!availableSlotsForDate(dateStr, now).includes(slotId)) return null;

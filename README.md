@@ -57,7 +57,8 @@ URL tối đa 2 cấp. Trang danh mục ở cấp 1, trang chi tiết sản ph�
 | `/cart`, `/checkout` | Giỏ hàng, thanh toán (Ngày 4–5) |
 | `/search` | Tìm kiếm không phân biệt dấu (Ngày 6) |
 | `/order/[mã]` | Trang xác nhận/đơn hàng (Ngày 5) |
-| `/login`, `/admin` | Đăng nhập và trang quản trị (Ngày 7) |
+| `/faq`, `/about`, `/contact`, `/policy` | Câu hỏi thường gặp, giới thiệu, liên hệ, chính sách (Ngày 9) |
+| `/login`, `/admin` | Đăng nhập và trang quản trị — `/admin` là tổng quan (Ngày 9), `/admin/orders`, `/admin/products` (Ngày 7–8) |
 
 URL cũ tiếng Việt (`/gio-hang`, `/thanh-toan`, `/tim-kiem`,
 `/don-hang`) chuyển 301 vĩnh viễn sang URL tiếng Anh tương ứng
@@ -143,6 +144,15 @@ Gửi lại báo cho các đơn chưa được báo (khi Telegram từng lỗi):
 ```powershell
 npm run resend:notifications
 ```
+
+**Hạn chế của cơ chế claim khi gửi lại (Ngày 9 D9-7):** nút "Gửi lại
+thông báo" nhận đơn bằng cách cập nhật có điều kiện (`notifiedAt IS
+NULL` → đặt `notifiedAt` = giờ hiện tại) TRƯỚC khi gọi Telegram, để
+chống gửi trùng khi bấm đúp. Nếu tiến trình serverless chết đúng giữa
+lúc nhận và lúc hoàn tác (khi gửi lỗi), `notifiedAt` vẫn giữ giờ đã
+nhận dù chưa gửi gì, và đơn hiển thị "đã gửi" — nút gửi lại biến mất.
+Chấp nhận được cho giai đoạn demo; khi gặp trường hợp này, đặt lại
+`notifiedAt` về NULL trực tiếp trong DB rồi gửi lại.
 
 ## Tìm kiếm và "Xem nhanh" (Ngày 6)
 
@@ -237,6 +247,33 @@ node --env-file=.env .next/standalone/server.js
 ```
 
 (Ngày 10: chạy trên VPS theo cách này, xem thêm hướng dẫn triển khai.)
+
+## Triển khai production (Vercel) và migration (Ngày 9 D9-1)
+
+Quy trình đưa migration lên production từ nay: build trên Vercel chạy
+`prisma generate && prisma migrate deploy && prisma db seed && next
+build` — migration áp tự động trong lúc build (build lỗi thì deploy
+không lên). Sau mỗi lần deploy, kiểm chứng bằng: (1) deployment
+Vercel báo Ready cho đúng commit; (2) `prisma migrate status` với DB
+production (chỉ đọc) để xác nhận mọi migration đã áp; (3) kiểm live
+bằng GET (trang chủ, chi tiết SP, giỏ, checkout, `/order/KHONGTONTAI`
+→ 404 + đúng tiêu đề, `/admin/orders` khi chưa đăng nhập → 307
+`/login`). Không tạo đơn test trên production.
+
+**Trạng thái 24/11 ~21:03 (ĐÃ XÁC MINH — không còn bị chặn):** redeploy
+an toàn cùng commit 821f3a7 lên Vercel xong, deployment
+`DdeCACjzUXVph3EJyz5XzSJnuary`, trạng thái Ready/Production lúc
+21:03:47. Log build ghi nguyên văn: lệnh build `prisma generate &&
+prisma migrate deploy && prisma db seed && next build`; đã kết nối
+Neon database "neondb"; `6 migrations found in prisma/migrations`;
+`No pending migrations to apply.` — cả 6 migration đã áp trên
+production, gồm `20261123210000_admin` (Ngày 7) và
+`20261124144500_order_management` (Ngày 8). Seed cũng chạy xong (4
+danh mục, 20 sản phẩm, 4 khu vực giao). Kết luận: `DATABASE_URL` trên
+production còn nguyên — sự kiện "edited" lúc ~20:37 chỉ là thao tác
+mở form rồi hủy, không thay đổi giá trị — và không cần Henry đặt lại
+từ Neon nữa. Kiểm live bằng GET sau redeploy cũng đạt (xem báo cáo
+Ngày 9, mục D9-1).
 
 ## Thông tin liên hệ
 

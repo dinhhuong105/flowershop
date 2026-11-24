@@ -146,7 +146,7 @@ export default async function AdminOrderDetailPage({
         >
           <h2 className="text-xl text-ink">Người đặt và người nhận</h2>
           <dl className="mt-4 space-y-2 text-sm">
-            <div className="flex justify-between gap-3">
+            <div className="flex items-center justify-between gap-3">
               <dt className="text-ink-soft">Người đặt</dt>
               <dd className="text-right font-bold text-ink">
                 {order.senderName} (
@@ -160,12 +160,12 @@ export default async function AdminOrderDetailPage({
               </dd>
             </div>
             {order.senderEmail ? (
-              <div className="flex justify-between gap-3">
+              <div className="flex items-center justify-between gap-3">
                 <dt className="text-ink-soft">Email người đặt</dt>
                 <dd className="text-right font-bold text-ink">{order.senderEmail}</dd>
               </div>
             ) : null}
-            <div className="flex justify-between gap-3">
+            <div className="flex items-center justify-between gap-3">
               <dt className="text-ink-soft">Người nhận</dt>
               <dd className="text-right font-bold text-ink">
                 {order.receiverName} (
@@ -178,32 +178,32 @@ export default async function AdminOrderDetailPage({
                 )
               </dd>
             </div>
-            <div className="flex justify-between gap-3">
+            <div className="flex items-center justify-between gap-3">
               <dt className="text-ink-soft">Địa chỉ</dt>
               <dd className="text-right font-bold text-ink">{order.address}</dd>
             </div>
-            <div className="flex justify-between gap-3">
+            <div className="flex items-center justify-between gap-3">
               <dt className="text-ink-soft">Khu vực</dt>
               <dd className="text-right font-bold text-ink">{order.area}</dd>
             </div>
-            <div className="flex justify-between gap-3">
+            <div className="flex items-center justify-between gap-3">
               <dt className="text-ink-soft">Phí giao hàng</dt>
               <dd className="text-right font-bold text-ink">{formatVND(order.shippingFee)}</dd>
             </div>
-            <div className="flex justify-between gap-3">
+            <div className="flex items-center justify-between gap-3">
               <dt className="text-ink-soft">Thời gian giao</dt>
               <dd className="text-right font-bold text-ink">
                 {formatVnDate(order.deliveryDate)} — {order.deliverySlot}
               </dd>
             </div>
             {order.cardMessage ? (
-              <div className="flex justify-between gap-3">
+              <div className="flex items-center justify-between gap-3">
                 <dt className="text-ink-soft">Lời nhắn trên thiệp</dt>
                 <dd className="text-right font-bold text-ink">{order.cardMessage}</dd>
               </div>
             ) : null}
             {order.note ? (
-              <div className="flex justify-between gap-3">
+              <div className="flex items-center justify-between gap-3">
                 <dt className="text-ink-soft">Ghi chú của khách</dt>
                 <dd className="text-right font-bold text-ink">{order.note}</dd>
               </div>
@@ -218,7 +218,7 @@ export default async function AdminOrderDetailPage({
           <h2 className="text-xl text-ink">Sản phẩm và thanh toán</h2>
           <ul className="mt-4 space-y-2 text-sm">
             {order.items.map((item, i) => (
-              <li key={i} className="flex justify-between gap-3">
+              <li key={i} className="flex items-center justify-between gap-3">
                 <span className="text-ink-soft">
                   {item.name} × {item.quantity}
                 </span>
@@ -227,29 +227,29 @@ export default async function AdminOrderDetailPage({
             ))}
           </ul>
           <dl className="mt-4 space-y-2 border-t border-line pt-3 text-sm">
-            <div className="flex justify-between gap-3">
+            <div className="flex items-center justify-between gap-3">
               <dt className="text-ink-soft">Tạm tính</dt>
               <dd className="font-bold text-ink">{formatVND(order.subtotal)}</dd>
             </div>
-            <div className="flex justify-between gap-3">
+            <div className="flex items-center justify-between gap-3">
               <dt className="text-ink-soft">Phí giao hàng</dt>
               <dd className="font-bold text-ink">{formatVND(order.shippingFee)}</dd>
             </div>
             {order.deliverySurcharge > 0 ? (
-              <div className="flex justify-between gap-3">
+              <div className="flex items-center justify-between gap-3">
                 <dt className="text-ink-soft">Phụ phí giao hàng</dt>
                 <dd className="font-bold text-ink">{formatVND(order.deliverySurcharge)}</dd>
               </div>
             ) : null}
-            <div className="flex justify-between gap-3 border-t border-line pt-3 text-base">
+            <div className="flex items-center justify-between gap-3 border-t border-line pt-3 text-base">
               <dt className="font-bold text-ink">Tổng cộng</dt>
               <dd className="font-bold text-ink">{formatVND(order.total)}</dd>
             </div>
-            <div className="flex justify-between gap-3">
+            <div className="flex items-center justify-between gap-3">
               <dt className="text-ink-soft">Nội dung chuyển khoản</dt>
               <dd className="font-bold text-ink">{transferContent(order.code)}</dd>
             </div>
-            <div className="flex justify-between gap-3">
+            <div className="flex items-center justify-between gap-3">
               <dt className="text-ink-soft">Thông báo Telegram</dt>
               <dd className="text-right font-bold text-ink">
                 {order.notifiedAt

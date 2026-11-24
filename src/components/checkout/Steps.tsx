@@ -4,9 +4,11 @@
 // chỉ hiện số — để cả thanh nằm một dòng, mũi tên không rơi xuống dòng
 // sau (trước đây thanh bị xuống dòng ở 390px). Từ sm trở lên hiện đủ
 // nhãn cả 3 bước.
+// current = null (Ngày 9 D9-4): không tô bước nào — dùng cho đơn đã
+// hủy, tránh tô sáng bước "Hoàn tất" cho đơn không hoàn tất.
 const STEPS = ["Giỏ hàng", "Thanh toán", "Hoàn tất"];
 
-export default function Steps({ current }: { current: number }) {
+export default function Steps({ current }: { current: number | null }) {
   return (
     <ol aria-label="Các bước đặt hàng" className="mt-5 flex items-center gap-x-2 text-sm">
       {STEPS.map((label, i) => (

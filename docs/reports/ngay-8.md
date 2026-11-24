@@ -42,7 +42,7 @@ Kết quả chung: **14/14 tiêu chí D8 ĐẠT** (D8-12 đạt có ghi chú K-6
 - **D8-11 — Riêng tư: ĐẠT.** `Cache-Control: no-store` đã kiểm bằng curl trên `/admin/orders` và `/order/[code]` (cả hai). Meta `robots: noindex, nofollow` có trên layout quản trị + trang danh sách/chi tiết (kiểm trong HTML: `<meta name="robots" content="noindex, nofollow"/>`). URL chỉ chứa mã đơn (không SĐT/tên/địa chỉ trong URL, log hay thông báo lỗi).
 - **D8-12 — K-1..K-8: ĐẠT (có ghi chú).** Xem mục K-1..K-8 ở trên. K-6: CSS toast đạt, kèm phát hiện tràn ngang trang công khai (ngoài phạm vi). K-7: (a) gián tiếp, (b)(c) chưa kiểm tra được (ghi rõ lý do).
 - **D8-13 — D7-21/22/23/24 vẫn ĐẠT: ĐẠT.** D7-21: 0 request ra ngoài localhost khi dùng admin (log mạng CDP phiên admin: 40 request, 0 ngoài `127.0.0.1:3100`). D7-22: máy stage chạy bằng user `nobody`, không đọc `.env` (env truyền trực tiếp). D7-23: `Dockerfile`/`docker-compose.yml` không đổi (`git diff` không chạm hai file này). D7-24: `docs/CONTEXT.md` = **13 dòng** (≤ 50); đã cập nhật dòng luồng trạng thái đơn (bỏ PREPARING khỏi luồng) + dòng tiến độ Ngày 8.
-- **D8-14 — Báo cáo + ảnh: ĐẠT.** Báo cáo đầy đủ này + báo cáo gọn `~/workspace/bao-cao-ngay-8-gui-claude.md` + file đính kèm `~/workspace/bao-cao-ngay-8-dinh-kem.md` + 6 ảnh (5 bắt buộc + ảnh toast K-6; thêm ảnh PDF A5).
+- **D8-14 — Báo cáo + ảnh: ĐẠT.** Báo cáo đầy đủ này + báo cáo gọn `~/workspace/bao-cao-ngay-8-gui-claude.md` + file đính kèm `~/workspace/bao-cao-ngay-8-dinh-kem.md` + 7 ảnh (5 bắt buộc + ảnh toast K-6 + ảnh trang chủ 390 px sau sửa; thêm ảnh PDF A5).
 
 ## Khác đặc tả
 
@@ -75,7 +75,7 @@ Kết quả chung: **14/14 tiêu chí D8 ĐẠT** (D8-12 đạt có ghi chú K-6
 - Sửa: `prisma/schema.prisma`, `src/lib/telegram.ts` (tách `sendTelegramForOrder` thuần), `src/lib/admin/auth.ts` (re-export IP), `upload-rules.ts`/`uploads.ts` (K-2), `product-validation.ts` (K-3), `src/app/admin/page.tsx` (`/admin` → `/admin/orders`), `src/app/admin/layout.tsx` (mục "Đơn hàng", link thương hiệu ≥ 44 px), `src/app/login/page.tsx` + `LoginForm.tsx` + `src/app/api/admin/login/route.ts` (vào `/admin/orders` sau đăng nhập), `src/app/order/[code]/page.tsx` ("Đơn đã hủy"/"Đã nhận thanh toán", ẩn QR), `src/app/admin/products/page.tsx` (K-5), `next.config.ts` (no-store cho `/admin/orders/*`), `docs/CONTEXT.md`, `README.md`, `.env.example`, `package.json` (test script thêm 2 file test).
 - Không đổi: `Dockerfile`, `docker-compose.yml`, `.env` (không commit).
 
-## Ảnh đính kèm (6 ảnh, tại `~/workspace/`)
+## Ảnh đính kèm (7 ảnh, tại `~/workspace/`)
 
 1. `danh-sach-don-1440.png` — danh sách đơn 1440×900, tab "Cần xử lý (3)", huy hiệu "Hôm nay" (chụp trước khi đi luồng).
 2. `danh-sach-don-390.png` — danh sách đơn 390×844 (sau luồng: Cần xử lý (1), Đã xác nhận (1), Hoàn tất (1), Đã hủy (1)).
@@ -83,6 +83,7 @@ Kết quả chung: **14/14 tiêu chí D8 ĐẠT** (D8-12 đạt có ghi chú K-6
 4. `phieu-giao-hang.png` — phiếu giao 1N0PEZH0J7 (màn hình) + `phieu-giao-hang-a5.png` (PDF A5 chuyển ảnh, 1 trang 420×594,96 pt).
 5. `don-da-huy-cong-khai.png` — trang công khai đơn đã hủy (không QR).
 6. `toast-gio-hang-390.png` — toast K-6 đo lại (lề 16/16 so với layout viewport; nút ✕ bị cắt do trang công khai tràn 425 px — xem K-6).
+7. `trang-chu-390.png` — trang chủ 390 px sau sửa tràn ngang (bổ sung tối 24/11, commit 821f3a7).
 
 ## Bổ sung sau Ngày 8 — Sửa tràn ngang mobile 390 px + tiêu đề 404 + K-7(a) trực tiếp (24/11/2026; 1 commit mới trên 048ba9c, đã amend 1 lần — hash cuối xem `git log -1`)
 
