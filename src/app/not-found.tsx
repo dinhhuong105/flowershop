@@ -1,5 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import UspStrip from "@/components/layout/UspStrip";
+
+// Tiêu đề tab khi trang không tìm thấy (kể cả khi notFound() được gọi
+// từ một trang có metadata riêng như /order/[code] — trước đây tab
+// vẫn giữ tiêu đề "Đặt hàng thành công" của trang đơn hàng).
+export const metadata: Metadata = {
+  title: "Không tìm thấy trang",
+};
 
 export default function NotFound() {
   return (

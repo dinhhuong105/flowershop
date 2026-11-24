@@ -107,7 +107,7 @@ export default function Header({
             <span className="block font-display text-[22px] font-semibold tracking-tight text-green-900 sm:text-2xl">
               {siteConfig.name}
             </span>
-            <span className="mt-1 block text-[10px] font-bold uppercase tracking-[0.18em] text-gold-text">
+            <span className="mt-1 hidden text-[10px] font-bold uppercase tracking-[0.18em] text-gold-text sm:block">
               {siteConfig.tagline}
             </span>
           </span>

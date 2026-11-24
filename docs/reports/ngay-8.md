@@ -83,3 +83,28 @@ Kết quả chung: **14/14 tiêu chí D8 ĐẠT** (D8-12 đạt có ghi chú K-6
 4. `phieu-giao-hang.png` — phiếu giao 1N0PEZH0J7 (màn hình) + `phieu-giao-hang-a5.png` (PDF A5 chuyển ảnh, 1 trang 420×594,96 pt).
 5. `don-da-huy-cong-khai.png` — trang công khai đơn đã hủy (không QR).
 6. `toast-gio-hang-390.png` — toast K-6 đo lại (lề 16/16 so với layout viewport; nút ✕ bị cắt do trang công khai tràn 425 px — xem K-6).
+
+## Bổ sung sau Ngày 8 — Sửa tràn ngang mobile 390 px + tiêu đề 404 + K-7(a) trực tiếp (24/11/2026; 1 commit mới trên 048ba9c, đã amend 1 lần — hash cuối xem `git log -1`)
+
+Henry 24/11 20:13: sửa luôn việc của Ngày 8, không chờ Ngày 9. Làm trên nền commit 048ba9c, KHÔNG amend commit cũ; mọi sửa trong 1 commit mới.
+
+### 1. Tràn ngang trang công khai ở 390 px — ĐÃ SỬA
+- Nguyên nhân đo được (CDP, viewport 390 px): hàng 1 của header trang công khai rộng 409 px trong khung nội dung 358 px. Khối logo `shrink-0` rộng 261 px (icon 40 px + chữ 211 px — tagline "HOA TƯƠI & QUÀ TẶNG CAO CẤP" 10 px, tracking 0.18em, rộng 211 px) + khoảng cách 12 px + nhóm nút phải 136 px (tìm kiếm/giỏ/hamburger) = 409 px → tràn 35 px (`scrollWidth` 425, `innerWidth` 390).
+- Sửa: tagline trong logo ẩn dưới `sm` (`hidden sm:block` trong `src/components/layout/Header.tsx`) — tên "Hoa Tươi Demo" vẫn hiện; logo còn ~180 px, hàng 1 còn ~328 px ≤ 358 px. Tagline vẫn hiện từ 640 px trở lên và trong footer.
+- Kiểm lại bằng CDP (viewport 390×844): trang chủ, chi tiết SP, giỏ, tìm kiếm, danh mục, checkout đều `innerWidth = scrollWidth = 390`, không còn phần tử tràn (chỉ còn menu mobile trượt ngoài màn hình và link "Bỏ qua" ẩn — cố tình, không gây tràn). Với giả lập mobile thật (`mobile: true`) `innerWidth` cũng = 390 (trước sửa là 425 — trình duyệt tự giãn viewport theo nội dung tràn; đó là lý do lần đo K-6 trước đây ra 425).
+- Toast sau sửa (bấm "Thêm vào giỏ hàng", đo sau khi animation kết thúc): left 16, right 374 (lề 16/16), nút ✕ ở 313–357, hiện đầy đủ trong khung nhìn. K-6 nay ĐẠT hoàn toàn.
+- Ảnh mới: `~/workspace/trang-chu-390.png` (trang chủ 390 px, đã cuộn để hiện các khối reveal), `~/workspace/toast-gio-hang-390.png` (chụp lại ở 390 px thật).
+- Trang quản trị không đổi (đã kiểm ở D8-10, không tràn).
+
+### 2. Tiêu đề tab trang 404 của /order/[code] — ĐÃ SỬA
+- Nguyên nhân: `/order/[code]` có metadata tĩnh `title: "Đặt hàng thành công"`; khi đơn không tồn tại, `notFound()` render `src/app/not-found.tsx` nhưng tab vẫn giữ tiêu đề của trang đơn hàng.
+- Sửa: thêm `export const metadata = { title: "Không tìm thấy trang" }` vào `src/app/not-found.tsx` (áp dụng cho mọi trang 404). Kiểm bằng curl: `/order/AAAAAAAAAA` trả `<title>Không tìm thấy trang | Hoa Tươi Demo</title>`, nội dung vẫn "Không tìm thấy trang".
+
+### 3. K-7(a) — ĐÃ KIỂM TRA TRỰC TIẾP
+- Một lần POST duy nhất (mật khẩu sai cố tình, không phải mật khẩu Henry) tới `POST https://flowershop-steel.vercel.app/api/admin/login` → **HTTP 401** trong 14,5 s, body `{"ok":false,"error":"Tên đăng nhập hoặc mật khẩu không đúng."}`. Chứng tỏ bảng `admin_sessions`/`admin_login_attempts` và code đăng nhập/giới hạn tồn tại và chạy trên DB production — migration `20261123210000_admin` đã áp lên Vercel. (Lần thử trước bị timeout do mạng máy ảo; lần này thành công ngay lần đầu, không thử lại. Lần thử này tốn 1 lượt đăng nhập sai trên IP máy ảo — 1/5, vô hại.)
+- K-7(b): đã kiểm qua code (xem báo cáo gọn). K-7(c): đã kiểm live 24/11 (đơn test → "Không tìm thấy trang", tìm "dong tien" → 0).
+
+### Kiểm thử sau sửa
+- Test 169/169 PASS, giống hệt dưới `TZ=UTC` và `TZ=Asia/Ho_Chi_Minh`. Typecheck 0 lỗi, lint 0 lỗi, build OK. First Load JS `/` = **115 kB** (≤ 135 kB). Không thêm test mới (sửa CSS/layout + metadata, kiểm bằng đo CDP và curl).
+- File thay đổi trong commit này: `src/components/layout/Header.tsx`, `src/app/not-found.tsx`, `docs/reports/ngay-8.md` (phần bổ sung này).
+- Commit mới: 1 commit trên 048ba9c (đã amend 1 lần; hash cuối xem `git log -1`), chưa push — chờ token Henry.
