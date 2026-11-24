@@ -18,8 +18,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <header className="border-b border-line bg-white">
         <div className="shell flex flex-wrap items-center gap-3 py-3">
           <Link
-            href="/admin/products"
-            className="font-display text-xl font-semibold text-green-900"
+            href="/admin"
+            className="flex min-h-11 items-center font-display text-xl font-semibold text-green-900"
           >
             Quản trị — Hoa Tươi Demo
           </Link>
@@ -29,6 +29,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               className="flex min-h-11 items-center rounded-[3px] px-3 text-sm font-semibold text-ink transition-colors hover:bg-cream-100 hover:text-green-800"
             >
               Sản phẩm
+            </Link>
+            <Link
+              href="/admin/orders"
+              className="flex min-h-11 items-center rounded-[3px] px-3 text-sm font-semibold text-ink transition-colors hover:bg-cream-100 hover:text-green-800"
+            >
+              Đơn hàng
             </Link>
             <Link
               href="/"

@@ -157,7 +157,8 @@ export default async function AdminProductsPage({
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <Link href={`/admin/products/${p.id}`} className="font-bold text-ink hover:text-green-800 hover:underline">
+                      {/* K-5 (Ngày 8): link tên cao ≥ 44 px (inline-flex + min-h-11). */}
+                      <Link href={`/admin/products/${p.id}`} className="inline-flex min-h-11 items-center font-bold text-ink hover:text-green-800 hover:underline">
                         {p.name}
                       </Link>
                       {p.sku ? <span className="block text-xs text-muted">SKU: {p.sku}</span> : null}
@@ -210,7 +211,8 @@ export default async function AdminProductsPage({
                     />
                   </span>
                   <div className="min-w-0">
-                    <Link href={`/admin/products/${p.id}`} className="font-bold text-ink hover:text-green-800 hover:underline">
+                    {/* K-5 (Ngày 8): link tên cao ≥ 44 px. */}
+                    <Link href={`/admin/products/${p.id}`} className="inline-flex min-h-11 items-center font-bold text-ink hover:text-green-800 hover:underline">
                       {p.name}
                     </Link>
                     <p className="mt-1 text-sm text-ink-soft">

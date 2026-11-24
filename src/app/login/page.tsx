@@ -35,7 +35,7 @@ export default async function LoginPage({
     );
   }
   const session = await getAdminSession();
-  if (session) redirect("/admin/products");
+  if (session) redirect("/admin/orders"); // Ngày 8: đơn hàng là trang quản trị chính.
   const params = await searchParams;
   const serverError =
     params.error === "rate"

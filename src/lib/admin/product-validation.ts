@@ -144,14 +144,15 @@ export function validateProductForm(
     errors.price = "Giá phải từ 1.000 đến 100.000.000 ₫.";
   }
 
-  // salePrice rỗng → null; nếu có thì phải là số nguyên và 0 < salePrice < price.
+  // salePrice rỗng → null; nếu có thì phải là số nguyên, ≥ 1.000
+  // (K-3 Ngày 8: trước đây cho phép 1 ₫) và < giá gốc.
   let salePrice: number | null = null;
   if (input.salePrice.trim() !== "") {
     const parsed = parseIntField(input.salePrice);
     if (parsed === null) {
       errors.salePrice = "Giá khuyến mãi phải là số nguyên (VND).";
-    } else if (parsed <= 0 || (price !== null && parsed >= price)) {
-      errors.salePrice = "Giá khuyến mãi phải lớn hơn 0 và nhỏ hơn giá gốc.";
+    } else if (parsed < MIN_PRODUCT_PRICE || (price !== null && parsed >= price)) {
+      errors.salePrice = "Giá khuyến mãi phải từ 1.000 ₫ và nhỏ hơn giá gốc.";
     } else {
       salePrice = parsed;
     }

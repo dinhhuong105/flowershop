@@ -39,9 +39,16 @@ export default async function OrderPage({ params }: { params: Promise<{ code: st
     <>
       <div className="shell pb-12 pt-6">
         <h1 className="font-display text-3xl font-semibold text-ink sm:text-4xl">
-          Đặt hàng thành công
+          {order.status === "CANCELLED" ? "Đơn đã hủy" : "Đặt hàng thành công"}
         </h1>
         <Steps current={2} />
+
+        {order.status === "CANCELLED" ? (
+          <p role="alert" className="mt-6 max-w-2xl rounded-[3px] border border-danger bg-white p-5 text-sm font-medium text-danger">
+            Đơn đã hủy. Nếu bạn đã chuyển khoản cho đơn này, vui lòng liên
+            hệ shop để được hỗ trợ.
+          </p>
+        ) : null}
 
         <div className="mt-6 max-w-2xl space-y-6">
           <section
@@ -59,11 +66,13 @@ export default async function OrderPage({ params }: { params: Promise<{ code: st
               <OrderStatusBadge status={order.status} />
             </p>
             <p className="mt-3 text-sm text-ink-soft">
-              {order.paymentMethod === "COD"
-                ? "Thanh toán khi nhận hàng"
+              {order.status === "CANCELLED"
+                ? "Đơn đã hủy"
                 : order.paymentStatus === "PAID"
-                  ? "Đã thanh toán"
-                  : "Chờ chuyển khoản"}
+                  ? "Đã nhận thanh toán"
+                  : order.paymentMethod === "COD"
+                    ? "Thanh toán khi nhận hàng"
+                    : "Chờ chuyển khoản"}
             </p>
           </section>
 

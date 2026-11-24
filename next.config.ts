@@ -16,10 +16,19 @@ const nextConfig: NextConfig = {
   htmlLimitedBots:
     /Mediapartners-Google|Slurp|DuckDuckBot|baiduspider|yandex|sogou|bitlybot|tumblr|vkShare|quora link preview|redditbot|ia_archiver|Bingbot|BingPreview|applebot|facebookexternalhit|facebookcatalog|Twitterbot|LinkedInBot|Slackbot|Discordbot|WhatsApp|SkypeUriPreview|Chrome-Lighthouse/i,
   // Trang đơn hàng chứa thông tin cá nhân: không cho cache (mục 7 Ngày 5).
+  // Trang quản trị đơn cũng vậy (Ngày 8 D8-11).
   async headers() {
     return [
       {
         source: "/order/:code",
+        headers: [{ key: "Cache-Control", value: "no-store" }],
+      },
+      {
+        source: "/admin/orders",
+        headers: [{ key: "Cache-Control", value: "no-store" }],
+      },
+      {
+        source: "/admin/orders/:path*",
         headers: [{ key: "Cache-Control", value: "no-store" }],
       },
     ];

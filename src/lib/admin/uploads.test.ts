@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   UPLOAD_NAME_RE,
+  checkUploadContentLength,
   detectImageType,
   uploadFileName,
 } from "./uploads";
@@ -33,6 +34,34 @@ describe("detectImageType (magic bytes)", () => {
       detectImageType(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
       "png",
     );
+  });
+});
+
+describe("checkUploadContentLength (K-2)", () => {
+  it("thiếu header → 411 (không đọc body chunked vào RAM)", () => {
+    assert.deepEqual(checkUploadContentLength(null), {
+      status: 411,
+      error: "Thiếu Content-Length.",
+    });
+    assert.deepEqual(checkUploadContentLength(""), {
+      status: 411,
+      error: "Thiếu Content-Length.",
+    });
+  });
+  it("không phải số hoặc âm → 411", () => {
+    assert.equal(checkUploadContentLength("abc")?.status, 411);
+    assert.equal(checkUploadContentLength("-5")?.status, 411);
+  });
+  it("> 5,5 MB → 413", () => {
+    assert.deepEqual(checkUploadContentLength(String(6 * 1024 * 1024)), {
+      status: 413,
+      error: "File quá lớn (tối đa 5 MB/ảnh).",
+    });
+  });
+  it("trong giới hạn → null (qua kiểm tra)", () => {
+    assert.equal(checkUploadContentLength("0"), null);
+    assert.equal(checkUploadContentLength("1024"), null);
+    assert.equal(checkUploadContentLength(String(5 * 1024 * 1024)), null);
   });
 });
 

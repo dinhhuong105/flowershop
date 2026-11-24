@@ -3,7 +3,7 @@ import { AdminNotConfiguredError, requireAdmin } from "@/lib/admin/auth";
 import {
   MAX_IMAGES_PER_PRODUCT,
   MAX_UPLOAD_BYTES,
-  MAX_UPLOAD_CONTENT_LENGTH,
+  checkUploadContentLength,
   detectImageType,
   saveUpload,
 } from "@/lib/admin/uploads";
@@ -69,12 +69,15 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ ok: false, error: "Origin không hợp lệ." }, { status: 403 });
   }
 
-  // Từ chối sớm khi Content-Length > 5,5 MB, trước khi đọc body.
-  const contentLength = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(contentLength) && contentLength > MAX_UPLOAD_CONTENT_LENGTH) {
+  // K-2 (Ngày 8): thiếu hoặc không phải số → 411 (không đọc body
+  // chunked vào RAM); > 5,5 MB → 413. Kiểm trước khi đọc body.
+  const lengthCheck = checkUploadContentLength(
+    request.headers.get("content-length"),
+  );
+  if (lengthCheck) {
     return NextResponse.json(
-      { ok: false, error: "File quá lớn (tối đa 5 MB/ảnh)." },
-      { status: 413 },
+      { ok: false, error: lengthCheck.error },
+      { status: lengthCheck.status },
     );
   }
 

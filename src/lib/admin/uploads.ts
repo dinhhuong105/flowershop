@@ -8,7 +8,12 @@ import { UPLOAD_NAME_RE, type ImageType } from "./upload-rules";
 // KHÔNG dùng sharp (chưa có trong bản build — không thêm phụ thuộc):
 // lưu nguyên file đã kiểm magic bytes. Xem "Khác đặc tả" báo cáo Ngày 7.
 
-export { UPLOAD_NAME_RE, contentTypeForImage, detectImageType } from "./upload-rules";
+export {
+  UPLOAD_NAME_RE,
+  checkUploadContentLength,
+  contentTypeForImage,
+  detectImageType,
+} from "./upload-rules";
 export type { ImageType } from "./upload-rules";
 export {
   MAX_IMAGES_PER_PRODUCT,

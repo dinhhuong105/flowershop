@@ -50,18 +50,7 @@ export function hashSessionToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-// IP từ header do reverse proxy đặt (xem README): X-Forwarded-For
-// lấy phần tử đầu; dự phòng X-Real-IP; không có thì "unknown".
-export function clientIpFromHeaders(h: Headers): string {
-  const forwarded = h.get("x-forwarded-for");
-  if (forwarded) {
-    const first = forwarded.split(",")[0]?.trim();
-    if (first) return first;
-  }
-  const realIp = h.get("x-real-ip")?.trim();
-  if (realIp) return realIp;
-  return "unknown";
-}
+export { clientIpFromHeaders, trustedProxyHops } from "./ip";
 
 // Tạo phiên + ghi cookie; dọn phiên hết hạn trước.
 export async function createAdminSession(): Promise<string> {

@@ -80,6 +80,37 @@ describe("validateProductForm", () => {
       700000,
     );
   });
+  it("K-3: salePrice 1 ₫ và 999 ₫ → lỗi (phải ≥ 1.000); 1.000 → ok", () => {
+    assert.equal(
+      validateProductForm(baseInput({ salePrice: "1" })).errors.salePrice,
+      "Giá khuyến mãi phải từ 1.000 ₫ và nhỏ hơn giá gốc.",
+    );
+    assert.ok(validateProductForm(baseInput({ salePrice: "999" })).errors.salePrice);
+    assert.equal(
+      validateProductForm(baseInput({ salePrice: "1000" })).values?.salePrice,
+      1000,
+    );
+  });
+  it("K-4: ảnh do client gửi không có trong DB → lỗi, dù action đã đọc ảnh đã có từ DB", () => {
+    // existingImages là ảnh action đọc từ DB theo id sản phẩm (không
+    // lấy từ FormData) — xem updateProductAction. Client gửi thêm
+    // "/images/khac.svg" (không nằm trong DB) → lỗi "Ảnh không hợp lệ."
+    const placeholder = "/images/placeholder.svg";
+    assert.equal(
+      validateProductForm(baseInput({ images: ["/images/khac.svg"] }), [placeholder])
+        .errors.images,
+      "Ảnh không hợp lệ.",
+    );
+    // Tạo mới (không có ảnh đã có) gửi ảnh lạ → lỗi.
+    assert.ok(
+      validateProductForm(baseInput({ images: ["/images/khac.svg"] })).errors.images,
+    );
+    // Ảnh đã có trong DB thì được giữ.
+    assert.deepEqual(
+      validateProductForm(baseInput({ images: [placeholder] }), [placeholder]).errors,
+      {},
+    );
+  });
   it("slug hoa/khoảng trắng/'--' → lỗi", () => {
     for (const slug of ["Hoa Hong", "hoa  hong", "hoa--hong", "-hoa", "hoa-"]) {
       const { errors } = validateProductForm(baseInput({ slug }));

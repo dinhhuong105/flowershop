@@ -111,17 +111,31 @@ export function buildTelegramMessage(order: OrderWithItems): string {
 // notifiedAt), false khi bỏ qua (thiếu cấu hình) hoặc gửi lỗi. Không
 // bao giờ throw — lỗi nào cũng chỉ log tên lỗi, không log token hay URL.
 export async function sendOrderNotification(orderId: number): Promise<boolean> {
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    include: { items: { orderBy: { id: "asc" } } },
+  });
+  if (!order) return false;
+  const sent = await sendTelegramForOrder(order);
+  if (!sent) return false;
+  await db.order.update({
+    where: { id: orderId },
+    data: { notifiedAt: new Date() },
+  });
+  return true;
+}
+
+// Gửi THUẦN tin nhắn Telegram cho một đơn (không ghi DB). Dùng cho
+// gửi lại từ quản trị (Ngày 8): phía gọi tự cập nhật notifiedAt có
+// điều kiện (notifiedAt IS NULL) để không gửi trùng khi bấm đúp.
+// Trả false khi chưa cấu hình hoặc Telegram lỗi; không bao giờ throw.
+export async function sendTelegramForOrder(order: OrderWithItems): Promise<boolean> {
   const token = (process.env.TELEGRAM_BOT_TOKEN ?? "").trim();
   const chatId = (process.env.TELEGRAM_CHAT_ID ?? "").trim();
   if (!token || !chatId) {
     console.log("[telegram] Chưa cấu hình TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID, bỏ qua báo đơn.");
     return false;
   }
-  const order = await db.order.findUnique({
-    where: { id: orderId },
-    include: { items: { orderBy: { id: "asc" } } },
-  });
-  if (!order) return false;
   const base = (process.env.TELEGRAM_API_BASE ?? "https://api.telegram.org").replace(/\/$/, "");
   try {
     const res = await fetch(`${base}/bot${token}/sendMessage`, {
@@ -138,10 +152,6 @@ export async function sendOrderNotification(orderId: number): Promise<boolean> {
       console.error(`[telegram] sendMessage lỗi HTTP ${res.status} cho đơn ${order.code}.`);
       return false;
     }
-    await db.order.update({
-      where: { id: orderId },
-      data: { notifiedAt: new Date() },
-    });
     return true;
   } catch (error) {
     // Chỉ log tên lỗi — message/URL có thể chứa token.

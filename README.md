@@ -186,10 +186,17 @@ echo -n '<mật khẩu>' | npx tsx scripts/hash-admin-password.ts
 Phiên đăng nhập: cookie `admin_session` (`HttpOnly`, `SameSite=Strict`,
 `Path=/`), hết hạn tuyệt đối 12 giờ; DB chỉ lưu hash sha256 của token.
 Giới hạn thử sai: quá 5 lần sai trong 15 phút theo IP, hoặc 20 lần sai
-toàn hệ thống, thì trả 429. IP lấy từ header `X-Forwarded-For` (phần
-tử đầu) do reverse proxy đặt, dự phòng `X-Real-IP` — khi chạy sau
-Caddy/Nginx phải chắc proxy chuyển tiếp header này, nếu không mọi
-lần thử sẽ tính chung một IP.
+toàn hệ thống, thì trả 429. IP lấy từ header `X-Forwarded-For` do
+reverse proxy đặt — chỉ tin `TRUSTED_PROXY_HOPS` phần tử CUỐI của
+danh sách (mặc định 1, đúng cho Vercel và nginx/Caddy 1 proxy); các
+phần tử đầu do client tự đặt được nên không tin. Thiếu header thì
+dự phòng `X-Real-IP`, không có thì "unknown". Khi chạy sau Caddy/
+Nginx phải chắc proxy chuyển tiếp header này, nếu không mọi lần thử
+sẽ tính chung một IP. `TRUSTED_PROXY_HOPS` đặt SAI (lớn hơn số proxy
+đáng tin thật sự) thì lại tin IP do client đặt — kẻ tấn công đổi
+header mỗi lần là né được giới hạn 5 lần/IP. Hệ quả của giới hạn
+toàn hệ thống (chấp nhận, chỉ ghi chú): kẻ tấn công cố tình đăng
+nhập sai 20 lần cũng khóa được Henry tối đa 15 phút.
 
 ### Ảnh tải lên
 

@@ -45,3 +45,22 @@ export function contentTypeForImage(name: string): string {
   if (name.endsWith(".webp")) return "image/webp";
   return "image/jpeg";
 }
+
+// Kiểm Content-Length trước khi đọc body (Ngày 8 K-2): thiếu hoặc
+// không phải số (body chunked) → 411, KHÔNG đọc hết body vào RAM;
+// > 5,5 MB → 413. Trả null khi qua được kiểm tra.
+export function checkUploadContentLength(
+  header: string | null,
+): { status: 411 | 413; error: string } | null {
+  if (header === null || header.trim() === "") {
+    return { status: 411, error: "Thiếu Content-Length." };
+  }
+  const n = Number(header);
+  if (!Number.isFinite(n) || n < 0) {
+    return { status: 411, error: "Content-Length không hợp lệ." };
+  }
+  if (n > MAX_UPLOAD_CONTENT_LENGTH) {
+    return { status: 413, error: "File quá lớn (tối đa 5 MB/ảnh)." };
+  }
+  return null;
+}

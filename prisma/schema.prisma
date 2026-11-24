@@ -137,9 +137,12 @@ model Order {
   total          Int
   paymentMethod  PaymentMethod
   paymentStatus  PaymentStatus @default(UNPAID)
+  paidAt         DateTime? // lúc đánh dấu đã thanh toán (Ngày 8)
+  internalNote   String? // ghi chú nội bộ của quản trị (Ngày 8, ≤ 500 ký tự)
   status         OrderStatus   @default(NEW)
   notifiedAt     DateTime?     // đã gửi báo Telegram lúc nào (null = chưa)
   items          OrderItem[]
+  events         OrderEvent[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -160,6 +163,29 @@ model OrderItem {
   image     String?
 
   @@map("order_items")
+}
+
+// Nhật ký thay đổi đơn hàng (Ngày 8): mỗi lần đổi trạng thái, đánh
+// dấu thanh toán, gửi lại thông báo Telegram ghi một dòng. Chi tiết
+// đơn hiển thị dòng thời gian (mới nhất trên cùng). Không lưu IP.
+enum OrderEventType {
+  STATUS_CHANGE
+  PAYMENT
+  NOTIFY
+}
+
+model OrderEvent {
+  id         Int            @id @default(autoincrement())
+  orderId    Int
+  order      Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  type       OrderEventType
+  fromStatus OrderStatus?
+  toStatus   OrderStatus?
+  note       String?
+  createdAt  DateTime       @default(now())
+
+  @@index([orderId, createdAt])
+  @@map("order_events")
 }
 
 // Phiên đăng nhập quản trị (Ngày 7). Chỉ lưu hash sha256 của token,

@@ -18,8 +18,9 @@ import {
 //
 // Hai dạng gọi:
 // - JSON (fetch từ form đăng nhập): trả { ok } + mã 200/401/429/503.
-// - Form thường (không JS): redirect 303 về /admin/products khi đúng,
+// - Form thường (không JS): redirect 303 về /admin/orders khi đúng,
 //   về /login?error=... khi sai (giữ lại tên đăng nhập đã nhập).
+// (Ngày 8: /admin/orders là trang quản trị chính, thay /admin/products.)
 // Lỗi luôn là thông báo chung, không lộ tài khoản hay mật khẩu sai
 // chỗ nào. Quá 5 lần sai/15 phút theo IP (hoặc 20 lần toàn hệ thống)
 // → 429 kể cả khi nhập đúng (D7-7).
@@ -99,7 +100,7 @@ export async function POST(request: Request): Promise<Response> {
   await createAdminSession();
   await cleanupAdminLoginAttempts().catch(() => undefined);
   if (isJson) return NextResponse.json({ ok: true });
-  return NextResponse.redirect(redirectUrl(request, "/admin/products"), {
+  return NextResponse.redirect(redirectUrl(request, "/admin/orders"), {
     status: 303,
   });
 }
