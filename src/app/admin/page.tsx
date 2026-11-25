@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/admin/auth";
 import { getAdminDashboardStats } from "@/lib/admin/dashboard";
 import { formatVND } from "@/lib/format";
+import { formatVnDateTime } from "@/lib/vn-datetime";
 
 export const dynamic = "force-dynamic";
 
@@ -30,25 +31,6 @@ export const metadata: Metadata = {
 // tất, danh sách lọc theo ngày giao) nên đổi nhãn thành "Xem đơn đã
 // giao" — không hứa danh sách khớp tổng tiền — và dòng phụ thành
 // "Danh sách đơn đã giao".
-
-// Giờ hiện tại theo giờ VN, dạng "HH:mm, dd/MM/yyyy" (Ngày 10 D10-3):
-// dòng phụ dashboard cũ viết "lấy trực tiếp từ cơ sở dữ liệu" là
-// ngôn ngữ kỹ thuật — đổi thành giờ cập nhật, tính lúc render.
-function formatVnDateTime(now: Date): string {
-  const time = new Intl.DateTimeFormat("vi-VN", {
-    timeZone: "Asia/Ho_Chi_Minh",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(now);
-  const date = new Intl.DateTimeFormat("vi-VN", {
-    timeZone: "Asia/Ho_Chi_Minh",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(now);
-  return `${time}, ${date}`;
-}
 
 export default async function AdminDashboardPage() {
   await requireAdmin();

@@ -35,7 +35,7 @@
     "postbuild": "rm -f .next/standalone/.env .next/standalone/.env.*",
     "resend:notifications": "tsx scripts/resend-notifications.ts",
     "start": "next start",
-    "test": "tsx --test src/lib/catalog-params.test.ts src/lib/cart-rules.test.ts src/lib/related.test.ts src/lib/delivery-rules.test.ts src/lib/checkout-validation.test.ts src/lib/vietqr.test.ts src/lib/telegram.test.ts src/lib/search.test.ts src/lib/quick-view.test.ts src/lib/bank.test.ts src/lib/seed-guard.test.ts src/lib/admin/password.test.ts src/lib/admin/product-validation.test.ts src/lib/admin/uploads.test.ts src/lib/admin/ip.test.ts src/lib/admin/orders.test.ts",
+    "test": "tsx --test src/lib/catalog-params.test.ts src/lib/cart-rules.test.ts src/lib/related.test.ts src/lib/delivery-rules.test.ts src/lib/checkout-validation.test.ts src/lib/vietqr.test.ts src/lib/telegram.test.ts src/lib/search.test.ts src/lib/quick-view.test.ts src/lib/bank.test.ts src/lib/seed-guard.test.ts src/lib/vn-datetime.test.ts src/lib/admin/password.test.ts src/lib/admin/product-validation.test.ts src/lib/admin/uploads.test.ts src/lib/admin/ip.test.ts src/lib/admin/orders.test.ts",
     "test:db": "tsx --test src/lib/admin/orders.db.test.ts",
     "typecheck": "tsc --noEmit"
   },

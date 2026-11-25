@@ -35,7 +35,7 @@ export type AdminDashboardStats = {
 // quanh năm (sửa 12 mục verdict Ngày 9, mục 11: chỉ ghi chú, không
 // đổi hành vi). Nếu đổi timezone trong deliveryConfig thì phải đổi
 // số này theo, không thì ranh giới ngày sẽ lệch.
-function vnDayBounds(now: Date): { day: string; start: Date; end: Date } {
+export function vnDayBounds(now: Date): { day: string; start: Date; end: Date } {
   const day = new Intl.DateTimeFormat("en-CA", {
     timeZone: deliveryConfig.timezone,
     year: "numeric",
