@@ -15,6 +15,12 @@ import {
   type AdminOrderActionState,
 } from "@/app/actions/admin-orders";
 import type { OrderStatus } from "@prisma/client";
+import AdminIconButton, {
+  ArrowRightIcon,
+  BanknoteIcon,
+  SendIcon,
+  TrashIcon,
+} from "@/components/admin/AdminIconButton";
 
 const INITIAL_STATE: AdminOrderActionState = { ok: false, error: null };
 
@@ -66,45 +72,51 @@ export default function OrderDetailActions({
               <input type="hidden" name="code" value={code} />
               <input type="hidden" name="from" value={status} />
               <input type="hidden" name="to" value={step.to} />
-              <button
+              {/* Nút bước tiếp theo dạng icon (25/11): tooltip = đúng nhãn bước. */}
+              <AdminIconButton
                 type="submit"
-                className="flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-5 text-sm font-bold text-white transition-opacity hover:opacity-90"
-              >
-                {step.label}
-              </button>
+                label={step.label}
+                icon={ArrowRightIcon}
+                className="bg-blue-600 text-white transition-opacity hover:opacity-90"
+              />
             </form>
           ))}
         {nextSteps.some((s) => s.to === "CANCELLED") ? (
-          <button
+          <AdminIconButton
             type="button"
             onClick={() => dialogRef.current?.showModal()}
-            className="flex min-h-11 items-center justify-center rounded-lg border border-red-600 bg-white px-5 text-sm font-bold text-red-600 transition-colors hover:bg-red-50"
-          >
-            Hủy đơn
-          </button>
+            label="Hủy đơn"
+            icon={TrashIcon}
+            className="border border-red-600 bg-white text-red-600 transition-colors hover:bg-red-50"
+          />
         ) : null}
         {showMarkPaid ? (
           <form action={paidDispatch}>
             <input type="hidden" name="code" value={code} />
-            <button
+            <AdminIconButton
               type="submit"
-              className="flex min-h-11 items-center justify-center rounded-lg border border-blue-600 bg-white px-5 text-sm font-bold text-blue-600 transition-colors hover:bg-slate-100"
-            >
-              Đã thanh toán
-            </button>
+              label="Đánh dấu đã thanh toán"
+              icon={BanknoteIcon}
+              className="border border-blue-600 bg-white text-blue-600 transition-colors hover:bg-slate-100"
+            />
           </form>
         ) : null}
         {showResend ? (
           <form action={resendDispatch}>
             <input type="hidden" name="code" value={code} />
-            <button
+            {/* Khi chưa cấu hình Telegram nút vẫn hiện tooltip
+                "Chưa cấu hình Telegram" (nhờ wrapper group). */}
+            <AdminIconButton
               type="submit"
               disabled={!telegramConfigured}
-              title={telegramConfigured ? undefined : "Chưa cấu hình Telegram"}
-              className="flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-5 text-sm font-bold text-slate-900 transition-colors hover:border-blue-600 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Gửi lại thông báo Telegram
-            </button>
+              label={
+                telegramConfigured
+                  ? "Gửi lại thông báo Telegram"
+                  : "Chưa cấu hình Telegram"
+              }
+              icon={SendIcon}
+              className="border border-slate-200 bg-white text-slate-900 transition-colors hover:border-blue-600 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+            />
           </form>
         ) : null}
       </div>

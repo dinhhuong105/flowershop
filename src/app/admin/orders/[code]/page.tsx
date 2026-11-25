@@ -7,6 +7,7 @@ import { transferContent } from "@/lib/bank";
 import { formatVND } from "@/lib/format";
 import OrderStatusBadge, { orderStatusLabel } from "@/components/order/OrderStatusBadge";
 import OrderDetailActions from "@/components/admin/OrderDetailActions";
+import AdminIconButton, { PrinterIcon } from "@/components/admin/AdminIconButton";
 import OrderNoteForm from "@/components/admin/OrderNoteForm";
 import type { OrderStatus } from "@prisma/client";
 
@@ -130,12 +131,12 @@ export default async function AdminOrderDetailPage({
           />
         </div>
         <p className="mt-4">
-          <Link
+          <AdminIconButton
             href={`/admin/orders/${order.code}/print`}
-            className="inline-flex min-h-11 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 transition-colors hover:border-blue-600 hover:text-blue-600"
-          >
-            In phiếu giao hàng
-          </Link>
+            label="In phiếu giao hàng"
+            icon={PrinterIcon}
+            className="border border-slate-200 bg-white text-slate-900 transition-colors hover:border-blue-600 hover:text-blue-600"
+          />
         </p>
       </section>
 

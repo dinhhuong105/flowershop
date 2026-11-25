@@ -6,6 +6,10 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import AdminIconButton, {
+  EyeIcon,
+  EyeOffIcon,
+} from "@/components/admin/AdminIconButton";
 import {
   toggleProductAction,
   type ToggleProductState,
@@ -53,12 +57,13 @@ export default function ToggleActiveButton({
       <form ref={formRef} action={dispatch} onSubmit={handleSubmit}>
         <input type="hidden" name="productId" value={productId} />
         <input type="hidden" name="isActive" value={String(!isActive)} />
-        <button
+        {/* Nút kích hoạt dạng icon (25/11): tooltip = đúng nhãn cũ. */}
+        <AdminIconButton
           type="submit"
-          className="flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900 transition-colors hover:border-blue-600 hover:text-blue-600"
-        >
-          {label}
-        </button>
+          label={label}
+          icon={isActive ? EyeOffIcon : EyeIcon}
+          className="border border-slate-200 bg-white text-slate-900 transition-colors hover:border-blue-600 hover:text-blue-600"
+        />
       </form>
       <dialog
         ref={dialogRef}

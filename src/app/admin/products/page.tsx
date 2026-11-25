@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/admin/auth";
 import { listAdminCategories, listAdminProducts } from "@/lib/admin/products";
 import { formatVND } from "@/lib/format";
 import ToggleActiveButton from "@/components/admin/ToggleActiveButton";
+import AdminIconButton, { PencilIcon } from "@/components/admin/AdminIconButton";
 
 export const dynamic = "force-dynamic";
 
@@ -180,12 +181,13 @@ export default async function AdminProductsPage({
                     <td className="px-4 py-3">{p.inStock ? "Còn hàng" : "Hết hàng"}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <Link
+                        <AdminIconButton
                           href={`/admin/products/${p.id}`}
-                          className="flex min-h-11 items-center justify-center rounded-lg border border-blue-600 bg-white px-3 text-sm font-bold text-blue-600 transition-colors hover:bg-slate-100"
-                        >
-                          Sửa
-                        </Link>
+                          label="Sửa sản phẩm"
+                          icon={PencilIcon}
+                          tooltipAlign="right"
+                          className="border border-blue-600 bg-white text-blue-600 transition-colors hover:bg-slate-100"
+                        />
                         <ToggleActiveButton productId={p.id} productName={p.name} isActive={p.isActive} />
                       </div>
                     </td>
@@ -233,12 +235,12 @@ export default async function AdminProductsPage({
                   </div>
                 </div>
                 <div className="mt-3 flex gap-2">
-                  <Link
+                  <AdminIconButton
                     href={`/admin/products/${p.id}`}
-                    className="flex min-h-11 flex-1 items-center justify-center rounded-lg border border-blue-600 bg-white px-3 text-sm font-bold text-blue-600 transition-colors hover:bg-slate-100"
-                  >
-                    Sửa
-                  </Link>
+                    label="Sửa sản phẩm"
+                    icon={PencilIcon}
+                    className="border border-blue-600 bg-white text-blue-600 transition-colors hover:bg-slate-100"
+                  />
                   <ToggleActiveButton productId={p.id} productName={p.name} isActive={p.isActive} />
                 </div>
               </li>

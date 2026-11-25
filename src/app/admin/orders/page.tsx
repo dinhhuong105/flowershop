@@ -11,6 +11,7 @@ import {
 import { formatVND } from "@/lib/format";
 import { orderStatusLabel } from "@/lib/order-labels";
 import OrderStatusBadge from "@/components/order/OrderStatusBadge";
+import AdminIconButton, { EyeIcon } from "@/components/admin/AdminIconButton";
 
 export const dynamic = "force-dynamic";
 
@@ -273,6 +274,7 @@ export default async function AdminOrdersPage({
                   <th scope="col" className="px-4 py-3 font-semibold">Tổng tiền</th>
                   <th scope="col" className="px-4 py-3 font-semibold">Thanh toán</th>
                   <th scope="col" className="px-4 py-3 font-semibold">Trạng thái</th>
+                  <th scope="col" className="px-4 py-3 font-semibold">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -319,6 +321,15 @@ export default async function AdminOrdersPage({
                       <td className="px-4 py-3">
                         <OrderStatusBadge status={o.status} variant="admin" />
                       </td>
+                      <td className="px-4 py-3">
+                        <AdminIconButton
+                          href={`/admin/orders/${o.code}`}
+                          label="Xem chi tiết"
+                          icon={EyeIcon}
+                          tooltipAlign="right"
+                          className="border border-slate-200 bg-white text-slate-900 transition-colors hover:border-blue-600 hover:text-blue-600"
+                        />
+                      </td>
                     </tr>
                   );
                 })}
@@ -345,6 +356,13 @@ export default async function AdminOrdersPage({
                     <span className="ml-auto">
                       <OrderStatusBadge status={o.status} variant="admin" />
                     </span>
+                    <AdminIconButton
+                      href={`/admin/orders/${o.code}`}
+                      label="Xem chi tiết"
+                      icon={EyeIcon}
+                      tooltipAlign="right"
+                      className="border border-slate-200 bg-white text-slate-900 transition-colors hover:border-blue-600 hover:text-blue-600"
+                    />
                   </div>
                   <p className="mt-2 text-sm text-slate-500">
                     {o.senderName} → {o.receiverName} · {o.area}
