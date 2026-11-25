@@ -88,7 +88,7 @@ export default function AdminShell({
   );
 
   return (
-    <div className="min-h-dvh bg-slate-100 text-slate-900 lg:flex">
+    <div className="admin-shell min-h-dvh bg-slate-100 text-slate-900 lg:flex">
       {/* Sidebar desktop: dính đầu trang, cao đúng màn hình. */}
       <aside
         aria-label="Menu quản trị"

@@ -566,3 +566,8 @@ Dòng "Đang chuẩn bị" (PREPARING) đã bỏ khỏi biểu đồ tiến đ�
 - Mắt kiểm 7 ảnh (xem `~/workspace/`): `admin-navy-dashboard-1440.png`, `admin-navy-menu-1440.png` (đủ menu), `admin-navy-don-hang-1440.png`, `admin-navy-dashboard-1280.png` (số tiền vừa 1 dòng), `admin-navy-dashboard-390.png`, `admin-navy-drawer-390.png` (đủ menu + huy hiệu Sắp có), `admin-navy-topbar-360.png` (thấy ô tìm kiếm, không tràn ngang).
 - Trang in: Chrome print-to-PDF, đơn hủy (`SEED000041`) + đơn thường (`SEED000031`) đều **1 trang, khổ A5** (420 × 595.92 pt) — `admin-navy-phieu-huy.pdf`, `admin-navy-phieu-thuong.pdf`.
 - DB cuối đợt: **3 đơn mẫu NEW/UNPAID, 21 sản phẩm, 4 khu vực, 0 phiên admin** (đã xóa 45 đơn seed + phiên bằng `clean-test-data.ts --only=seed,sessions --delete`).
+
+### Bổ sung sau lần 2 — sửa font tiêu đề admin (25/11 ~12:50, kiểm lại độc lập)
+- Phát hiện khi mắt kiểm ảnh lần 2: tiêu đề "Tổng quan", "Đơn mới nhất", "Tiến độ đơn hàng" vẫn là font serif Playfair, dù class `font-display` đã được gỡ khỏi admin — vì `globals.css` đặt `h1` và `h2, h3` dùng `var(--font-display)` TOÀN CỤC, tiêu đề admin là thẻ h1/h2/h3 nên vẫn kế thừa serif.
+- Sửa: thêm class `admin-shell` vào div gốc của `AdminShell`, thêm rule `.admin-shell :is(h1, h2, h3):not(.font-display) { font-family: var(--font-sans); }` trong `globals.css` — chỉ admin đổi sang sans, mặt shop giữ Playfair; phiếu in (h1 có class `font-display` tường minh) được loại trừ nên giữ nguyên chữ shop.
+- Kiểm: computed style của h1 "Tổng quan" = `system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif` (CDP); ảnh `admin-navy-dashboard-1440.png` đã chụp lại (ghi đè bản cũ) — tiêu đề sans, khớp ảnh mẫu. Test 185/185 + test:db 10/10, build OK, First Load JS `/` = 115 kB.

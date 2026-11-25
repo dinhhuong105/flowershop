@@ -101,6 +101,13 @@
     font-weight: 600;
   }
 
+  /* Khu vực admin dùng font sans như ảnh mẫu (Ngày 11): ghi đè
+     Playfair toàn cục của h1/h2/h3. Ngoại lệ duy nhất: phiếu in
+     (class font-display tường minh) giữ nguyên chữ shop. */
+  .admin-shell :is(h1, h2, h3):not(.font-display) {
+    font-family: var(--font-sans);
+  }
+
   :focus-visible {
     outline: 2px solid var(--color-gold-500);
     outline-offset: 2px;
