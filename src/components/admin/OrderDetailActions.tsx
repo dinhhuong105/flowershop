@@ -134,7 +134,7 @@ export default function OrderDetailActions({
       <dialog
         ref={dialogRef}
         aria-label="Xác nhận hủy đơn"
-        className="w-[calc(100vw-2rem)] max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-[0_24px_64px_rgba(15,30,51,0.35)] backdrop:bg-black/40"
+        className="m-auto w-[calc(100vw-2rem)] max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-[0_24px_64px_rgba(15,30,51,0.35)] backdrop:bg-black/40"
       >
         <form action={cancelDispatch}>
           <input type="hidden" name="code" value={code} />
