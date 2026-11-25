@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import AdminShell from "@/components/admin/AdminShell";
+import { getAdminDashboardStats } from "@/lib/admin/dashboard";
 
 export const dynamic = "force-dynamic";
 
@@ -12,15 +13,19 @@ export const metadata: Metadata = {
 // không truy vấn giỏ. Layout KHÔNG kiểm tra đăng nhập — mỗi trang và
 // action tự gọi requireAdmin() ở câu lệnh đầu tiên.
 //
-// THIẾT KẾ LẠI 25/11 (theo ảnh mẫu của Henry, phạm vi toàn bộ admin
-// đã duyệt): đầu trang ngang kiểu Ngày 7 (thương hiệu đầy đủ +
-// menu 2 hàng, quyết định 24/11 ~23:12) được THAY bằng sidebar trái
-// màu xanh đậm + thanh trên có ô tìm kiếm + Đăng xuất — đánh đổi
-// Henry đã duyệt khi chọn "Làm toàn bộ admin". Đủ 4 mục (Tổng quan,
-// Sản phẩm, Đơn hàng, Xem shop) như cũ, chỉ chuyển vào sidebar;
-// trên mobile sidebar thành drawer trượt. <main id="noi-dung-chinh">
-// giữ nguyên để CSS in phiếu (làm trắng nền kem) vẫn trúng; trang
-// in phiếu KHÔNG đổi.
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return <AdminShell>{children}</AdminShell>;
+// THIẾT KẾ LẠI LẦN 2, 25/11 (đúng màu/style ảnh mẫu của Henry):
+// sidebar navy #0f1e33 + thanh trên trắng có ô tìm kiếm + chuông
+// báo (số = đơn cần xử lý) + Đăng xuất. <main
+// id="noi-dung-chinh"> giữ nguyên để CSS in phiếu (làm trắng nền
+// kem) vẫn trúng; trang in phiếu KHÔNG đổi.
+//
+// Layout lấy số đơn cần xử lý để truyền cho chuông ở AdminShell
+// (hàm dashboard sẵn có; trang tổng quan cũng gọi hàm này —
+// trùng một lượt đếm rẻ, không cache để khỏi làm test:db sai do
+// memo xuyên test). Layout KHÔNG kiểm tra đăng nhập — mỗi trang
+// tự gọi requireAdmin() và chuyển về /login nếu chưa đăng nhập,
+// nên số này không lộ ra ngoài khi chưa đăng nhập.
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const stats = await getAdminDashboardStats();
+  return <AdminShell pendingCount={stats.pendingCount}>{children}</AdminShell>;
 }

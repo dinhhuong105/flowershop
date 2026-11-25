@@ -505,3 +505,64 @@ sidebar — đánh đổi Henry đã duyệt khi chọn phạm vi này.
   — restyle nhẹ (bóng, nền đầu bảng, hover).
 - `src/lib/admin/orders.db.test.ts` — +2 ca test:db.
 - Ảnh: 8 file `admin-moi-*.png` ở `~/workspace/`.
+
+## Thiết kế lại admin lần 2 — đúng màu mockup + menu đầy đủ (25/11, sau verdict Ngày 10)
+
+Henry phản hồi sau lần thiết kế đầu: bố cục giống ảnh mẫu nhưng màu sắc/style không giống (lần đầu giữ xanh lá/vàng của shop). Henry duyệt kế hoạch sửa ngày 25/11 ~12:32.
+
+### Bảng màu mới (chỉ trang admin; mặt shop bán hàng giữ nguyên xanh lá/vàng)
+
+Lấy trực tiếp từ ảnh mẫu `~/workspace/user/media_library/image/Admin_-_D___n.png`:
+
+- Sidebar xanh navy đậm `#0f1e33`, rộng `w-72` (288 px — bằng ảnh mẫu; `w-64` làm 4 nhãn "Sắp có" dài bị cắt dấu …).
+- Mục đang mở nền xanh dương `#2563eb` bo tròn `rounded-lg`, chữ trắng; mục thường chữ xám nhạt `slate-400`; nhãn nhóm chữ nhỏ in hoa xám `slate-500`.
+- Logo: ô vuông xanh dương `#2563eb` chữ "H" trắng + "Hoa Tươi Demo" trắng + huy hiệu "Admin" nền trắng mờ.
+- Nền trang xám nhạt `#f1f5f9` (`slate-100`), chữ navy `#0f172a` (`slate-900`), chữ phụ `slate-500`.
+- Thẻ trắng `rounded-xl`, viền `slate-200`, bóng nhẹ `shadow-sm`.
+- Thẻ số liệu: icon mỗi thẻ một ô màu pastel khác nhau như ảnh mẫu — xanh dương (`blue-100`/`blue-600`), xanh lá (`green-100`/`green-600`), tím (`violet-100`/`violet-600`), cam (`orange-100`/`orange-600`), hồng (`pink-100`/`pink-600`).
+- Chữ trong admin dùng font sans mặc định, KHÔNG dùng font serif Playfair nữa.
+- Nút chính xanh dương `#2563eb` (`blue-600`, hover `blue-700`); nút phụ viền `slate-300`, chữ `slate-900`.
+- Huy hiệu trạng thái kiểu ảnh mẫu (mềm, nền pastel, không viền): NEW xanh dương, CONFIRMED tím, DELIVERING hổ phách, COMPLETED xanh lá, CANCELLED xám — chỉ trong admin (`OrderStatusBadge` thêm prop `variant="admin"`; mặc định `"shop"` giữ màu xanh lá cũ cho trang công khai `/order/[code]`, đã kiểm vẫn xanh lá).
+
+### Menu đầy đủ (theo đúng danh sách Henry duyệt)
+
+Nhóm như ảnh mẫu; mục chưa làm ghi "Sắp có" — hiển thị mờ + huy hiệu "Sắp có", KHÔNG bấm được (`<span aria-disabled>`, không dùng thẻ `<a>`, không link chết):
+
+- **Bảng điều khiển:** Tổng quan (`/admin`)
+- **Quản lý nội dung:** Sản phẩm (`/admin/products`), Danh mục (Sắp có), Bài viết / Tin tức (Sắp có), Trang tĩnh (Sắp có)
+- **Giao dịch:** Đơn hàng (`/admin/orders`), Yêu cầu liên hệ (Sắp có), Khách hàng (Sắp có), Tin nhắn (Sắp có)
+- **Người dùng:** Tài khoản quản trị (Sắp có), Vai trò & phân quyền (Sắp có)
+- **Cấu hình:** Khu vực & phí giao hàng (Sắp có), Ngân hàng & QR (Sắp có), Telegram (Sắp có), Cài đặt shop (Sắp có), Nhật ký hoạt động (Sắp có)
+- **Cửa hàng:** Xem shop (link ra shop)
+
+### Thanh trên
+
+- Chuông báo THẬT: số trên chuông = số đơn cần xử lý (NEW + CONFIRMED + DELIVERING, lấy từ `getAdminDashboardStats()` sẵn có; `layout.tsx` lấy số này truyền xuống `AdminShell` qua prop `pendingCount`), bấm chuông ra `/admin/orders?tab=pending` (tab mặc định của trang đơn, cùng link thẻ "Đơn cần xử lý"). Huy hiệu đỏ chỉ hiện khi số > 0.
+- Ô tìm kiếm hiện cả trên mobile: thành hàng thứ hai của thanh trên (dưới 640 px `order-3 w-full`, từ `sm` trở lên về lại một hàng).
+- Avatar tròn xanh dương chữ "Q" (thay cho vòng xanh lá cũ).
+
+### Bỏ PREPARING khỏi hiển thị
+
+Dòng "Đang chuẩn bị" (PREPARING) đã bỏ khỏi biểu đồ tiến độ VÀ biểu đồ tròn + chú thích (verdict Ngày 10 + kiểm lại trong code: `PREPARING: []` trong bảng chuyển trạng thái, không đường nào tạo ra đơn ở trạng thái này nên dòng đó mãi bằng 0). Chỉ lọc ra khỏi hiển thị ở `page.tsx` (`visibleCounts`); KHÔNG sửa enum, label hay hàm đếm `getOrderStatusCounts()` (test:db vẫn kiểm đủ 6 trạng thái).
+
+### Các thay đổi khác trong đợt này
+
+- 5 thẻ số liệu xếp 1 HÀNG ở màn hình rộng (`xl:grid-cols-5`), số tiền cỡ `text-2xl` — "4.130.000 ₫" vừa một dòng ở 1440 px và 1280 px (đo bằng CDP: ở 1280 px `scrollWidth` 132 so với `clientWidth` 131 — lệch 1 px, nằm trong đệm 20 px của thẻ, mắt kiểm không thấy tràn).
+- Màu trạng thái cho thanh tiến độ + biểu đồ tròn đổi sang bảng màu ảnh mẫu: NEW `#3b82f6`, CONFIRMED `#8b5cf6`, DELIVERING `#f59e0b`, COMPLETED `#22c55e`, CANCELLED `#94a3b8`.
+- Trang danh sách đơn, chi tiết đơn, sản phẩm, biểu mẫu sản phẩm, nút thao tác: đổi sang xanh dương/xám nhạt theo cùng bảng màu (bo góc lớn cho thẻ, bo vừa cho ô nhập/nút). Trang in phiếu KHÔNG đổi (sidebar/topbar/drawer `print:hidden`, `<main id="noi-dung-chinh">` giữ nguyên).
+- Nút chính trong admin bỏ chữ hoa toàn bộ (`uppercase`) cho giống nút "+ Thêm dự án" trong ảnh mẫu.
+
+### Độ lệch so với kế hoạch
+
+- Nhãn menu dài nhất "Khu vực & phí giao hàng" xuống 2 dòng trên sidebar desktop (đã mở rộng sidebar lên `w-72` nhưng nhãn này vẫn dài hơn chỗ trống sau khi trừ icon + huy hiệu "Sắp có"; đã bỏ cắt dấu … và cho xuống dòng để đọc đủ, kèm `title` là tên đầy đủ). Các nhãn còn lại 1 dòng.
+- Nhãn thẻ số liệu dài ("Chuyển khoản chưa thu", "Doanh thu hôm nay") vẫn xuống 2 dòng trong thẻ ở 1280–1440 px (nhãn tiếng Việt dài hơn nhãn ảnh mẫu); số liệu vẫn thẳng hàng, không tràn.
+- Link "Xem đơn đã giao →" xuống 2 dòng trong thẻ doanh thu ở 1280 px (thẻ hẹp); ở 1440 px 1 dòng.
+
+### Kiểm chứng (bản cuối, 25/11 ~12:40–12:47)
+
+- Unit test **185/185 PASS**; test:db **10/10 PASS**; typecheck 0 lỗi; lint 0 lỗi; build OK; First Load JS `/` = **115 kB** (≤ 135 kB).
+- Curl local trên server standalone cổng 3000 (48 đơn = 45 seed + 3 mẫu): thẻ dashboard 38 / 8 / 7 / 4.130.000 ₫ / 4.130.000 ₫ khớp DB (SQL đối chiếu: pending 38, giao hôm nay 8, chuyển khoản chưa thu 7, đã giao 5); link thẻ ra đúng danh sách; chuông = 38, bấm chuông ra "Tìm thấy 38 đơn"; tìm topbar `q=SEED000001` → 1 đơn; chip với exclude → 7 đơn + chip hiện; sản phẩm → 21; chi tiết đơn 200 + huy hiệu xanh dương; trang công khai `/order/0Z2DZBQNTJ` vẫn huy hiệu xanh lá cũ (không đổi mặt shop); trang chủ shop 200, token xanh lá/vàng vẫn còn.
+- HTML dashboard: 0 lần "PREPARING"/"Đang chuẩn bị"; "Sắp có" xuất hiện 52 lần = 13 mục × 2 (sidebar + drawer) × 2 (huy hiệu + title); 0 lần `green-900` trong HTML admin.
+- Mắt kiểm 7 ảnh (xem `~/workspace/`): `admin-navy-dashboard-1440.png`, `admin-navy-menu-1440.png` (đủ menu), `admin-navy-don-hang-1440.png`, `admin-navy-dashboard-1280.png` (số tiền vừa 1 dòng), `admin-navy-dashboard-390.png`, `admin-navy-drawer-390.png` (đủ menu + huy hiệu Sắp có), `admin-navy-topbar-360.png` (thấy ô tìm kiếm, không tràn ngang).
+- Trang in: Chrome print-to-PDF, đơn hủy (`SEED000041`) + đơn thường (`SEED000031`) đều **1 trang, khổ A5** (420 × 595.92 pt) — `admin-navy-phieu-huy.pdf`, `admin-navy-phieu-thuong.pdf`.
+- DB cuối đợt: **3 đơn mẫu NEW/UNPAID, 21 sản phẩm, 4 khu vực, 0 phiên admin** (đã xóa 45 đơn seed + phiên bằng `clean-test-data.ts --only=seed,sessions --delete`).

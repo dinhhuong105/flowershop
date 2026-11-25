@@ -136,9 +136,9 @@ export default async function AdminOrdersPage({
   return (
     <div>
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-3xl font-semibold text-ink">Đơn hàng</h1>
+        <h1 className="text-3xl font-bold text-slate-900">Đơn hàng</h1>
       </div>
-      <p role="status" className="mt-2 text-sm text-ink-soft">
+      <p role="status" className="mt-2 text-sm text-slate-500">
         Tìm thấy {list.total} đơn
         {list.totalPages > 1 ? ` — trang ${list.page}/${list.totalPages}` : ""}
       </p>
@@ -155,7 +155,7 @@ export default async function AdminOrdersPage({
             href={clearExcludeHref(base, list.page)}
             data-testid="exclude-chip"
             aria-label={`Bỏ lọc loại đơn ${orderStatusLabel(exclude)} — hiện lại tất cả các đơn`}
-            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-gold-300 bg-gold-300 px-4 text-sm font-bold text-green-900 transition-colors hover:opacity-90"
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 text-sm font-bold text-blue-700 transition-colors hover:opacity-90"
           >
             Không tính đơn {orderStatusLabel(exclude).toLowerCase()} ✕
           </Link>
@@ -170,8 +170,8 @@ export default async function AdminOrdersPage({
             aria-current={t.id === tab ? "page" : undefined}
             className={`flex min-h-11 items-center rounded-full border px-4 text-sm font-bold transition-colors ${
               t.id === tab
-                ? "border-green-800 bg-green-800 text-white"
-                : "border-line bg-white text-ink hover:border-green-800 hover:text-green-800"
+                ? "border-blue-600 bg-blue-600 text-white"
+                : "border-slate-200 bg-white text-slate-900 hover:border-blue-600 hover:text-blue-600"
             }`}
           >
             {t.label} ({list.counts[t.id]})
@@ -182,11 +182,11 @@ export default async function AdminOrdersPage({
       <form
         method="get"
         action="/admin/orders"
-        className="mt-4 flex flex-wrap items-end gap-3 rounded-[3px] border border-line bg-white p-4 shadow-[0_1px_2px_rgba(8,56,42,.06)]"
+        className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
       >
         <input type="hidden" name="tab" value={tab} />
         <div className="min-w-48 flex-1">
-          <label htmlFor="admin-order-q" className="block text-sm font-semibold text-ink">
+          <label htmlFor="admin-order-q" className="block text-sm font-semibold text-slate-900">
             Tìm theo mã đơn, tên, SĐT
           </label>
           <input
@@ -195,18 +195,18 @@ export default async function AdminOrdersPage({
             type="search"
             defaultValue={q}
             placeholder="Ví dụ: QAFNN907ZY, Hoa, 0900..."
-            className="mt-1 block w-full min-h-11 rounded-[3px] border border-line bg-white px-3 text-base text-ink"
+            className="mt-1 block w-full min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-base text-slate-900"
           />
         </div>
         <div>
-          <label htmlFor="admin-order-payment" className="block text-sm font-semibold text-ink">
+          <label htmlFor="admin-order-payment" className="block text-sm font-semibold text-slate-900">
             Thanh toán
           </label>
           <select
             id="admin-order-payment"
             name="payment"
             defaultValue={payment}
-            className="mt-1 block min-h-11 rounded-[3px] border border-line bg-white px-3 text-base text-ink"
+            className="mt-1 block min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-base text-slate-900"
           >
             <option value="all">Tất cả</option>
             <option value="UNPAID">Chưa thanh toán</option>
@@ -217,14 +217,14 @@ export default async function AdminOrdersPage({
             "Chuyển khoản chưa thu" trỏ tới đây với
             method=BANK_TRANSFER; ô chọn để chủ shop tự lọc tay. */}
         <div>
-          <label htmlFor="admin-order-method" className="block text-sm font-semibold text-ink">
+          <label htmlFor="admin-order-method" className="block text-sm font-semibold text-slate-900">
             Phương thức
           </label>
           <select
             id="admin-order-method"
             name="method"
             defaultValue={method}
-            className="mt-1 block min-h-11 rounded-[3px] border border-line bg-white px-3 text-base text-ink"
+            className="mt-1 block min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-base text-slate-900"
           >
             <option value="all">Tất cả</option>
             <option value="BANK_TRANSFER">Chuyển khoản</option>
@@ -236,7 +236,7 @@ export default async function AdminOrdersPage({
             trường trong form, không giữ thì mất bộ lọc. */}
         {exclude !== "" ? <input type="hidden" name="exclude" value={exclude} /> : null}
         <div>
-          <label htmlFor="admin-order-date" className="block text-sm font-semibold text-ink">
+          <label htmlFor="admin-order-date" className="block text-sm font-semibold text-slate-900">
             Ngày giao
           </label>
           <input
@@ -244,28 +244,28 @@ export default async function AdminOrdersPage({
             name="date"
             type="date"
             defaultValue={date}
-            className="mt-1 block min-h-11 rounded-[3px] border border-line bg-white px-3 text-base text-ink"
+            className="mt-1 block min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-base text-slate-900"
           />
         </div>
         <button
           type="submit"
-          className="flex min-h-11 items-center justify-center rounded-[3px] bg-green-800 px-5 text-sm font-bold uppercase tracking-wide text-white transition-opacity hover:opacity-90"
+          className="flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-5 text-sm font-bold text-white transition-opacity hover:opacity-90"
         >
           Lọc
         </button>
       </form>
 
       {list.orders.length === 0 ? (
-        <p className="mt-6 rounded-[3px] border border-line bg-white p-6 text-sm text-ink-soft">
+        <p className="mt-6 rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
           Không tìm thấy đơn hàng nào.
         </p>
       ) : (
         <>
           {/* Bảng từ 768 px */}
-          <div className="mt-6 hidden overflow-x-auto rounded-[3px] border border-line bg-white shadow-[0_1px_2px_rgba(8,56,42,.06)] md:block">
+          <div className="mt-6 hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm md:block">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-line bg-cream-50 text-ink-soft">
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
                   <th scope="col" className="px-4 py-3 font-semibold">Mã đơn</th>
                   <th scope="col" className="px-4 py-3 font-semibold">Người đặt</th>
                   <th scope="col" className="px-4 py-3 font-semibold">Người nhận / Khu vực</th>
@@ -282,11 +282,11 @@ export default async function AdminOrdersPage({
                       ? orderDayBadge(o.deliveryDate, now)
                       : null;
                   return (
-                    <tr key={o.code} data-testid="admin-order-row" className="border-b border-line last:border-b-0 hover:bg-cream-50/70">
+                    <tr key={o.code} data-testid="admin-order-row" className="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">
                       <td className="px-4 py-3">
                         <Link
                           href={`/admin/orders/${o.code}`}
-                          className="inline-flex min-h-11 items-center font-bold text-ink hover:text-green-800 hover:underline"
+                          className="inline-flex min-h-11 items-center font-bold text-slate-900 hover:text-blue-600 hover:underline"
                         >
                           {o.code}
                         </Link>
@@ -294,30 +294,30 @@ export default async function AdminOrdersPage({
                       <td className="px-4 py-3">{o.senderName}</td>
                       <td className="px-4 py-3">
                         {o.receiverName}
-                        <span className="block text-xs text-muted">{o.area}</span>
+                        <span className="block text-xs text-slate-500">{o.area}</span>
                       </td>
                       <td className="px-4 py-3">
                         {formatVnDate(o.deliveryDate)}
-                        <span className="block text-xs text-muted">{o.deliverySlot}</span>
+                        <span className="block text-xs text-slate-500">{o.deliverySlot}</span>
                         {badge === "today" ? (
-                          <span className="mt-1 inline-flex items-center rounded-full border border-gold-300 bg-gold-300 px-2 py-0.5 text-xs font-bold text-green-900">
+                          <span className="mt-1 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700">
                             Hôm nay
                           </span>
                         ) : badge === "overdue" ? (
-                          <span className="mt-1 inline-flex items-center rounded-full border border-danger bg-danger px-2 py-0.5 text-xs font-bold text-white">
+                          <span className="mt-1 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
                             Quá hạn
                           </span>
                         ) : null}
                       </td>
-                      <td className="px-4 py-3 font-bold text-ink">{formatVND(o.total)}</td>
+                      <td className="px-4 py-3 font-bold text-slate-900">{formatVND(o.total)}</td>
                       <td className="px-4 py-3">
                         {paymentMethodLabel(o.paymentMethod)}
-                        <span className="block text-xs text-muted">
+                        <span className="block text-xs text-slate-500">
                           {o.paymentStatus === "PAID" ? "Đã thanh toán" : "Chưa thanh toán"}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <OrderStatusBadge status={o.status} />
+                        <OrderStatusBadge status={o.status} variant="admin" />
                       </td>
                     </tr>
                   );
@@ -334,35 +334,35 @@ export default async function AdminOrdersPage({
                   ? orderDayBadge(o.deliveryDate, now)
                   : null;
               return (
-                <li key={o.code} data-testid="admin-order-row" className="rounded-[3px] border border-line bg-white p-4 shadow-[0_1px_2px_rgba(8,56,42,.06)]">
+                <li key={o.code} data-testid="admin-order-row" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex flex-wrap items-center gap-2">
                     <Link
                       href={`/admin/orders/${o.code}`}
-                      className="inline-flex min-h-11 items-center font-bold text-ink hover:text-green-800 hover:underline"
+                      className="inline-flex min-h-11 items-center font-bold text-slate-900 hover:text-blue-600 hover:underline"
                     >
                       {o.code}
                     </Link>
                     <span className="ml-auto">
-                      <OrderStatusBadge status={o.status} />
+                      <OrderStatusBadge status={o.status} variant="admin" />
                     </span>
                   </div>
-                  <p className="mt-2 text-sm text-ink-soft">
+                  <p className="mt-2 text-sm text-slate-500">
                     {o.senderName} → {o.receiverName} · {o.area}
                   </p>
                   <p className="mt-1 text-sm">
                     Giao {formatVnDate(o.deliveryDate)} · {o.deliverySlot}
                     {badge === "today" ? (
-                      <span className="ml-2 inline-flex items-center rounded-full border border-gold-300 bg-gold-300 px-2 py-0.5 text-xs font-bold text-green-900">
+                      <span className="ml-2 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700">
                         Hôm nay
                       </span>
                     ) : badge === "overdue" ? (
-                      <span className="ml-2 inline-flex items-center rounded-full border border-danger bg-danger px-2 py-0.5 text-xs font-bold text-white">
+                      <span className="ml-2 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
                         Quá hạn
                       </span>
                     ) : null}
                   </p>
                   <p className="mt-1 text-sm">
-                    <span className="font-bold text-ink">{formatVND(o.total)}</span>
+                    <span className="font-bold text-slate-900">{formatVND(o.total)}</span>
                     {" · "}
                     {paymentMethodLabel(o.paymentMethod)}
                     {" · "}
@@ -378,18 +378,18 @@ export default async function AdminOrdersPage({
               {list.page > 1 ? (
                 <Link
                   href={pageHref(base, list.page - 1)}
-                  className="flex min-h-11 items-center justify-center rounded-[3px] border border-line bg-white px-4 text-sm font-bold text-ink hover:bg-cream-100"
+                  className="flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 hover:bg-slate-100"
                 >
                   ← Trang trước
                 </Link>
               ) : null}
-              <span className="text-sm text-ink-soft">
+              <span className="text-sm text-slate-500">
                 Trang {list.page}/{list.totalPages}
               </span>
               {list.page < list.totalPages ? (
                 <Link
                   href={pageHref(base, list.page + 1)}
-                  className="flex min-h-11 items-center justify-center rounded-[3px] border border-line bg-white px-4 text-sm font-bold text-ink hover:bg-cream-100"
+                  className="flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 hover:bg-slate-100"
                 >
                   Trang sau →
                 </Link>

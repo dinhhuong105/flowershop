@@ -93,18 +93,18 @@ export default async function AdminOrderDetailPage({
       <p>
         <Link
           href="/admin/orders"
-          className="inline-flex min-h-11 items-center text-sm font-bold text-green-800 hover:underline"
+          className="inline-flex min-h-11 items-center text-sm font-bold text-blue-600 hover:underline"
         >
           ← Danh sách đơn hàng
         </Link>
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-3xl font-semibold text-ink">
+        <h1 className="text-3xl font-bold text-slate-900">
           Đơn {order.code}
         </h1>
-        <OrderStatusBadge status={order.status} />
+        <OrderStatusBadge status={order.status} variant="admin" />
       </div>
-      <p className="mt-2 text-sm text-ink-soft">
+      <p className="mt-2 text-sm text-slate-500">
         Đặt lúc {formatVnDateTime(order.createdAt)}
         {" · "}
         {order.paymentMethod === "COD" ? "Thanh toán khi nhận hàng (COD)" : "Chuyển khoản"}
@@ -116,9 +116,9 @@ export default async function AdminOrderDetailPage({
 
       <section
         aria-label="Thao tác"
-        className="mt-6 rounded-[3px] border border-line bg-white p-5"
+        className="mt-6 rounded-xl border border-slate-200 bg-white p-5"
       >
-        <h2 className="text-xl text-ink">Thao tác</h2>
+        <h2 className="text-xl font-bold text-slate-900">Thao tác</h2>
         <div className="mt-3">
           <OrderDetailActions
             code={order.code}
@@ -132,7 +132,7 @@ export default async function AdminOrderDetailPage({
         <p className="mt-4">
           <Link
             href={`/admin/orders/${order.code}/print`}
-            className="inline-flex min-h-11 items-center rounded-[3px] border border-line bg-white px-4 text-sm font-bold text-ink transition-colors hover:border-green-800 hover:text-green-800"
+            className="inline-flex min-h-11 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 transition-colors hover:border-blue-600 hover:text-blue-600"
           >
             In phiếu giao hàng
           </Link>
@@ -142,17 +142,17 @@ export default async function AdminOrderDetailPage({
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <section
           aria-label="Người đặt và người nhận"
-          className="rounded-[3px] border border-line bg-white p-5"
+          className="rounded-xl border border-slate-200 bg-white p-5"
         >
-          <h2 className="text-xl text-ink">Người đặt và người nhận</h2>
+          <h2 className="text-xl font-bold text-slate-900">Người đặt và người nhận</h2>
           <dl className="mt-4 space-y-2 text-sm">
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-ink-soft">Người đặt</dt>
-              <dd className="text-right font-bold text-ink">
+              <dt className="text-slate-500">Người đặt</dt>
+              <dd className="text-right font-bold text-slate-900">
                 {order.senderName} (
                 <a
                   href={`tel:${order.senderPhone}`}
-                  className="inline-flex min-h-11 items-center text-green-800 hover:underline"
+                  className="inline-flex min-h-11 items-center text-blue-600 hover:underline"
                 >
                   {order.senderPhone}
                 </a>
@@ -161,17 +161,17 @@ export default async function AdminOrderDetailPage({
             </div>
             {order.senderEmail ? (
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-ink-soft">Email người đặt</dt>
-                <dd className="text-right font-bold text-ink">{order.senderEmail}</dd>
+                <dt className="text-slate-500">Email người đặt</dt>
+                <dd className="text-right font-bold text-slate-900">{order.senderEmail}</dd>
               </div>
             ) : null}
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-ink-soft">Người nhận</dt>
-              <dd className="text-right font-bold text-ink">
+              <dt className="text-slate-500">Người nhận</dt>
+              <dd className="text-right font-bold text-slate-900">
                 {order.receiverName} (
                 <a
                   href={`tel:${order.receiverPhone}`}
-                  className="inline-flex min-h-11 items-center text-green-800 hover:underline"
+                  className="inline-flex min-h-11 items-center text-blue-600 hover:underline"
                 >
                   {order.receiverPhone}
                 </a>
@@ -179,33 +179,33 @@ export default async function AdminOrderDetailPage({
               </dd>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-ink-soft">Địa chỉ</dt>
-              <dd className="text-right font-bold text-ink">{order.address}</dd>
+              <dt className="text-slate-500">Địa chỉ</dt>
+              <dd className="text-right font-bold text-slate-900">{order.address}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-ink-soft">Khu vực</dt>
-              <dd className="text-right font-bold text-ink">{order.area}</dd>
+              <dt className="text-slate-500">Khu vực</dt>
+              <dd className="text-right font-bold text-slate-900">{order.area}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-ink-soft">Phí giao hàng</dt>
-              <dd className="text-right font-bold text-ink">{formatVND(order.shippingFee)}</dd>
+              <dt className="text-slate-500">Phí giao hàng</dt>
+              <dd className="text-right font-bold text-slate-900">{formatVND(order.shippingFee)}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-ink-soft">Thời gian giao</dt>
-              <dd className="text-right font-bold text-ink">
+              <dt className="text-slate-500">Thời gian giao</dt>
+              <dd className="text-right font-bold text-slate-900">
                 {formatVnDate(order.deliveryDate)} — {order.deliverySlot}
               </dd>
             </div>
             {order.cardMessage ? (
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-ink-soft">Lời nhắn trên thiệp</dt>
-                <dd className="text-right font-bold text-ink">{order.cardMessage}</dd>
+                <dt className="text-slate-500">Lời nhắn trên thiệp</dt>
+                <dd className="text-right font-bold text-slate-900">{order.cardMessage}</dd>
               </div>
             ) : null}
             {order.note ? (
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-ink-soft">Ghi chú của khách</dt>
-                <dd className="text-right font-bold text-ink">{order.note}</dd>
+                <dt className="text-slate-500">Ghi chú của khách</dt>
+                <dd className="text-right font-bold text-slate-900">{order.note}</dd>
               </div>
             ) : null}
           </dl>
@@ -213,45 +213,45 @@ export default async function AdminOrderDetailPage({
 
         <section
           aria-label="Sản phẩm và thanh toán"
-          className="rounded-[3px] border border-line bg-white p-5"
+          className="rounded-xl border border-slate-200 bg-white p-5"
         >
-          <h2 className="text-xl text-ink">Sản phẩm và thanh toán</h2>
+          <h2 className="text-xl font-bold text-slate-900">Sản phẩm và thanh toán</h2>
           <ul className="mt-4 space-y-2 text-sm">
             {order.items.map((item, i) => (
               <li key={i} className="flex items-center justify-between gap-3">
-                <span className="text-ink-soft">
+                <span className="text-slate-500">
                   {item.name} × {item.quantity}
                 </span>
-                <span className="font-bold text-ink">{formatVND(item.price * item.quantity)}</span>
+                <span className="font-bold text-slate-900">{formatVND(item.price * item.quantity)}</span>
               </li>
             ))}
           </ul>
-          <dl className="mt-4 space-y-2 border-t border-line pt-3 text-sm">
+          <dl className="mt-4 space-y-2 border-t border-slate-200 pt-3 text-sm">
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-ink-soft">Tạm tính</dt>
-              <dd className="font-bold text-ink">{formatVND(order.subtotal)}</dd>
+              <dt className="text-slate-500">Tạm tính</dt>
+              <dd className="font-bold text-slate-900">{formatVND(order.subtotal)}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-ink-soft">Phí giao hàng</dt>
-              <dd className="font-bold text-ink">{formatVND(order.shippingFee)}</dd>
+              <dt className="text-slate-500">Phí giao hàng</dt>
+              <dd className="font-bold text-slate-900">{formatVND(order.shippingFee)}</dd>
             </div>
             {order.deliverySurcharge > 0 ? (
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-ink-soft">Phụ phí giao hàng</dt>
-                <dd className="font-bold text-ink">{formatVND(order.deliverySurcharge)}</dd>
+                <dt className="text-slate-500">Phụ phí giao hàng</dt>
+                <dd className="font-bold text-slate-900">{formatVND(order.deliverySurcharge)}</dd>
               </div>
             ) : null}
-            <div className="flex items-center justify-between gap-3 border-t border-line pt-3 text-base">
-              <dt className="font-bold text-ink">Tổng cộng</dt>
-              <dd className="font-bold text-ink">{formatVND(order.total)}</dd>
+            <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-3 text-base">
+              <dt className="font-bold text-slate-900">Tổng cộng</dt>
+              <dd className="font-bold text-slate-900">{formatVND(order.total)}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-ink-soft">Nội dung chuyển khoản</dt>
-              <dd className="font-bold text-ink">{transferContent(order.code)}</dd>
+              <dt className="text-slate-500">Nội dung chuyển khoản</dt>
+              <dd className="font-bold text-slate-900">{transferContent(order.code)}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-ink-soft">Thông báo Telegram</dt>
-              <dd className="text-right font-bold text-ink">
+              <dt className="text-slate-500">Thông báo Telegram</dt>
+              <dd className="text-right font-bold text-slate-900">
                 {order.notifiedAt
                   ? `Đã gửi lúc ${formatVnDateTime(order.notifiedAt)}`
                   : "Chưa gửi"}
@@ -264,17 +264,17 @@ export default async function AdminOrderDetailPage({
 
       <section
         aria-label="Dòng thời gian"
-        className="mt-6 rounded-[3px] border border-line bg-white p-5"
+        className="mt-6 rounded-xl border border-slate-200 bg-white p-5"
       >
-        <h2 className="text-xl text-ink">Dòng thời gian</h2>
+        <h2 className="text-xl font-bold text-slate-900">Dòng thời gian</h2>
         {order.events.length === 0 ? (
-          <p className="mt-3 text-sm text-ink-soft">Chưa có thay đổi nào được ghi lại.</p>
+          <p className="mt-3 text-sm text-slate-500">Chưa có thay đổi nào được ghi lại.</p>
         ) : (
           <ul className="mt-4 space-y-3 text-sm">
             {order.events.map((e, i) => (
-              <li key={i} className="border-l-2 border-green-800 pl-3">
-                <p className="font-bold text-ink">{eventText(e)}</p>
-                <p className="text-ink-soft">{formatVnDateTime(e.createdAt)}</p>
+              <li key={i} className="border-l-2 border-blue-600 pl-3">
+                <p className="font-bold text-slate-900">{eventText(e)}</p>
+                <p className="text-slate-500">{formatVnDateTime(e.createdAt)}</p>
               </li>
             ))}
           </ul>

@@ -68,7 +68,7 @@ export default function OrderDetailActions({
               <input type="hidden" name="to" value={step.to} />
               <button
                 type="submit"
-                className="flex min-h-11 items-center justify-center rounded-[3px] bg-green-800 px-5 text-sm font-bold uppercase tracking-wide text-white transition-opacity hover:opacity-90"
+                className="flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-5 text-sm font-bold text-white transition-opacity hover:opacity-90"
               >
                 {step.label}
               </button>
@@ -78,7 +78,7 @@ export default function OrderDetailActions({
           <button
             type="button"
             onClick={() => dialogRef.current?.showModal()}
-            className="flex min-h-11 items-center justify-center rounded-[3px] border border-danger bg-white px-5 text-sm font-bold text-danger transition-colors hover:bg-cream-100"
+            className="flex min-h-11 items-center justify-center rounded-lg border border-red-600 bg-white px-5 text-sm font-bold text-red-600 transition-colors hover:bg-red-50"
           >
             Hủy đơn
           </button>
@@ -88,7 +88,7 @@ export default function OrderDetailActions({
             <input type="hidden" name="code" value={code} />
             <button
               type="submit"
-              className="flex min-h-11 items-center justify-center rounded-[3px] border border-green-800 bg-white px-5 text-sm font-bold text-green-800 transition-colors hover:bg-cream-100"
+              className="flex min-h-11 items-center justify-center rounded-lg border border-blue-600 bg-white px-5 text-sm font-bold text-blue-600 transition-colors hover:bg-slate-100"
             >
               Đã thanh toán
             </button>
@@ -101,7 +101,7 @@ export default function OrderDetailActions({
               type="submit"
               disabled={!telegramConfigured}
               title={telegramConfigured ? undefined : "Chưa cấu hình Telegram"}
-              className="flex min-h-11 items-center justify-center rounded-[3px] border border-line bg-white px-5 text-sm font-bold text-ink transition-colors hover:border-green-800 hover:text-green-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-5 text-sm font-bold text-slate-900 transition-colors hover:border-blue-600 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Gửi lại thông báo Telegram
             </button>
@@ -109,7 +109,7 @@ export default function OrderDetailActions({
         ) : null}
       </div>
       {showResend && !telegramConfigured ? (
-        <p className="mt-2 text-sm text-ink-soft">
+        <p className="mt-2 text-sm text-slate-500">
           Chưa cấu hình Telegram nên không gửi được thông báo.
         </p>
       ) : null}
@@ -122,17 +122,17 @@ export default function OrderDetailActions({
       <dialog
         ref={dialogRef}
         aria-label="Xác nhận hủy đơn"
-        className="w-[calc(100vw-2rem)] max-w-md rounded-[3px] border border-line bg-white p-6 shadow-[0_24px_64px_rgba(1,50,31,0.35)] backdrop:bg-black/40"
+        className="w-[calc(100vw-2rem)] max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-[0_24px_64px_rgba(15,30,51,0.35)] backdrop:bg-black/40"
       >
         <form action={cancelDispatch}>
           <input type="hidden" name="code" value={code} />
           <input type="hidden" name="from" value={status} />
-          <p className="text-base font-bold text-ink">Hủy đơn {code}?</p>
-          <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+          <p className="text-base font-bold text-slate-900">Hủy đơn {code}?</p>
+          <p className="mt-2 text-sm leading-relaxed text-slate-500">
             Đơn đã hủy không thể chuyển trạng thái được nữa. Lý do hủy là
             bắt buộc và sẽ lưu vào nhật ký đơn.
           </p>
-          <label htmlFor="cancel-reason" className="mt-4 block text-sm font-semibold text-ink">
+          <label htmlFor="cancel-reason" className="mt-4 block text-sm font-semibold text-slate-900">
             Lý do hủy (3–200 ký tự)
           </label>
           <textarea
@@ -144,7 +144,7 @@ export default function OrderDetailActions({
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            className="mt-1 block w-full min-h-11 rounded-[3px] border border-line bg-white px-3 py-2 text-base text-ink"
+            className="mt-1 block w-full min-h-11 rounded-lg border border-slate-200 bg-white px-3 py-2 text-base text-slate-900"
           />
           {cancelState.error ? (
             <p role="alert" className="mt-3 text-sm font-medium text-danger">
@@ -155,13 +155,13 @@ export default function OrderDetailActions({
             <button
               type="button"
               onClick={() => dialogRef.current?.close()}
-              className="flex min-h-11 items-center justify-center rounded-[3px] border border-line bg-white px-5 text-sm font-bold text-ink transition-colors hover:bg-cream-100"
+              className="flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-5 text-sm font-bold text-slate-900 transition-colors hover:bg-slate-100"
             >
               Không hủy
             </button>
             <button
               type="submit"
-              className="flex min-h-11 items-center justify-center rounded-[3px] bg-danger px-5 text-sm font-bold uppercase tracking-wide text-white transition-opacity hover:opacity-90"
+              className="flex min-h-11 items-center justify-center rounded-lg bg-danger px-5 text-sm font-bold text-white transition-opacity hover:opacity-90"
             >
               Xác nhận hủy
             </button>

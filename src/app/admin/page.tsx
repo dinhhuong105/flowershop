@@ -39,24 +39,32 @@ export const metadata: Metadata = {
 // giao" — không hứa danh sách khớp tổng tiền — và dòng phụ thành
 // "Danh sách đơn đã giao".
 //
-// THIẾT KẾ LẠI 25/11 (theo ảnh mẫu của Henry): 5 thẻ số liệu kiểu
-// ảnh mẫu (ô icon màu + nhãn + số lớn + dòng phụ + link), rồi bên
-// dưới là cột trái "Đơn mới nhất" và cột phải "Tiến độ đơn hàng" +
-// "Thống kê theo trạng thái" (biểu đồ tròn vẽ bằng conic-gradient,
-// không thêm thư viện). Mọi số trong cột phải/lấy từ DB (đếm theo
-// trạng thái, 5 đơn mới nhất) — không bịa phần trăm tăng trưởng như
-// ảnh mẫu (ảnh mẫu có "↑12%" so với tháng trước; shop chưa có số
-// liệu đó nên KHÔNG hiện).
+// THIẾT KẾ LẠI LẦN 2, 25/11 (đúng màu/style ảnh mẫu của Henry):
+// 5 thẻ số liệu 1 hàng ở màn hình rộng (xl), icon mỗi thẻ một ô
+// màu pastel khác nhau như ảnh mẫu (xanh dương, xanh lá, tím, cam,
+// hồng), số to đậm màu navy, chữ sans (KHÔNG dùng font serif
+// Playfair trong admin), thẻ trắng bo góc lớn rounded-xl, nền
+// trang xám nhạt. Số tiền cỡ text-2xl — "4.130.000 ₫" vừa một
+// dòng ở 1440 px (nội dung thẻ ~171 px) và 1280 px (~139 px).
+// Cột phải "Tiến độ đơn hàng" + "Thống kê theo trạng thái"
+// (biểu đồ tròn conic-gradient, không thêm thư viện). Mọi số lấy
+// từ DB — không bịa phần trăm tăng trưởng như ảnh mẫu (ảnh mẫu có
+// "↑12%" so với tháng trước; shop chưa có số liệu đó nên KHÔNG hiện).
+//
+// PREPARING KHÔNG render (verdict Ngày 10 + kiểm lại trong code:
+// PREPARING: [] trong bảng chuyển trạng thái, không đường nào tạo
+// ra đơn ở trạng thái này nên dòng đó mãi bằng 0 — chỉ không hiển
+// thị, KHÔNG sửa enum/label/hàm đếm).
 
-// Màu từng trạng thái cho thanh tiến độ + biểu đồ tròn (giữ token
-// xanh lá/vàng của shop + màu ngữ nghĩa đã có).
+// Màu từng trạng thái cho thanh tiến độ + biểu đồ tròn (bảng màu
+// ảnh mẫu: xanh dương, tím, cam, xanh lá, xám).
 const STATUS_COLORS: Record<OrderStatus, string> = {
-  NEW: "#0d6532",
-  CONFIRMED: "#b8862b",
-  PREPARING: "#5d6b63",
-  DELIVERING: "#db9b3a",
-  COMPLETED: "#15803d",
-  CANCELLED: "#b91c1c",
+  NEW: "#3b82f6",
+  CONFIRMED: "#8b5cf6",
+  PREPARING: "#94a3b8",
+  DELIVERING: "#f59e0b",
+  COMPLETED: "#22c55e",
+  CANCELLED: "#94a3b8",
 };
 
 const ICON_CLIPBOARD = (
@@ -99,14 +107,17 @@ export default async function AdminDashboardPage() {
     getOrderStatusCounts(),
     getRecentOrders(5),
   ]);
-  const totalOrders = statusCounts.reduce((sum, row) => sum + row.count, 0);
+  // PREPARING không render (xem ghi chú trên): hàm đếm vẫn trả đủ
+  // 6 trạng thái (test:db kiểm), chỉ lọc ra khỏi hiển thị ở đây.
+  const visibleCounts = statusCounts.filter((row) => row.status !== "PREPARING");
+  const totalOrders = visibleCounts.reduce((sum, row) => sum + row.count, 0);
 
   // Biểu đồ tròn: conic-gradient từ số đếm theo trạng thái. Tổng 0
   // đơn thì vẽ vòng xám trơn (không chia phần trăm cho số 0).
   let acc = 0;
   const donutBackground =
     totalOrders > 0
-      ? `conic-gradient(${statusCounts
+      ? `conic-gradient(${visibleCounts
           .filter((row) => row.count > 0)
           .map((row) => {
             const from = ((acc / totalOrders) * 100).toFixed(2);
@@ -115,7 +126,7 @@ export default async function AdminDashboardPage() {
             return `${STATUS_COLORS[row.status]} ${from}% ${to}%`;
           })
           .join(", ")})`
-      : "#e8e2d6";
+      : "#e2e8f0";
 
   const cards: Array<{
     label: string;
@@ -133,7 +144,7 @@ export default async function AdminDashboardPage() {
       href: "/admin/orders?tab=pending",
       linkLabel: "Xem danh sách →",
       icon: ICON_CLIPBOARD,
-      iconClass: "bg-cream-100 text-green-800",
+      iconClass: "bg-blue-100 text-blue-600",
     },
     {
       label: "Đơn giao hôm nay",
@@ -142,7 +153,7 @@ export default async function AdminDashboardPage() {
       href: `/admin/orders?tab=all&date=${stats.todayVn}&exclude=CANCELLED`,
       linkLabel: "Xem danh sách →",
       icon: ICON_TRUCK,
-      iconClass: "bg-cream-100 text-green-800",
+      iconClass: "bg-green-100 text-green-600",
     },
     {
       label: "Chuyển khoản chưa thu",
@@ -151,7 +162,7 @@ export default async function AdminDashboardPage() {
       href: "/admin/orders?tab=all&payment=UNPAID&method=BANK_TRANSFER&exclude=CANCELLED",
       linkLabel: "Xem danh sách →",
       icon: ICON_BANKNOTE,
-      iconClass: "bg-cream-100 text-green-800",
+      iconClass: "bg-violet-100 text-violet-600",
     },
     {
       label: "Doanh thu hôm nay",
@@ -160,7 +171,7 @@ export default async function AdminDashboardPage() {
       href: "/admin/orders?tab=COMPLETED",
       linkLabel: "Xem đơn đã giao →",
       icon: ICON_CHART,
-      iconClass: "bg-gold-300/20 text-gold-text",
+      iconClass: "bg-orange-100 text-orange-600",
     },
     {
       label: "Doanh thu 7 ngày",
@@ -169,47 +180,45 @@ export default async function AdminDashboardPage() {
       href: "/admin/orders?tab=COMPLETED",
       linkLabel: "Xem đơn đã giao →",
       icon: ICON_CHART,
-      iconClass: "bg-gold-300/20 text-gold-text",
+      iconClass: "bg-pink-100 text-pink-600",
     },
   ];
 
   return (
     <div>
-      <h1 className="font-display text-3xl font-semibold text-ink">Tổng quan</h1>
-      <p className="mt-2 text-sm text-ink-soft">
+      <h1 className="text-3xl font-bold text-slate-900">Tổng quan</h1>
+      <p className="mt-2 text-sm text-slate-500">
         Cập nhật lúc {formatVnDateTime(new Date())}.
       </p>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {cards.map((c) => (
           <section
             key={c.label}
             aria-label={c.label}
-            className="rounded-[3px] border border-line bg-white p-5 shadow-[0_1px_2px_rgba(8,56,42,.06)]"
+            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
           >
             <div className="flex items-center gap-3">
               <span
                 aria-hidden="true"
-                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[3px] ${c.iconClass}`}
+                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${c.iconClass}`}
               >
                 {c.icon}
               </span>
-              <h2 className="min-w-0 text-sm font-semibold text-ink-soft">{c.label}</h2>
+              <h2 className="min-w-0 text-sm font-semibold text-slate-500">{c.label}</h2>
             </div>
-            {/* Số nằm ở hàng riêng, full chiều rộng thẻ, cỡ text-2xl:
-                số tiền VND dài ("4.130.000 ₫") ở text-3xl sẽ tràn
-                khỏi thẻ khi 5 thẻ xếp 1 hàng (nội dung thẻ chỉ ~139
-                px ở 1280 px) — đã thấy tràn ở ảnh kiểm đầu. Vì vậy
-                lưới thẻ là 3 cột (3+2) thay vì 5 thẻ 1 hàng như ảnh
-                mẫu (số trong ảnh mẫu ngắn: "48", "87%"). */}
-            <p data-testid="dashboard-stat" className="mt-3 whitespace-nowrap font-display text-2xl font-bold text-ink">
+            {/* Số nằm ở hàng riêng, cỡ text-2xl: số tiền VND dài
+                ("4.130.000 ₫") vừa một dòng khi 5 thẻ xếp 1 hàng ở
+                1440 px và 1280 px (nội dung thẻ ~171 px / ~139 px);
+                ở text-3xl sẽ tràn như lần thiết kế đầu đã thấy. */}
+            <p data-testid="dashboard-stat" className="mt-3 whitespace-nowrap text-2xl font-bold text-slate-900">
               {c.value}
             </p>
-            <p className="mt-1 text-sm text-ink-soft">{c.hint}</p>
+            <p className="mt-1 text-sm text-slate-500">{c.hint}</p>
             <p className="mt-3">
               <Link
                 href={c.href}
-                className="inline-flex min-h-11 items-center text-sm font-bold text-green-800 hover:underline"
+                className="inline-flex min-h-11 items-center text-sm font-bold text-blue-600 hover:underline"
               >
                 {c.linkLabel}
               </Link>
@@ -221,35 +230,35 @@ export default async function AdminDashboardPage() {
       <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <section
           aria-label="Đơn mới nhất"
-          className="rounded-[3px] border border-line bg-white p-5 shadow-[0_1px_2px_rgba(8,56,42,.06)]"
+          className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="font-display text-xl font-semibold text-ink">Đơn mới nhất</h2>
+            <h2 className="text-xl font-bold text-slate-900">Đơn mới nhất</h2>
             <Link
               href="/admin/orders"
-              className="inline-flex min-h-11 items-center text-sm font-bold text-green-800 hover:underline"
+              className="inline-flex min-h-11 items-center text-sm font-bold text-blue-600 hover:underline"
             >
               Xem tất cả đơn →
             </Link>
           </div>
           {recentOrders.length === 0 ? (
-            <p className="mt-4 text-sm text-ink-soft">Chưa có đơn hàng nào.</p>
+            <p className="mt-4 text-sm text-slate-500">Chưa có đơn hàng nào.</p>
           ) : (
-            <ul className="mt-4 divide-y divide-line">
+            <ul className="mt-4 divide-y divide-slate-200">
               {recentOrders.map((o) => (
                 <li key={o.code} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-3 first:pt-0 last:pb-0">
                   <Link
                     href={`/admin/orders/${o.code}`}
-                    className="inline-flex min-h-11 items-center font-bold text-ink hover:text-green-800 hover:underline"
+                    className="inline-flex min-h-11 items-center font-bold text-slate-900 hover:text-blue-600 hover:underline"
                   >
                     {o.code}
                   </Link>
-                  <span className="text-sm text-ink-soft">
+                  <span className="text-sm text-slate-500">
                     {o.senderName} → {o.receiverName}
                   </span>
-                  <span className="ml-auto text-sm font-bold text-ink">{formatVND(o.total)}</span>
-                  <OrderStatusBadge status={o.status} />
-                  <span className="w-full text-xs text-muted">
+                  <span className="ml-auto text-sm font-bold text-slate-900">{formatVND(o.total)}</span>
+                  <OrderStatusBadge status={o.status} variant="admin" />
+                  <span className="w-full text-xs text-slate-400">
                     {formatVnDateTime(o.createdAt)}
                   </span>
                 </li>
@@ -261,26 +270,26 @@ export default async function AdminDashboardPage() {
         <div className="space-y-6">
           <section
             aria-label="Tiến độ đơn hàng"
-            className="rounded-[3px] border border-line bg-white p-5 shadow-[0_1px_2px_rgba(8,56,42,.06)]"
+            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
           >
-            <h2 className="font-display text-xl font-semibold text-ink">Tiến độ đơn hàng</h2>
+            <h2 className="text-xl font-bold text-slate-900">Tiến độ đơn hàng</h2>
             {totalOrders === 0 ? (
-              <p className="mt-4 text-sm text-ink-soft">Chưa có đơn hàng nào.</p>
+              <p className="mt-4 text-sm text-slate-500">Chưa có đơn hàng nào.</p>
             ) : (
               <ul className="mt-4 space-y-4">
-                {statusCounts.map((row) => {
+                {visibleCounts.map((row) => {
                   const pct = Math.round((row.count / totalOrders) * 100);
                   return (
                     <li key={row.status}>
                       <div className="flex items-center justify-between gap-3 text-sm">
-                        <span className="font-semibold text-ink">
+                        <span className="font-semibold text-slate-900">
                           {orderStatusLabel(row.status)}
                         </span>
-                        <span className="font-bold text-ink">
+                        <span className="font-bold text-slate-900">
                           {row.count} đơn · {pct}%
                         </span>
                       </div>
-                      <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-cream-100">
+                      <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
                         <div
                           className="h-full rounded-full"
                           style={{
@@ -298,28 +307,28 @@ export default async function AdminDashboardPage() {
 
           <section
             aria-label="Thống kê theo trạng thái"
-            className="rounded-[3px] border border-line bg-white p-5 shadow-[0_1px_2px_rgba(8,56,42,.06)]"
+            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
           >
-            <h2 className="font-display text-xl font-semibold text-ink">
+            <h2 className="text-xl font-bold text-slate-900">
               Thống kê theo trạng thái
             </h2>
             <div className="mt-4 flex items-center justify-center">
               <div
                 role="img"
-                aria-label={`Tổng ${totalOrders} đơn: ${statusCounts
+                aria-label={`Tổng ${totalOrders} đơn: ${visibleCounts
                   .map((row) => `${orderStatusLabel(row.status)} ${row.count}`)
                   .join(", ")}`}
                 className="relative h-44 w-44 shrink-0 rounded-full"
                 style={{ background: donutBackground }}
               >
                 <div className="absolute inset-[22%] flex flex-col items-center justify-center rounded-full bg-white">
-                  <span className="font-display text-3xl font-bold text-ink">{totalOrders}</span>
-                  <span className="text-xs text-muted">Tổng đơn</span>
+                  <span className="text-3xl font-bold text-slate-900">{totalOrders}</span>
+                  <span className="text-xs text-slate-400">Tổng đơn</span>
                 </div>
               </div>
             </div>
             <ul className="mt-4 space-y-2">
-              {statusCounts.map((row) => {
+              {visibleCounts.map((row) => {
                 const pct =
                   totalOrders > 0 ? Math.round((row.count / totalOrders) * 100) : 0;
                 return (
@@ -329,8 +338,8 @@ export default async function AdminDashboardPage() {
                       className="h-3 w-3 shrink-0 rounded-full"
                       style={{ backgroundColor: STATUS_COLORS[row.status] }}
                     />
-                    <span className="text-ink-soft">{orderStatusLabel(row.status)}</span>
-                    <span className="ml-auto font-bold text-ink">
+                    <span className="text-slate-500">{orderStatusLabel(row.status)}</span>
+                    <span className="ml-auto font-bold text-slate-900">
                       {pct}% ({row.count})
                     </span>
                   </li>

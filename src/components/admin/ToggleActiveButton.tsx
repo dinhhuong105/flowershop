@@ -55,7 +55,7 @@ export default function ToggleActiveButton({
         <input type="hidden" name="isActive" value={String(!isActive)} />
         <button
           type="submit"
-          className="flex min-h-11 items-center justify-center rounded-[3px] border border-line bg-white px-3 text-sm font-bold text-ink transition-colors hover:border-green-800 hover:text-green-800"
+          className="flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900 transition-colors hover:border-blue-600 hover:text-blue-600"
         >
           {label}
         </button>
@@ -63,21 +63,21 @@ export default function ToggleActiveButton({
       <dialog
         ref={dialogRef}
         aria-label={`Xác nhận ${label.toLowerCase()}`}
-        className="w-[calc(100vw-2rem)] max-w-md rounded-[3px] border border-line bg-white p-6 shadow-[0_24px_64px_rgba(1,50,31,0.35)] backdrop:bg-black/40"
+        className="w-[calc(100vw-2rem)] max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-[0_24px_64px_rgba(15,30,51,0.35)] backdrop:bg-black/40"
       >
-        <p className="text-base font-bold text-ink">
+        <p className="text-base font-bold text-slate-900">
           {isActive
             ? `Ẩn sản phẩm "${productName}"?`
             : `Hiện lại sản phẩm "${productName}"?`}
         </p>
         {isActive ? (
-          <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+          <p className="mt-2 text-sm leading-relaxed text-slate-500">
             Sản phẩm sẽ biến khỏi trang chủ, danh mục, tìm kiếm, gợi ý và
             Xem nhanh. Giỏ hàng đang chứa sản phẩm này sẽ không đặt được
             đơn cho tới khi xóa dòng đó.
           </p>
         ) : (
-          <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+          <p className="mt-2 text-sm leading-relaxed text-slate-500">
             Sản phẩm sẽ hiện lại trên trang công khai.
           </p>
         )}
@@ -90,7 +90,7 @@ export default function ToggleActiveButton({
           <button
             type="button"
             onClick={() => dialogRef.current?.close()}
-            className="flex min-h-11 items-center justify-center rounded-[3px] border border-line bg-white px-5 text-sm font-bold text-ink transition-colors hover:bg-cream-100"
+            className="flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-5 text-sm font-bold text-slate-900 transition-colors hover:bg-slate-100"
           >
             Hủy
           </button>
@@ -100,7 +100,7 @@ export default function ToggleActiveButton({
               confirmedRef.current = true;
               formRef.current?.requestSubmit();
             }}
-            className="flex min-h-11 items-center justify-center rounded-[3px] bg-gold-300 px-5 text-sm font-bold uppercase tracking-wide text-green-900 transition-opacity hover:opacity-90"
+            className="flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-5 text-sm font-bold text-white transition-opacity hover:opacity-90"
           >
             Xác nhận
           </button>

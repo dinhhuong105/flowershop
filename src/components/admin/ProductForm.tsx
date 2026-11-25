@@ -37,8 +37,8 @@ export type ProductFormInitial = {
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 const inputClass =
-  "mt-1 block w-full min-h-11 rounded-[3px] border border-line bg-white px-3 text-base text-ink";
-const labelClass = "block text-sm font-semibold text-ink";
+  "mt-1 block w-full min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-base text-slate-900";
+const labelClass = "block text-sm font-semibold text-slate-900";
 
 export default function ProductForm({
   mode,
@@ -148,12 +148,12 @@ export default function ProductForm({
   return (
     <form action={dispatch} className="space-y-5">
       {state.formError ? (
-        <p role="alert" className="rounded-[3px] border border-danger/40 bg-danger/5 px-4 py-3 text-sm font-medium text-danger">
+        <p role="alert" className="rounded-lg border border-danger/40 bg-danger/5 px-4 py-3 text-sm font-medium text-danger">
           {state.formError}
         </p>
       ) : null}
 
-      <section aria-label="Thông tin sản phẩm" className="space-y-4 rounded-[3px] border border-line bg-white p-5">
+      <section aria-label="Thông tin sản phẩm" className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
         <div>
           <label htmlFor="pf-name" className={labelClass}>
             Tên sản phẩm
@@ -307,7 +307,7 @@ export default function ProductForm({
             aria-describedby={err("description") ? "description-error" : undefined}
             className={`${inputClass} py-2`}
           />
-          <p className="mt-1 text-xs text-muted">Tối đa 2.000 ký tự, văn bản thuần.</p>
+          <p className="mt-1 text-xs text-slate-500">Tối đa 2.000 ký tự, văn bản thuần.</p>
           {fieldError("description")}
         </div>
 
@@ -330,63 +330,63 @@ export default function ProductForm({
 
         <fieldset className="flex flex-wrap gap-x-6 gap-y-3">
           <legend className="sr-only">Trạng thái sản phẩm</legend>
-          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-ink">
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-slate-900">
             <input
               type="checkbox"
               name="isActive"
               defaultChecked={saved?.isActive ?? initial.isActive}
-              className="h-5 w-5 accent-green-800"
+              className="h-5 w-5 accent-blue-600"
             />
             Đang bán (hiện trên shop)
           </label>
-          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-ink">
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-slate-900">
             <input
               type="checkbox"
               name="inStock"
               defaultChecked={saved?.inStock ?? initial.inStock}
-              className="h-5 w-5 accent-green-800"
+              className="h-5 w-5 accent-blue-600"
             />
             Còn hàng
           </label>
-          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-ink">
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-slate-900">
             <input
               type="checkbox"
               name="isFastDelivery"
               defaultChecked={saved?.isFastDelivery ?? initial.isFastDelivery}
-              className="h-5 w-5 accent-green-800"
+              className="h-5 w-5 accent-blue-600"
             />
             Giao nhanh
           </label>
         </fieldset>
       </section>
 
-      <section aria-label="Ảnh sản phẩm" className="rounded-[3px] border border-line bg-white p-5">
-        <h2 className="text-base font-bold text-ink">Ảnh sản phẩm</h2>
-        <p className="mt-1 text-sm text-ink-soft">
+      <section aria-label="Ảnh sản phẩm" className="rounded-xl border border-slate-200 bg-white p-5">
+        <h2 className="text-base font-bold text-slate-900">Ảnh sản phẩm</h2>
+        <p className="mt-1 text-sm text-slate-500">
           Ảnh đầu tiên là ảnh chính. Chỉ nhận JPEG, PNG, WebP, tối đa 5 MB/ảnh, tối đa 6 ảnh.
         </p>
         {images.length === 0 ? (
-          <p className="mt-3 text-sm text-muted">Chưa có ảnh nào.</p>
+          <p className="mt-3 text-sm text-slate-500">Chưa có ảnh nào.</p>
         ) : (
           <ul className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
             {images.map((url, index) => (
-              <li key={url} className="rounded-[3px] border border-line bg-cream-50 p-2">
-                <div className="relative aspect-square w-full overflow-hidden rounded-[2px] bg-cream-100">
+              <li key={url} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                <div className="relative aspect-square w-full overflow-hidden rounded bg-slate-100">
                   <Image src={url} alt={`Ảnh ${index + 1}`} width={300} height={300} unoptimized className="h-full w-full object-cover" />
                   {index === 0 ? (
-                    <span className="absolute left-2 top-2 rounded-[2px] bg-green-900 px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
+                    <span className="absolute left-2 top-2 rounded bg-blue-600 px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
                       Ảnh chính
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-2 break-all text-xs text-muted">{url}</p>
+                <p className="mt-2 break-all text-xs text-slate-500">{url}</p>
                 <div className="mt-2 flex gap-2">
                   <button
                     type="button"
                     disabled={index === 0}
                     onClick={() => moveImage(index, -1)}
                     aria-label={`Đưa ảnh ${index + 1} lên trước`}
-                    className="flex min-h-11 flex-1 items-center justify-center rounded-[3px] border border-line bg-white text-sm font-bold text-ink disabled:opacity-40"
+                    className="flex min-h-11 flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-900 disabled:opacity-40"
                   >
                     ↑ Lên
                   </button>
@@ -395,7 +395,7 @@ export default function ProductForm({
                     disabled={index === images.length - 1}
                     onClick={() => moveImage(index, 1)}
                     aria-label={`Đưa ảnh ${index + 1} xuống sau`}
-                    className="flex min-h-11 flex-1 items-center justify-center rounded-[3px] border border-line bg-white text-sm font-bold text-ink disabled:opacity-40"
+                    className="flex min-h-11 flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-900 disabled:opacity-40"
                   >
                     ↓ Xuống
                   </button>
@@ -403,7 +403,7 @@ export default function ProductForm({
                     type="button"
                     onClick={() => setImages((prev) => prev.filter((_, i) => i !== index))}
                     aria-label={`Gỡ ảnh ${index + 1} khỏi sản phẩm`}
-                    className="flex min-h-11 flex-1 items-center justify-center rounded-[3px] border border-danger/40 bg-white text-sm font-bold text-danger"
+                    className="flex min-h-11 flex-1 items-center justify-center rounded-lg border border-danger/40 bg-white text-sm font-bold text-danger"
                   >
                     Gỡ
                   </button>
@@ -418,7 +418,7 @@ export default function ProductForm({
         <div className="mt-4">
           <label
             htmlFor="pf-upload"
-            className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-[3px] border border-green-800 bg-white px-5 text-sm font-bold text-green-800 transition-colors hover:bg-cream-100"
+            className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg border border-blue-600 bg-white px-5 text-sm font-bold text-blue-600 transition-colors hover:bg-slate-100"
           >
             {uploading ? "Đang tải lên…" : "Tải ảnh lên"}
           </label>
@@ -430,7 +430,7 @@ export default function ProductForm({
             onChange={handleUpload}
             className="sr-only"
           />
-          <p className="mt-2 text-xs text-muted">
+          <p className="mt-2 text-xs text-slate-500">
             File trên đĩa vẫn giữ lại khi gỡ khỏi sản phẩm; file không còn dùng sẽ được dọn sau 24 giờ.
           </p>
           {uploadError ? (
@@ -445,13 +445,13 @@ export default function ProductForm({
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="submit"
-          className="flex min-h-11 items-center justify-center rounded-[3px] bg-gold-300 px-6 text-sm font-bold uppercase tracking-wide text-green-900 transition-opacity hover:opacity-90"
+          className="flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-6 text-sm font-bold text-white transition-opacity hover:opacity-90"
         >
           {mode === "create" ? "Lưu sản phẩm" : "Lưu thay đổi"}
         </button>
         <Link
           href="/admin/products"
-          className="flex min-h-11 items-center justify-center rounded-[3px] border border-line bg-white px-5 text-sm font-bold text-ink transition-colors hover:bg-cream-100"
+          className="flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-5 text-sm font-bold text-slate-900 transition-colors hover:bg-slate-100"
         >
           Hủy
         </Link>

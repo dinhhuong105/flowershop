@@ -28,8 +28,8 @@ export default async function AdminEditProductPage({
   if (!product) notFound();
   return (
     <div>
-      <h1 className="font-display text-3xl font-semibold text-ink">Sửa sản phẩm</h1>
-      <p className="mt-2 text-sm text-ink-soft">
+      <h1 className="text-3xl font-bold text-slate-900">Sửa sản phẩm</h1>
+      <p className="mt-2 text-sm text-slate-500">
         {product.name}
         {product.sku ? ` · SKU: ${product.sku}` : ""}
       </p>
