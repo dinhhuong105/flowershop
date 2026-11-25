@@ -1,12 +1,12 @@
 // Thanh lọc trang sản phẩm (25/11, theo góp ý của Henry: lọc tự
-// động, không còn nút "Lọc"). Chọn radio là lọc ngay; gõ tìm kiếm
+// động, không còn nút "Lọc"). Chọn dropdown là lọc ngay; gõ tìm kiếm
 // thì debounce ~400 ms, Enter lọc ngay. Là client component —
 // trang server bọc trong <Suspense> vì dùng useSearchParams gián
 // tiếp qua hook.
 
 "use client";
 
-import { FilterSearchInput, RadioPills, useFilterNavigation } from "./filter-controls";
+import { FilterSearchInput, FilterSelect, useFilterNavigation } from "./filter-controls";
 
 export default function ProductsFilterBar({
   q,
@@ -29,9 +29,10 @@ export default function ProductsFilterBar({
         initialValue={q}
         onSearch={(value) => updateFilter("q", value)}
       />
-      <RadioPills
-        legend="Danh mục"
-        name="category-filter"
+      <FilterSelect
+        id="admin-category"
+        label="Danh mục"
+        name="category"
         options={[
           { value: "", label: "Tất cả" },
           ...categories.map((c) => ({ value: String(c.id), label: c.name })),
@@ -39,9 +40,10 @@ export default function ProductsFilterBar({
         value={category}
         onChange={(value) => updateFilter("category", value)}
       />
-      <RadioPills
-        legend="Trạng thái"
-        name="status-filter"
+      <FilterSelect
+        id="admin-status"
+        label="Trạng thái"
+        name="status"
         options={[
           { value: "all", label: "Tất cả" },
           { value: "active", label: "Đang bán" },

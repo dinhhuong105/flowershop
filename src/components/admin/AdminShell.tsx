@@ -131,11 +131,11 @@ export default function AdminShell({
             aria-expanded={open}
             aria-label={open ? "Đóng menu" : "Mở menu"}
             onClick={() => setOpen((value) => !value)}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-900 transition-colors duration-150 hover:bg-slate-100 lg:hidden"
+            className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg text-slate-900 transition-colors duration-150 hover:bg-slate-100 lg:hidden"
           >
             <svg
-              width="24"
-              height="24"
+              width="18"
+              height="18"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -175,11 +175,11 @@ export default function AdminShell({
                   ? `Có ${pendingCount} đơn cần xử lý — xem danh sách`
                   : "Không có đơn nào cần xử lý — xem danh sách"
               }
-              className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors duration-150 hover:bg-slate-100 hover:text-slate-900"
+              className="relative flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors duration-150 hover:bg-slate-100 hover:text-slate-900"
             >
               <svg
-                width="22"
-                height="22"
+                width="18"
+                height="18"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"

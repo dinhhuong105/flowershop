@@ -27,7 +27,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { slugifyName } from "@/lib/admin/product-validation";
 import { MAX_IMAGES_PER_PRODUCT } from "@/lib/admin/upload-rules";
-import { RadioPillsField, StyledCheckbox } from "@/components/admin/filter-controls";
+import { FilterSelectField, StyledCheckbox } from "@/components/admin/filter-controls";
 import {
   initialAdminProductState,
   type AdminProductState,
@@ -244,8 +244,9 @@ export default function ProductForm({
             />
             {fieldError("sku")}
           </div>
-          <RadioPillsField
-            legend="Danh mục"
+          <FilterSelectField
+            id="pf-category"
+            label="Danh mục"
             name="categoryId"
             options={categories.map((c) => ({ value: String(c.id), label: c.name }))}
             defaultValue={saved?.categoryId ?? initial.categoryId}

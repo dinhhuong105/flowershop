@@ -1,5 +1,5 @@
 // Thanh lọc trang đơn hàng (25/11, theo góp ý của Henry: lọc tự
-// động, không còn nút "Lọc"). Chọn radio/ngày giao là lọc ngay;
+// động, không còn nút "Lọc"). Chọn dropdown/ngày giao là lọc ngay;
 // gõ tìm kiếm thì debounce ~400 ms, Enter lọc ngay. Param tab và
 // exclude KHÔNG nằm ở đây nhưng vẫn được giữ nguyên trên URL (xem
 // useFilterNavigation). Là client component — trang server bọc
@@ -7,7 +7,7 @@
 
 "use client";
 
-import { FilterSearchInput, RadioPills, useFilterNavigation } from "./filter-controls";
+import { FilterSearchInput, FilterSelect, useFilterNavigation } from "./filter-controls";
 
 export default function OrdersFilterBar({
   q,
@@ -30,9 +30,10 @@ export default function OrdersFilterBar({
         initialValue={q}
         onSearch={(value) => updateFilter("q", value)}
       />
-      <RadioPills
-        legend="Thanh toán"
-        name="payment-filter"
+      <FilterSelect
+        id="admin-order-payment"
+        label="Thanh toán"
+        name="payment"
         options={[
           { value: "all", label: "Tất cả" },
           { value: "UNPAID", label: "Chưa thanh toán" },
@@ -41,9 +42,10 @@ export default function OrdersFilterBar({
         value={payment}
         onChange={(value) => updateFilter("payment", value)}
       />
-      <RadioPills
-        legend="Phương thức"
-        name="method-filter"
+      <FilterSelect
+        id="admin-order-method"
+        label="Phương thức"
+        name="method"
         options={[
           { value: "all", label: "Tất cả" },
           { value: "BANK_TRANSFER", label: "Chuyển khoản" },

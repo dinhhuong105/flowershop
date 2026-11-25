@@ -53,7 +53,7 @@ export default function ProductModal({
           type="button"
           onClick={close}
           aria-label="Đóng"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-lg font-bold text-slate-900 transition-colors hover:bg-slate-100"
+          className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-lg font-bold text-slate-900 transition-colors hover:bg-slate-100"
         >
           ✕
         </button>

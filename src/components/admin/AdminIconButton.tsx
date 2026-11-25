@@ -12,8 +12,6 @@
 // (vd: nút gửi Telegram khi chưa cấu hình).
 // TINH CHỈNH 25/11 (theo góp ý của Henry sau khi xem live):
 // - Icon nhỏ lại, nét mảnh hơn: glyph 18 px, stroke-width 1.5.
-//   Vùng bấm vẫn giữ tối thiểu 44 px (chuẩn chạm từ Ngày 8) —
-//   chỉ glyph nhỏ lại, nút không nhỏ lại.
 // - Tooltip chuyên nghiệp hơn: bo tròn lớn, bóng đổ, có mũi tên
 //   (hình vuông xoay 45°) ở mép dưới hướng vào nút; hiện bằng
 //   fade + trượt nhẹ 4 px trong 200 ms, trễ 150 ms khi hover để
@@ -21,6 +19,12 @@
 // - Hover: nút phóng nhẹ scale-105 trong 150 ms.
 // - Giảm chuyển động (prefers-reduced-motion) được khối cuối
 //   globals.css xử lý chung (transition/animation ≈ 0).
+// ĐỢT 3 — 25/11 (Henry: nút chứa icon chỉ ~30 px, toàn hệ thống):
+// nút icon thu từ 44 px xuống 30 px, glyph giữ 18 px. LỆCH CHUẨN:
+// chuẩn chạm ≥ 44 px từ Ngày 8 không còn áp dụng cho nút icon
+// (chỉ nút icon — nút chữ vẫn giữ min-h-11). Mũi tên tooltip căn
+// phải tính lại theo nút 30 px: tâm nút cách mép phải 15 px, mũi
+// tên rộng 8 px → mép phải mũi tên cách mép phải nút 11 px.
 // Icon vẽ tay theo đúng kiểu icon menu trong AdminNav (viewBox 24,
 // stroke currentColor, đầu tròn). Không thêm thư viện icon.
 
@@ -125,12 +129,12 @@ export default function AdminIconButton({
     tooltipAlign === "right" ? "right-0" : "left-1/2 -translate-x-1/2";
   // Mũi tên: hình vuông 8 px xoay 45°, cùng màu nền tooltip, thò ra
   // 4 px dưới mép tooltip hướng vào nút. Canh phải: tâm mũi tên
-  // trùng tâm nút (nút rộng 44 px → mũi tên cách mép phải 18 px).
+  // trùng tâm nút (nút rộng 30 px → mũi tên cách mép phải 11 px).
   const arrowPosition =
     tooltipAlign === "right"
-      ? "right-[18px]"
+      ? "right-[11px]"
       : "left-1/2 -translate-x-1/2";
-  const innerClass = `flex min-h-11 min-w-11 items-center justify-center rounded-lg transition-all duration-150 ease-out hover:scale-105 ${className}`;
+  const innerClass = `flex h-[30px] w-[30px] items-center justify-center rounded-lg transition-all duration-150 ease-out hover:scale-105 ${className}`;
   const tooltip = (
     <span
       role="tooltip"

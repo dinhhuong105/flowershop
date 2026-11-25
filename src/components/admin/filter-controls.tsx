@@ -1,6 +1,10 @@
 // Điều khiển lọc tự động cho trang quản trị (25/11, theo góp ý của
-// Henry: chọn lọc là lọc ngay, không bấm nút "Lọc" nữa; ô chọn 1
-// thành radio kiểu pill, không dùng <select> mặc định).
+// Henry: chọn lọc là lọc ngay, không bấm nút "Lọc" nữa).
+// ĐỢT 3 — 25/11: các nhóm nhiều lựa chọn (thanh toán, phương thức,
+// danh mục, trạng thái) ĐỔI từ radio pill sang dropdown <select>
+// gốc đã tạo kiểu (Henry yêu cầu) — đảo ngược hướng radio pill ở
+// đợt 2. Hành vi lọc tự động KHÔNG đổi: đổi dropdown là cập nhật
+// ngay param đó trên URL, giữ các param còn lại, về trang 1.
 //
 // Cách hoạt động: mỗi lần đổi lọc chỉ cập nhật đúng param đó trong
 // URL (giữ nguyên các param còn lại: tab, exclude, q, ...) và về
@@ -40,111 +44,114 @@ export function useFilterNavigation() {
   return { updateFilter };
 }
 
-export type RadioPillOption = { value: string; label: string };
+export type FilterSelectOption = { value: string; label: string };
 
-// Một viên pill radio (dùng chung cho cả bản controlled và
-// uncontrolled): input radio thật (sr-only, peer) + span hiển thị.
-// Đang chọn: nền xanh dương chữ trắng; chưa chọn: nền trắng viền
-// slate — đúng ngôn ngữ tab trạng thái sẵn có. Bàn phím và đọc màn
-// hình vẫn đúng (radio thật, focus-visible có viền xanh).
-function PillOption({
-  name,
-  value,
+// Dropdown <select> gốc đã tạo kiểu (đợt 3 — 25/11, Henry yêu cầu
+// các nhóm nhiều lựa chọn để trong dropdown thay vì radio pill):
+// appearance-none + mũi tên chevron tự vẽ, bo tròn, viền slate,
+// focus có viền xanh dương, chữ navy. Select gốc nên bàn phím,
+// đọc màn hình và hành vi trên mobile đều đúng mặc định.
+// Bản có điều khiển (dùng cho thanh lọc trang đơn/sản phẩm):
+// value lấy từ URL, đổi là lọc ngay qua onChange.
+export function FilterSelect({
+  id,
   label,
-  checked,
-  defaultChecked,
-  onChange,
-}: {
-  name: string;
-  value: string;
-  label: string;
-  checked?: boolean;
-  defaultChecked?: boolean;
-  onChange?: () => void;
-}) {
-  return (
-    <label className="cursor-pointer">
-      <input
-        type="radio"
-        name={name}
-        value={value}
-        checked={checked}
-        defaultChecked={defaultChecked}
-        onChange={onChange}
-        className="peer sr-only"
-      />
-      <span className="flex min-h-11 items-center rounded-full border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 transition-colors hover:border-blue-600 hover:text-blue-600 peer-checked:border-blue-600 peer-checked:bg-blue-600 peer-checked:text-white peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-blue-600">
-        {label}
-      </span>
-    </label>
-  );
-}
-
-// Nhóm radio pill có điều khiển (dùng cho thanh lọc trang đơn/sản
-// phẩm): checked lấy từ URL, đổi là lọc ngay qua onChange.
-export function RadioPills({
-  legend,
   name,
   options,
   value,
   onChange,
 }: {
-  legend: string;
+  id: string;
+  label: string;
   name: string;
-  options: RadioPillOption[];
+  options: FilterSelectOption[];
   value: string;
   onChange: (value: string) => void;
 }) {
   return (
-    <fieldset>
-      <legend className="block text-sm font-semibold text-slate-900">{legend}</legend>
-      <div className="mt-1 flex flex-wrap gap-2">
-        {options.map((opt) => (
-          <PillOption
-            key={opt.value}
-            name={name}
-            value={opt.value}
-            label={opt.label}
-            checked={value === opt.value}
-            onChange={() => onChange(opt.value)}
-          />
-        ))}
+    <div className="min-w-48">
+      <label htmlFor={id} className="block text-sm font-semibold text-slate-900">
+        {label}
+      </label>
+      <div className="relative">
+        <select
+          id={id}
+          name={name}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="mt-1 block min-h-11 w-full appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-9 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/30"
+        >
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </div>
-    </fieldset>
+    </div>
   );
 }
 
-// Nhóm radio pill không điều khiển (dùng trong ProductForm, gửi
-// theo form như <select> cũ): defaultChecked từ giá trị đã lưu,
-// lỗi validation hiện dưới nhóm như cũ.
-// Lỗi validation hiện dưới nhóm qua <p role="alert"> ở form
-// (aria-invalid không dùng được cho role radio).
-export function RadioPillsField({
-  legend,
+// Dropdown không điều khiển (dùng trong ProductForm, gửi theo form
+// như <select> cũ): defaultValue từ giá trị đã lưu, lỗi validation
+// hiện dưới nhóm qua <p role="alert"> ở form như cũ.
+export function FilterSelectField({
+  id,
+  label,
   name,
   options,
   defaultValue,
 }: {
-  legend: string;
+  id: string;
+  label: string;
   name: string;
-  options: RadioPillOption[];
+  options: FilterSelectOption[];
   defaultValue: string;
 }) {
   return (
-    <fieldset>
-      <legend className="block text-sm font-semibold text-slate-900">{legend}</legend>
-      <div className="mt-1 flex flex-wrap gap-2">
-        {options.map((opt) => (
-          <PillOption
-            key={opt.value}
-            name={name}
-            value={opt.value}
-            label={opt.label}
-            defaultChecked={defaultValue === opt.value}
-          />
-        ))}
+    <div>
+      <label htmlFor={id} className="block text-sm font-semibold text-slate-900">
+        {label}
+      </label>
+      <div className="relative">
+        <select
+          id={id}
+          name={name}
+          defaultValue={defaultValue}
+          className="mt-1 block min-h-11 w-full appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-9 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/30"
+        >
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </div>
-    </fieldset>
+    </div>
   );
 }
 
