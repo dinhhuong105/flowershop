@@ -76,9 +76,15 @@ export default async function RootLayout({
             <Footer />
             <FloatingContact />
             <BackToTop />
-            <Toast />
           </>
         )}
+        {/* Toast render Ở MỌI TRANG kể cả admin (Đợt 4 — 25/11):
+            trước đây Toast nằm trong nhánh !isAdminArea nên trang
+            quản trị không có toast nào — toast Hoàn tác Ẩn/Hiện
+            (sự kiện `admin:toast`) vì thế không bao giờ hiện. Toast
+            tự đo mép dưới của <header> nên trên admin nó nằm dưới
+            thanh trên của AdminShell, không đè nội dung. */}
+        <Toast />
       </body>
     </html>
   );

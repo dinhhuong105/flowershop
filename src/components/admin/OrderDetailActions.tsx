@@ -87,6 +87,7 @@ export default function OrderDetailActions({
             onClick={() => dialogRef.current?.showModal()}
             label="Hủy đơn"
             icon={TrashIcon}
+            largeOnMobile
             className="border border-red-600 bg-white text-red-600 hover:bg-red-50"
           />
         ) : null}

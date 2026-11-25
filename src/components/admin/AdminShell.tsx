@@ -194,7 +194,13 @@ export default function AdminShell({
               {pendingCount > 0 ? (
                 <span
                   data-testid="admin-bell-count"
-                  className="absolute right-0.5 top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-bold text-white"
+                  // ĐỢT 4 — 25/11: badge lệch ra ngoài góc trên-phải
+                  // (-top-1 -right-1) và nhỏ lại (16 px). Trước đây
+                  // badge 20 px đặt trong góc (right-0.5 top-0.5)
+                  // che 79% chuông (đo bằng CDP ở 1440 px và 390 px:
+                  // giao nhau 256/324 px²) — Claude nhận xét đúng.
+                  // Sau sửa, giao nhau còn ~11%, chuông nhìn rõ.
+                  className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white"
                 >
                   {pendingCount}
                 </span>

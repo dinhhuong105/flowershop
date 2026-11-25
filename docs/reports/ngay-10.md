@@ -724,3 +724,36 @@ Henry hỏi: danh mục đã làm từ trước rồi, sao mục "Danh mục" tr
 - **Mắt kiểm ảnh (xem `~/workspace/`):** `admin-categories-list-1440.png` (bảng 4 danh mục, "Danh mục" xanh dương trong sidebar không còn "Sắp có", nút thùng rác mờ ở các hàng còn sản phẩm), `admin-categories-modal-1440.png` (popup "Sửa danh mục Danh Mục Test CDP" căn giữa, 3 trường nạp sẵn, phía sau là bảng với hàng test có thùng rác đỏ đang bật), `admin-categories-list-390.png` (thẻ mobile 4 danh mục, gọn, không tràn).
 - **Sự cố lúc kiểm (lỗi của kịch bản kiểm, không phải của app):** kịch bản kiểm đợt 2 dùng `document.querySelector("dialog")` trong khi trang có nhiều `<dialog>` (mỗi danh mục trống có một hộp xác nhận xóa riêng) nên bấm nhầm form xóa thay vì form sửa — danh mục test bị xóa sớm. Đã kiểm lại toàn bộ bằng kịch bản mới, chọn dialog theo `aria-label` ("Sửa danh mục…", "Xác nhận xóa…") — thêm/sửa/xóa đều chạy đúng như trên. Bài học ghi lại: khi trang có nhiều `<dialog>`, luôn chọn theo `aria-label`, không dùng `querySelector("dialog")` trần.
 - **Dọn dẹp:** danh mục test đã xóa qua chính tính năng xóa (DB xác nhận); chỉ xóa 5 phiên admin do CDP đăng nhập tạo ra bằng `npx tsx scripts/clean-test-data.ts --delete --only=seed,sessions`. DB cuối đợt: **3 đơn mẫu NEW/UNPAID (0Z2DZBQNTJ, 1N0PEZH0J7, QAFNN907ZY), 21 sản phẩm, 4 danh mục, 4 khu vực, 0 phiên admin, 0 lần đăng nhập sai**.
+
+## Bổ sung sau Ngày 10 — Tinh chỉnh admin đợt 4 (25/11 ~22:05, theo 3 điểm trong verdict Claude tối 25/11)
+
+### A. Huy hiệu chuông đè lên icon chuông — ĐO RỒI MỚI SỬA
+
+- **Số đo TRƯỚC khi sửa (CDP, server standalone):** chuông SVG 18×18 px; huy hiệu đỏ 20×20 px đặt trong góc (`right-0.5 top-0.5`); diện tích giao nhau **256/324 px² = 0,79 (79%)** — giống hệt ở 1440 px và 390 px. Nhận xét của Claude đúng: huy hiệu che gần hết chuông.
+- **Sửa:** huy hiệu nhỏ lại 16×16 px (`h-4 min-w-4`, chữ 10 px) và lệch ra ngoài góc trên-phải (`-right-1 -top-1`) — kiểu huy hiệu góc chuẩn, vẫn gắn vào nút chuông 30 px.
+- **Số đo SAU khi sửa:** giao nhau **36/324 px² = 0,11 (11%)** ở cả 1440 px và 390 px; mắt kiểm ảnh `admin-v4-bell-1440.png`: chuông nhìn rõ nguyên hình, huy hiệu "3" nhỏ nằm ở góc.
+
+### B. Toast Hoàn tác cho Ẩn/Hiện sản phẩm
+
+- Khi Ẩn/Hiện sản phẩm trong danh sách, hiện toast **"Đã ẩn sản phẩm · Hoàn tác"** (hoặc "Đã hiện lại sản phẩm · Hoàn tác"), hiện **5 giây** — đủ thời gian đọc + bấm. Bấm **Hoàn tác** gọi lại đúng action đảo ngược (đặt lại trạng thái trước khi bấm), rồi hiện toast xác nhận ("Đã hiện lại sản phẩm" / "Đã ẩn sản phẩm"). Hoàn tác lỗi thì toast đỏ báo lỗi.
+- **Dùng đúng cơ chế toast có sẵn** (sự kiện window `cart:added` / `admin:toast` trong `Toast.tsx`), không làm hệ thống toast thứ hai. Logic thuần tách ra `src/lib/admin/toggle-toast.ts` (`toggleToastMessage`, `undoToggleFormData`) để kiểm bằng unit test.
+- **Phát hiện khi kiểm (lỗi có sẵn, không phải do đợt này):** `Toast` chỉ được render trong nhánh `!isAdminArea` của root layout — trang quản trị **không hề có toast nào** từ trước tới nay (kể cả toast giỏ). Đã sửa: `<Toast />` render ở mọi trang, kể cả admin (Footer/FloatingContact/BackToTop vẫn chỉ ở shop). Toast tự đo mép dưới `<header>` nên trên admin nó nằm dưới thanh trên của AdminShell, không đè nội dung.
+- **Cẩn thận về race:** `ToggleActiveButton` ghi lại trạng thái lúc bấm (`submittedWasActive` trong `onSubmit`) thay vì đọc prop trong effect — dữ liệu mới sau revalidate có thể đến trước khi effect chạy, làm đảo ngược thông báo. Effect chỉ bắn toast một lần cho mỗi kết quả dispatch (so sánh tham chiếu state).
+- **Phạm vi:** chỉ nút Ẩn/Hiện trong danh sách sản phẩm. Toast giỏ giữ nguyên 3 giây.
+
+### C. Nút xóa lớn hơn trên mobile
+
+- Nút thùng rác **"Xóa danh mục"** (trang Danh mục, cả 2 nhánh khóa/bật) và **"Hủy đơn"** (chi tiết đơn) giữ **30 px trên desktop, thành 44 px dưới breakpoint sm** (`h-11 w-11 sm:h-[30px] sm:w-[30px]`) qua prop mới `largeOnMobile` của `AdminIconButton`. Các nút icon khác vẫn 30 px mọi cỡ màn hình; nút chữ không đổi.
+- Mũi tên tooltip khi căn phải cũng đổi theo cỡ nút (`right-[18px]` trên mobile 44 px, `right-[11px]` từ sm trở lên) để vẫn chỉ đúng tâm nút.
+
+### Kiểm chứng (độc lập, 25/11 ~22:05–22:25, CDP trên server standalone cổng 3000, Chrome headless + `--blink-settings=primaryHoverType=2`)
+
+- Unit test **196/196 PASS** (192 cũ + 4 mới `toggle-toast.test.ts`: thông báo Ẩn/Hiện, FormData hoàn tác cả 2 chiều); test:db **18/18 PASS** (16 cũ + 2 mới `products.db.test.ts`: vòng đi-về Ẩn→Hiện trên SP 21 trả đúng trạng thái ban đầu, đổi SP không tồn tại → false); typecheck 0 lỗi; lint 0 lỗi; build OK; First Load JS `/` = **115 kB** (≤ 135 kB).
+- **Chuông:** trước sửa 0,79 (cả 2 cỡ màn hình); sau sửa **0,11** (cả 2 cỡ); mắt kiểm `admin-v4-bell-1440.png`.
+- **Toast (vòng đi-về thật trên SP 21 "Bó Hoa Đồng Tiền Thử Nghiệm", trang 2):** bấm Ẩn → toast hiện "✓ Đã ẩn sản phẩm — Hoàn tác ✕" (có nút Hoàn tác), dòng sản phẩm thành "Đã ẩn"; bấm Hoàn tác → dòng về "Đang bán", toast xác nhận "✓ Đã hiện lại sản phẩm ✕". Mắt kiểm `admin-v4-toast-1440.png` (toast một hàng, gọn, dưới thanh trên).
+- **Nút xóa:** "Hủy đơn" **30×30 @1440, 44×44 @390**; "Xóa danh mục" (Hoa tươi, đang khóa) **30×30 @1440, 44×44 @390** (thẻ mobile, hàng hiện); trang Danh mục @390 `scrollWidth 390 = innerWidth 390`, không tràn. Mắt kiểm `admin-v4-delete-390.png` (nút thùng rác đỏ to rõ hơn hẳn các nút icon 30 px bên cạnh).
+- **Sự cố lúc kiểm (2 lỗi, đã xử lý, ghi lại để đợt sau khỏi vấp):**
+  1. Máy ảo vừa bị thay nên PostgreSQL + Chrome mất hết — đã dựng lại (apt PostgreSQL 16 + Chrome 158, tạo role/db, migrate, seed, `recreate-test-data.ts`); DB về 3 đơn / 21 SP / 4 danh mục / 4 khu vực / 0 phiên trước khi làm. `/tmp` cũng bị xóa theo nên phải đọc lại mật khẩu admin từ tin nhắn gốc trong chat chính (23/11 20:41) — mật khẩu chỉ dùng trong bộ nhớ lúc kiểm, không ghi vào file hay tin nhắn nào.
+  2. Hai lần chạy server mới đều báo `EADDRINUSE` — cổng 3000 vẫn bị một server cũ (pid 2339, chạy từ 15:01 UTC) chiếm; lần đo đầu tiên (cả số đo chuông "trước sửa" lẫn kiểm toast/nút xóa) chạy nhầm trên server cũ đó, lại đúng lúc mình build lại nên số đo lẫn lộn, không tin được (chuông lúc thấy lúc không, nút xóa đo ra 34×27). Đã kill server cũ, chạy lại server mới từ build đợt 4 rồi **đo lại toàn bộ** — mọi số trong mục này đều từ lần đo lại. Bài học: trước mỗi lần kiểm, kiểm tra `ss -ltnp | grep :3000` và kill server cũ trước khi chạy server mới.
+  3. Lần đo nút xóa Danh mục @390 đầu tiên ra 0×0 vì kịch bản chọn nhầm hàng bảng đang ẩn trên mobile (`display:none`) thay vì thẻ mobile đang hiện — đã đo lại, chọn hàng có `offsetParent !== null`.
+- **Dọn dẹp:** SP 21 đã về "Đang bán" nhờ chính nút Hoàn tác lúc kiểm; chỉ xóa 7 phiên admin do CDP đăng nhập tạo ra bằng `npx tsx scripts/clean-test-data.ts --delete --only=seed,sessions`. DB cuối đợt: **3 đơn mẫu NEW/UNPAID (0Z2DZBQNTJ, 1N0PEZH0J7, QAFNN907ZY), 21 sản phẩm (SP 21 Đang bán), 4 danh mục, 4 khu vực, 0 phiên admin, 0 lần đăng nhập sai**.

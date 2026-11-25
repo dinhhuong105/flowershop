@@ -39,6 +39,7 @@ export default function DeleteCategoryButton({
         icon={TrashIcon}
         disabled
         tooltipAlign="right"
+        largeOnMobile
         className="border border-slate-200 bg-white text-slate-300"
       />
     );
@@ -50,6 +51,7 @@ export default function DeleteCategoryButton({
         label="Xóa danh mục"
         icon={TrashIcon}
         tooltipAlign="right"
+        largeOnMobile
         onClick={() => dialogRef.current?.showModal()}
         className="border border-danger/40 bg-white text-danger hover:bg-danger/5"
       />

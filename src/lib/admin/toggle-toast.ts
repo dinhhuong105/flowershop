@@ -1,0 +1,29 @@
+// Logic thuần cho toast hoàn tác Ẩn/Hiện sản phẩm (Đợt 4 — 25/11,
+// theo nhận xét của Claude: bỏ hộp xác nhận thì phải có Hoàn tác).
+// Tách riêng để kiểm bằng unit test, không lẫn vào component.
+
+export type AdminToastDetail = {
+  message: string;
+  actionLabel?: string;
+  /** Thời gian toast hiện (ms). Mặc định 5000 cho toast hoàn tác. */
+  durationMs?: number;
+  /** Gọi khi bấm nút hành động (vd: Hoàn tác). */
+  onAction?: () => void;
+  tone?: "success" | "error";
+};
+
+/** Thông báo sau khi bấm Ẩn/Hiện: wasActive = trạng thái TRƯỚC khi bấm. */
+export function toggleToastMessage(wasActive: boolean): string {
+  return wasActive ? "Đã ẩn sản phẩm" : "Đã hiện lại sản phẩm";
+}
+
+/** FormData để hoàn tác: đặt lại đúng trạng thái trước khi bấm. */
+export function undoToggleFormData(
+  productId: number,
+  wasActive: boolean,
+): FormData {
+  const formData = new FormData();
+  formData.set("productId", String(productId));
+  formData.set("isActive", String(wasActive));
+  return formData;
+}

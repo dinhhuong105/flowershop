@@ -106,6 +106,11 @@ export const PrinterIcon = (
   </Icon>
 );
 
+// ĐỢT 4 — 25/11 (theo nhận xét của Claude: nút xóa trên mobile
+// nên giữ lớn hơn): prop largeOnMobile cho nút xóa — 44 px dưới
+// breakpoint sm, 30 px từ sm trở lên. Nút icon khác vẫn 30 px mọi
+// cỡ màn hình. Mũi tên tooltip khi căn phải cũng đổi theo: tâm nút
+// 44 px cách mép phải 22 px → mũi tên cách 18 px; nút 30 px → 11 px.
 export default function AdminIconButton({
   label,
   icon,
@@ -115,6 +120,7 @@ export default function AdminIconButton({
   disabled = false,
   onClick,
   tooltipAlign = "center",
+  largeOnMobile = false,
 }: {
   label: string;
   icon: ReactNode;
@@ -124,17 +130,21 @@ export default function AdminIconButton({
   disabled?: boolean;
   onClick?: () => void;
   tooltipAlign?: "center" | "right";
+  largeOnMobile?: boolean;
 }) {
   const tooltipPosition =
     tooltipAlign === "right" ? "right-0" : "left-1/2 -translate-x-1/2";
   // Mũi tên: hình vuông 8 px xoay 45°, cùng màu nền tooltip, thò ra
   // 4 px dưới mép tooltip hướng vào nút. Canh phải: tâm mũi tên
-  // trùng tâm nút (nút rộng 30 px → mũi tên cách mép phải 11 px).
+  // trùng tâm nút (nút rộng 30 px → mũi tên cách mép phải 11 px;
+  // nút 44 px trên mobile → 18 px).
   const arrowPosition =
     tooltipAlign === "right"
-      ? "right-[11px]"
+      ? largeOnMobile
+        ? "right-[18px] sm:right-[11px]"
+        : "right-[11px]"
       : "left-1/2 -translate-x-1/2";
-  const innerClass = `flex h-[30px] w-[30px] items-center justify-center rounded-lg transition-all duration-150 ease-out hover:scale-105 ${className}`;
+  const innerClass = `flex ${largeOnMobile ? "h-11 w-11 sm:h-[30px] sm:w-[30px]" : "h-[30px] w-[30px]"} items-center justify-center rounded-lg transition-all duration-150 ease-out hover:scale-105 ${className}`;
   const tooltip = (
     <span
       role="tooltip"
