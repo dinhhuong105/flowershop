@@ -12,11 +12,23 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
 import {
+  createAdminCategory,
+  deleteAdminCategory,
+  getAdminCategory,
+  updateAdminCategory,
+} from "@/lib/admin/categories";
+import {
   createAdminProduct,
   getAdminProduct,
   setProductActive,
   updateAdminProduct,
 } from "@/lib/admin/products";
+import {
+  validateCategoryForm,
+  type CategoryFormErrors,
+  type CategoryFormInput,
+} from "@/lib/admin/category-validation";
+import type { AdminCategoryState } from "@/lib/admin/category-form-state";
 import {
   validateProductForm,
   type ProductFormErrors,
@@ -127,5 +139,100 @@ export async function toggleProductAction(
   if (!changed) return { ok: false, error: "Không tìm thấy sản phẩm." };
   revalidatePath("/", "layout");
   revalidatePath("/admin/products");
+  return { ok: true, error: null };
+}
+
+// ---- Danh mục (25/11 — trang quản lý Danh mục) ----
+
+function categoryFormDataToInput(formData: FormData): CategoryFormInput {
+  const get = (name: string): string => {
+    const v = formData.get(name);
+    return typeof v === "string" ? v : "";
+  };
+  return {
+    name: get("name"),
+    slug: get("slug"),
+    sortOrder: get("sortOrder"),
+  };
+}
+
+function categoryFail(
+  fieldErrors: CategoryFormErrors,
+  input: CategoryFormInput,
+  formError: string | null = null,
+): AdminCategoryState {
+  return { ok: false, fieldErrors, formError, values: input };
+}
+
+export async function createCategoryAction(
+  prevState: AdminCategoryState,
+  formData: FormData,
+): Promise<AdminCategoryState> {
+  await requireAdmin();
+  const input = categoryFormDataToInput(formData);
+  const { errors, values } = validateCategoryForm(input);
+  if (!values) return categoryFail(errors, input);
+  const result = await createAdminCategory(values);
+  if ("conflict" in result) {
+    const fieldErrors: CategoryFormErrors = {
+      [result.conflict.field]: result.conflict.message,
+    };
+    return categoryFail(fieldErrors, input);
+  }
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/categories");
+  // 25/11: không redirect nữa — form tự điều hướng theo onSuccess
+  // ("back" đóng popup, "list" về danh sách). Xem CategoryForm.
+  return { ok: true, fieldErrors: {}, formError: null, values: null };
+}
+
+export async function updateCategoryAction(
+  id: number,
+  prevState: AdminCategoryState,
+  formData: FormData,
+): Promise<AdminCategoryState> {
+  await requireAdmin();
+  const input = categoryFormDataToInput(formData);
+  const existing = await getAdminCategory(id);
+  if (!existing) {
+    return categoryFail({}, input, "Không tìm thấy danh mục.");
+  }
+  const { errors, values } = validateCategoryForm(input);
+  if (!values) return categoryFail(errors, input);
+  const result = await updateAdminCategory(id, values);
+  if (result === null) {
+    return categoryFail({}, input, "Không tìm thấy danh mục.");
+  }
+  if ("conflict" in result) {
+    const fieldErrors: CategoryFormErrors = {
+      [result.conflict.field]: result.conflict.message,
+    };
+    return categoryFail(fieldErrors, input);
+  }
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/categories");
+  return { ok: true, fieldErrors: {}, formError: null, values: null };
+}
+
+export type DeleteCategoryState = { ok: boolean; error: string | null };
+
+// Xóa danh mục — chỉ khi không còn sản phẩm. Máy chủ kiểm lại số
+// sản phẩm trong deleteAdminCategory (không tin con số từ giao diện).
+export async function deleteCategoryAction(
+  id: number,
+): Promise<DeleteCategoryState> {
+  await requireAdmin();
+  const result = await deleteAdminCategory(id);
+  if (!result.ok && result.reason === "not-found") {
+    return { ok: false, error: "Không tìm thấy danh mục." };
+  }
+  if (!result.ok && result.reason === "has-products") {
+    return {
+      ok: false,
+      error: `Danh mục còn ${result.productCount} sản phẩm, không xóa được.`,
+    };
+  }
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/categories");
   return { ok: true, error: null };
 }

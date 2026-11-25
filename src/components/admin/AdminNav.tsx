@@ -157,7 +157,7 @@ type NavItem = {
 const ITEMS: NavItem[] = [
   { label: "Tổng quan", section: "dashboard", icon: ICON_GRID, href: "/admin", match: (p) => p === "/admin" },
   { label: "Sản phẩm", section: "content", icon: ICON_BOX, href: "/admin/products", match: (p) => p === "/admin/products" || p.startsWith("/admin/products/") },
-  { label: "Danh mục", section: "content", icon: ICON_TAG, soon: true },
+  { label: "Danh mục", section: "content", icon: ICON_TAG, href: "/admin/categories", match: (p) => p === "/admin/categories" || p.startsWith("/admin/categories/") },
   { label: "Bài viết / Tin tức", section: "content", icon: ICON_NEWSPAPER, soon: true },
   { label: "Trang tĩnh", section: "content", icon: ICON_FILE, soon: true },
   { label: "Đơn hàng", section: "sales", icon: ICON_CLIPBOARD, href: "/admin/orders", match: (p) => p === "/admin/orders" || p.startsWith("/admin/orders/") },

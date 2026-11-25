@@ -685,3 +685,42 @@ Henry góp 2 ý mới, làm thẳng theo quy tắc 25/11 ~18:07 (không hỏi l�
 - **Mobile 390 px:** `scrollWidth 390 = innerWidth 390`, không tràn ngang; dropdown "Thanh toán"/"Phương thức" hiện đủ (rộng > 0), xếp dọc trong thẻ lọc; hamburger + chuông 30×30.
 - **Mắt kiểm ảnh (xem `~/workspace/`):** `admin-v3-orders-1440.png` (dropdown "Chưa thanh toán"/"Chuyển khoản" có chevron, tooltip "Xem chi tiết" + mũi tên trên nút mắt nhỏ, "Tìm thấy 1 đơn" sau lọc), `admin-v3-products-1440.png` (dropdown "Giỏ trái cây"/"Đã ẩn", "Tìm thấy 0 sản phẩm"), `admin-v3-orders-390.png` (topbar mobile gọn, dropdown xếp dọc, thẻ đơn với nút mắt nhỏ), `admin-v3-modal-1440.png` (popup căn giữa, "Danh mục" là dropdown "Hoa tươi", nút ✕ nhỏ, phía sau là bảng sản phẩm với icon bút chì/mắt gạch nhỏ).
 - **Dọn dẹp:** không cần tạo dữ liệu test cho đợt này (3 đơn mẫu đủ để kiểm lọc: UNPAID → 3 đơn, BANK_TRANSFER → 1 đơn, category=2 → 3 SP); chỉ xóa 5 phiên admin do CDP đăng nhập tạo ra bằng `npx tsx scripts/clean-test-data.ts --delete --only=seed,sessions` (không dùng bare `--delete` — bài học đợt trước: bare `--delete` xóa luôn 3 đơn mẫu). DB cuối đợt: **3 đơn mẫu NEW/UNPAID (0Z2DZBQNTJ, 1N0PEZH0J7, QAFNN907ZY), 21 sản phẩm, 4 khu vực, 0 phiên admin**.
+
+## Bổ sung sau Ngày 10 — Trang quản lý Danh mục (25/11 ~20:32, theo câu hỏi của Henry)
+
+Henry hỏi: danh mục đã làm từ trước rồi, sao mục "Danh mục" trong menu vẫn "Sắp có", chưa thao tác được? Đúng là dữ liệu danh mục đã có từ Ngày 1 (4 danh mục seed; lọc sản phẩm theo danh mục, dropdown chọn danh mục trong form sản phẩm và trang danh mục ngoài shop đều chạy) — nhưng **chưa từng có trang quản lý danh mục**: thêm/sửa/xóa danh mục không làm được ở đâu cả, nên menu để "Sắp có" từ lúc thiết kế lại lần 2. Đợt này làm luôn trang đó, theo quy tắc 25/11 ~18:07 (không hỏi lại kế hoạch).
+
+### 1. Trang /admin/categories
+
+- Bảng (từ 768 px) + thẻ (dưới 768 px), cột: **Tên** (link tới trang sửa), **Đường dẫn (slug)** (link tới trang danh mục ngoài shop, `/{slug}`), **Số sản phẩm**, **Thứ tự**; cột Thao tác: bút chì "Sửa danh mục" (link, `AdminIconButton` 30 px) + thùng rác "Xóa danh mục" (xem mục 3).
+- Nút "+ Thêm danh mục" (xanh dương, giống "+ Thêm sản phẩm").
+- Sidebar: mục "Danh mục" thành link thật tới `/admin/categories` (cả desktop lẫn drawer mobile), hết huy hiệu "Sắp có" cho mục này; 12 mục "Sắp có" còn lại giữ nguyên (12×2 = 24 huy hiệu đếm được trên live — xem kiểm chứng).
+
+### 2. Thêm/sửa dạng popup (quy tắc đứng)
+
+- Tái dùng `ProductModal` (dialog gốc, đã căn giữa bằng `m-auto`) — component này nhận mọi nội dung con, không riêng gì sản phẩm; không tạo modal mới.
+- Intercepting routes `src/app/admin/@modal/(.)categories/new` và `/(.)categories/[id]`; vào trực tiếp URL `/admin/categories/new` và `/admin/categories/[id]` vẫn hiện trang form đầy đủ (`onSuccess="list"`), bấm từ danh sách thì popup (`onSuccess="back"`, quay lại giữ nguyên URL).
+- Form mới `CategoryForm` (theo mẫu `ProductForm`): **Tên** (3–120 ký tự), **Đường dẫn (slug)** (tự gợi ý từ tên, không dấu — tái dùng `slugifyName`; sửa tay được), **Thứ tự sắp xếp** (số nguyên 0–9999, mặc định 0). Kiểm tra ở máy chủ, lỗi từng trường, giữ nguyên giá trị đã nhập.
+- Slug: đúng mẫu chữ thường/số/gạch nối, ≤ 80 ký tự, duy nhất toàn hệ thống (trùng → lỗi đúng trường, không 500), **không được trùng `RESERVED_SLUGS`** (cart, checkout, admin, login, api… — cùng danh sách chặn Day 1 dùng cho seed).
+- Đổi slug khi sửa: cảnh báo "Đổi đường dẫn sẽ làm link cũ của trang danh mục báo 404." (giống cảnh báo đổi slug sản phẩm). **Lưu ý cho Henry:** đổi slug đổi luôn URL trang danh mục ngoài shop (`/hoa-tuoi` → `/ten-moi`); link cũ 404, không có redirect tự động.
+- Tầng dữ liệu mới `src/lib/admin/categories.ts` (`listAdminCategoriesWithCounts`, `getAdminCategory`, `createAdminCategory`, `updateAdminCategory`, `deleteAdminCategory`) + validation thuần `category-validation.ts` + state `category-form-state.ts` + 3 action mới trong `src/app/actions/admin.ts` (`createCategoryAction`, `updateCategoryAction`, `deleteCategoryAction`, đều `requireAdmin()` đầu tiên, `revalidatePath` danh sách + toàn layout vì slug ảnh hưởng mặt shop).
+
+### 3. Xóa — chỉ khi danh mục trống
+
+- Nút thùng rác **bị khóa** khi danh mục còn sản phẩm, tooltip ghi rõ: "Còn N sản phẩm, không xóa được" (AdminIconButton disabled vẫn hiện tooltip khi hover nhờ wrapper `group`).
+- Danh mục trống: bấm mở hộp xác nhận `<dialog>` (căn giữa, `m-auto`) — "Xóa danh mục …? Danh mục sẽ bị xóa hẳn và không khôi phục được." — xác nhận mới xóa. **Không có xóa cưỡng bức**: xóa danh mục còn sản phẩm sẽ làm sản phẩm mồ côi (`Product.categoryId` bắt buộc).
+- Máy chủ kiểm lại số sản phẩm ngay trong `deleteAdminCategory` (không tin con số từ giao diện): nếu vừa có sản phẩm mới chen vào thì từ chối với lỗi "Danh mục còn N sản phẩm, không xóa được." hiển thị trong hộp thoại.
+- **Lưu ý về seed:** danh mục đã xóa sẽ KHÔNG bị seed dựng lại ở lần deploy sau — seed có chặn (chỉ chạy khi DB trống, theo sửa mục 1 Ngày 10) — nên xóa là xóa hẳn.
+
+### Kiểm chứng (độc lập, 25/11 ~20:45–21:10, CDP trên server standalone cổng 3000, Chrome headless + `--blink-settings=primaryHoverType=2`)
+
+- Unit test **192/192 PASS** (185 cũ + 7 mới `category-validation.test.ts`); test:db **16/16 PASS** (10 cũ + 6 mới `categories.db.test.ts`: tạo + đọc lại, trùng slug → conflict, sửa tên/slug, xóa bị chặn khi còn 1 sản phẩm, xóa được khi trống, xóa id không tồn tại → not-found); typecheck 0 lỗi; lint 0 lỗi, 0 cảnh báo (đã sửa 2 warning `prevState`/`formData` thừa trong `deleteCategoryAction` bằng cách bỏ hẳn tham số state — action xóa chỉ cần id); build OK; First Load JS `/` = **115 kB** (≤ 135 kB).
+- **Danh sách:** 4 danh mục, số sản phẩm đúng DB: Hoa tươi 13, Giỏ trái cây 3, Hộp trái cây 2, Lan hồ điệp 3; thứ tự 1–4. **Sidebar:** "Danh mục" là link thật tới `/admin/categories`, không còn huy hiệu "Sắp có"; còn 24 huy hiệu "Sắp có" (12 mục × desktop + drawer) — trước đợt này là 26.
+- **Xóa bị khóa:** danh mục "Hoa tươi" — nút thùng rác `disabled: true`, tooltip "Còn 13 sản phẩm, không xóa được". **Xóa trống (qua popup xác nhận):** danh mục test tạo ra để kiểm — hộp xác nhận căn giữa, bấm "Xóa danh mục" → biến mất khỏi danh sách (8 hàng = 4 danh mục × 2 chế độ hiển thị), DB xác nhận đã xóa.
+- **Thêm qua popup:** bấm "+ Thêm danh mục" → dialog mở, tâm x = 720 = đúng giữa viewport 1440; gõ tên "Danh Mục Test CDP" → slug tự thành "danh-muc-test-cdp"; lưu → quay lại danh sách, 10 hàng (5 danh mục × 2), hàng mới có nút thùng rác BẬT ("Xóa danh mục").
+- **Sửa qua popup:** bấm bút chì danh mục test → dialog "Sửa danh mục Danh Mục Test CDP", căn giữa, form nạp sẵn (tên, slug, thứ tự 0); đổi tên thành "Danh Mục Test Đã Sửa", lưu → về danh sách, hàng đã sửa hiện đúng; URL quay lại `/admin/categories`.
+- **Trang trực tiếp:** vào thẳng `/admin/categories/new` → trang form đầy đủ, h1 "Thêm danh mục", không có dialog.
+- **Mobile 390 px:** `scrollWidth 390 = innerWidth 390`, không tràn ngang; topbar đo được: hamburger x=16 rộng 30, chuông x=186 rộng 30, Đăng xuất x=276 rộng 98 — không chồng nhau.
+- **Mắt kiểm ảnh (xem `~/workspace/`):** `admin-categories-list-1440.png` (bảng 4 danh mục, "Danh mục" xanh dương trong sidebar không còn "Sắp có", nút thùng rác mờ ở các hàng còn sản phẩm), `admin-categories-modal-1440.png` (popup "Sửa danh mục Danh Mục Test CDP" căn giữa, 3 trường nạp sẵn, phía sau là bảng với hàng test có thùng rác đỏ đang bật), `admin-categories-list-390.png` (thẻ mobile 4 danh mục, gọn, không tràn).
+- **Sự cố lúc kiểm (lỗi của kịch bản kiểm, không phải của app):** kịch bản kiểm đợt 2 dùng `document.querySelector("dialog")` trong khi trang có nhiều `<dialog>` (mỗi danh mục trống có một hộp xác nhận xóa riêng) nên bấm nhầm form xóa thay vì form sửa — danh mục test bị xóa sớm. Đã kiểm lại toàn bộ bằng kịch bản mới, chọn dialog theo `aria-label` ("Sửa danh mục…", "Xác nhận xóa…") — thêm/sửa/xóa đều chạy đúng như trên. Bài học ghi lại: khi trang có nhiều `<dialog>`, luôn chọn theo `aria-label`, không dùng `querySelector("dialog")` trần.
+- **Dọn dẹp:** danh mục test đã xóa qua chính tính năng xóa (DB xác nhận); chỉ xóa 5 phiên admin do CDP đăng nhập tạo ra bằng `npx tsx scripts/clean-test-data.ts --delete --only=seed,sessions`. DB cuối đợt: **3 đơn mẫu NEW/UNPAID (0Z2DZBQNTJ, 1N0PEZH0J7, QAFNN907ZY), 21 sản phẩm, 4 danh mục, 4 khu vực, 0 phiên admin, 0 lần đăng nhập sai**.
