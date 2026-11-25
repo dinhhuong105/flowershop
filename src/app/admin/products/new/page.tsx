@@ -22,6 +22,7 @@ export default async function AdminNewProductPage() {
           mode="create"
           categories={categories}
           action={createProductAction}
+          onSuccess="list"
           initial={{
             name: "",
             slug: "",

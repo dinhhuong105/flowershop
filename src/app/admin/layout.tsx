@@ -25,7 +25,22 @@ export const metadata: Metadata = {
 // memo xuyên test). Layout KHÔNG kiểm tra đăng nhập — mỗi trang
 // tự gọi requireAdmin() và chuyển về /login nếu chưa đăng nhập,
 // nên số này không lộ ra ngoài khi chưa đăng nhập.
-export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+//
+// Slot `modal` (25/11): intercepting route @modal — thêm/sửa sản
+// phẩm mở dạng popup trên nền danh sách thay vì chuyển trang.
+// Vào trực tiếp URL /admin/products/new (hoặc /[id]) thì slot
+// không khớp, hiện trang form đầy đủ như cũ.
+export default async function AdminLayout({
+  children,
+  modal,
+}: {
+  children: React.ReactNode;
+  modal: React.ReactNode;
+}) {
   const stats = await getAdminDashboardStats();
-  return <AdminShell pendingCount={stats.pendingCount}>{children}</AdminShell>;
+  return (
+    <AdminShell pendingCount={stats.pendingCount} modal={modal}>
+      {children}
+    </AdminShell>
+  );
 }

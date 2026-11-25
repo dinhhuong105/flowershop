@@ -32,9 +32,14 @@ import AdminNav from "@/components/admin/AdminNav";
 export default function AdminShell({
   children,
   pendingCount,
+  modal,
 }: {
   children: React.ReactNode;
   pendingCount: number;
+  // Slot popup (intercepting route @modal, 25/11): render trong
+  // .admin-shell để giữ font sans, nhưng ngoài <main> để không
+  // dính hiệu ứng vào trang của nội dung chính.
+  modal?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -219,6 +224,7 @@ export default function AdminShell({
           {children}
         </main>
       </div>
+      {modal}
     </div>
   );
 }

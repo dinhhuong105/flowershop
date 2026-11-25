@@ -77,7 +77,7 @@ export default function OrderDetailActions({
                 type="submit"
                 label={step.label}
                 icon={ArrowRightIcon}
-                className="bg-blue-600 text-white transition-opacity hover:opacity-90"
+                className="bg-blue-600 text-white hover:opacity-90"
               />
             </form>
           ))}
@@ -87,7 +87,7 @@ export default function OrderDetailActions({
             onClick={() => dialogRef.current?.showModal()}
             label="Hủy đơn"
             icon={TrashIcon}
-            className="border border-red-600 bg-white text-red-600 transition-colors hover:bg-red-50"
+            className="border border-red-600 bg-white text-red-600 hover:bg-red-50"
           />
         ) : null}
         {showMarkPaid ? (
@@ -97,7 +97,7 @@ export default function OrderDetailActions({
               type="submit"
               label="Đánh dấu đã thanh toán"
               icon={BanknoteIcon}
-              className="border border-blue-600 bg-white text-blue-600 transition-colors hover:bg-slate-100"
+              className="border border-blue-600 bg-white text-blue-600 hover:bg-slate-100"
             />
           </form>
         ) : null}
@@ -115,7 +115,7 @@ export default function OrderDetailActions({
                   : "Chưa cấu hình Telegram"
               }
               icon={SendIcon}
-              className="border border-slate-200 bg-white text-slate-900 transition-colors hover:border-blue-600 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+              className="border border-slate-200 bg-white text-slate-900 hover:border-blue-600 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
             />
           </form>
         ) : null}

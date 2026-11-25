@@ -10,20 +10,30 @@
 // Wrapper <span> mang class group: nút disabled không nhận sự
 // kiện chuột, nhưng hover trên wrapper vẫn hiện được tooltip
 // (vd: nút gửi Telegram khi chưa cấu hình).
-// Nút vẫn cao/rộng tối thiểu 44 px (chuẩn chạm). Icon vẽ tay
-// theo đúng kiểu icon menu trong AdminNav (viewBox 24, stroke
-// currentColor, nét 2, đầu tròn). Không thêm thư viện icon.
+// TINH CHỈNH 25/11 (theo góp ý của Henry sau khi xem live):
+// - Icon nhỏ lại, nét mảnh hơn: glyph 18 px, stroke-width 1.5.
+//   Vùng bấm vẫn giữ tối thiểu 44 px (chuẩn chạm từ Ngày 8) —
+//   chỉ glyph nhỏ lại, nút không nhỏ lại.
+// - Tooltip chuyên nghiệp hơn: bo tròn lớn, bóng đổ, có mũi tên
+//   (hình vuông xoay 45°) ở mép dưới hướng vào nút; hiện bằng
+//   fade + trượt nhẹ 4 px trong 200 ms, trễ 150 ms khi hover để
+//   không chớp khi chuột chỉ lướt qua hàng.
+// - Hover: nút phóng nhẹ scale-105 trong 150 ms.
+// - Giảm chuyển động (prefers-reduced-motion) được khối cuối
+//   globals.css xử lý chung (transition/animation ≈ 0).
+// Icon vẽ tay theo đúng kiểu icon menu trong AdminNav (viewBox 24,
+// stroke currentColor, đầu tròn). Không thêm thư viện icon.
 
 import Link from "next/link";
 import type { ReactNode } from "react";
 
 const ICON_PROPS = {
-  width: 20,
-  height: 20,
+  width: 18,
+  height: 18,
   viewBox: "0 0 24 24",
   fill: "none",
   stroke: "currentColor",
-  strokeWidth: 2,
+  strokeWidth: 1.5,
   strokeLinecap: "round",
   strokeLinejoin: "round",
   "aria-hidden": true,
@@ -113,13 +123,24 @@ export default function AdminIconButton({
 }) {
   const tooltipPosition =
     tooltipAlign === "right" ? "right-0" : "left-1/2 -translate-x-1/2";
-  const innerClass = `flex min-h-11 min-w-11 items-center justify-center rounded-lg transition-colors ${className}`;
+  // Mũi tên: hình vuông 8 px xoay 45°, cùng màu nền tooltip, thò ra
+  // 4 px dưới mép tooltip hướng vào nút. Canh phải: tâm mũi tên
+  // trùng tâm nút (nút rộng 44 px → mũi tên cách mép phải 18 px).
+  const arrowPosition =
+    tooltipAlign === "right"
+      ? "right-[18px]"
+      : "left-1/2 -translate-x-1/2";
+  const innerClass = `flex min-h-11 min-w-11 items-center justify-center rounded-lg transition-all duration-150 ease-out hover:scale-105 ${className}`;
   const tooltip = (
     <span
       role="tooltip"
-      className={`pointer-events-none invisible absolute bottom-full z-10 mb-2 whitespace-nowrap rounded-md bg-[#0f1e33] px-2 py-1 text-xs font-semibold text-white opacity-0 transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 ${tooltipPosition}`}
+      className={`pointer-events-none invisible absolute bottom-full z-50 mb-2 translate-y-1 whitespace-nowrap rounded-lg bg-[#0f1e33] px-2.5 py-1.5 text-xs font-semibold text-white opacity-0 shadow-lg transition-[opacity,translate,visibility] duration-200 ease-out group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-hover:delay-150 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100 ${tooltipPosition}`}
     >
       {label}
+      <span
+        aria-hidden="true"
+        className={`absolute -bottom-1 h-2 w-2 rotate-45 bg-[#0f1e33] ${arrowPosition}`}
+      />
     </span>
   );
   if (href) {

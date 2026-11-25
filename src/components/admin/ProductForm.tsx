@@ -5,14 +5,29 @@
 // sẽ báo 404. Ảnh quản lý ở đây: tải lên (fetch tới
 // /api/admin/upload), Lên/Xuống đổi thứ tự, Gỡ khỏi sản phẩm (file
 // trên đĩa giữ lại) — ảnh chỉ lưu vào DB khi bấm "Lưu sản phẩm".
+//
+// QUY TẮC ĐỨNG (25/11, theo Henry): mọi màn thêm/sửa trong hệ
+// thống đều mở dạng POPUP, không mở trang riêng — form này được
+// dùng cả trong popup (intercepting route @modal, onSuccess="back")
+// lẫn trang trực tiếp (onSuccess="list"). Khi thêm màn thêm/sửa
+// mới (Danh mục, Bài viết, ...), làm popup tương tự, đừng tạo
+// trang form riêng.
+//
+// Sau khi lưu thành công (state.ok) thì KHÔNG redirect ở action
+// nữa — form tự điều hướng theo onSuccess: "back" quay lại trang
+// trước (giữ nguyên bộ lọc trên URL, dùng trong popup), "list" về
+// /admin/products (dùng ở trang trực tiếp). Lỗi validation vẫn
+// hiện trong form như cũ.
 
 "use client";
 
-import { useRef, useState, useActionState } from "react";
+import { useEffect, useRef, useState, useActionState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { slugifyName } from "@/lib/admin/product-validation";
 import { MAX_IMAGES_PER_PRODUCT } from "@/lib/admin/upload-rules";
+import { RadioPillsField, StyledCheckbox } from "@/components/admin/filter-controls";
 import {
   initialAdminProductState,
   type AdminProductState,
@@ -47,6 +62,7 @@ export default function ProductForm({
   action,
   originalSlug,
   productId,
+  onSuccess = "list",
 }: {
   mode: "create" | "edit";
   categories: Array<{ id: number; name: string }>;
@@ -57,8 +73,22 @@ export default function ProductForm({
   ) => Promise<AdminProductState>;
   originalSlug?: string;
   productId?: number;
+  // Sau khi lưu thành công: "back" quay lại trang trước (popup —
+  // giữ nguyên bộ lọc trên URL), "list" về /admin/products (trang
+  // trực tiếp). Mặc định "list" để giữ đúng hành vi cũ.
+  onSuccess?: "back" | "list";
 }) {
+  const router = useRouter();
   const [state, dispatch] = useActionState(action, initialAdminProductState);
+  // Lưu xong: action đã revalidate nên dữ liệu danh sách mới.
+  // "back" chỉ quay lại URL trước đó (có sẵn bộ lọc); "list" về
+  // lại danh sách không lọc như redirect cũ.
+  useEffect(() => {
+    if (state.ok) {
+      if (onSuccess === "back") router.back();
+      else router.push("/admin/products");
+    }
+  }, [state.ok, onSuccess, router]);
   const saved = state.values;
   const slugRef = useRef<HTMLInputElement | null>(null);
   const slugTouchedRef = useRef(false);
@@ -214,27 +244,13 @@ export default function ProductForm({
             />
             {fieldError("sku")}
           </div>
-          <div>
-            <label htmlFor="pf-category" className={labelClass}>
-              Danh mục
-            </label>
-            <select
-              id="pf-category"
-              name="categoryId"
-              defaultValue={saved?.categoryId ?? initial.categoryId}
-              aria-invalid={err("categoryId") ? true : undefined}
-              aria-describedby={err("categoryId") ? "categoryId-error" : undefined}
-              className={inputClass}
-            >
-              <option value="">— Chọn danh mục —</option>
-              {categories.map((c) => (
-                <option key={c.id} value={String(c.id)}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            {fieldError("categoryId")}
-          </div>
+          <RadioPillsField
+            legend="Danh mục"
+            name="categoryId"
+            options={categories.map((c) => ({ value: String(c.id), label: c.name }))}
+            defaultValue={saved?.categoryId ?? initial.categoryId}
+          />
+          {fieldError("categoryId")}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-3">
@@ -330,33 +346,18 @@ export default function ProductForm({
 
         <fieldset className="flex flex-wrap gap-x-6 gap-y-3">
           <legend className="sr-only">Trạng thái sản phẩm</legend>
-          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-slate-900">
-            <input
-              type="checkbox"
-              name="isActive"
-              defaultChecked={saved?.isActive ?? initial.isActive}
-              className="h-5 w-5 accent-blue-600"
-            />
+          <StyledCheckbox name="isActive" defaultChecked={saved?.isActive ?? initial.isActive}>
             Đang bán (hiện trên shop)
-          </label>
-          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-slate-900">
-            <input
-              type="checkbox"
-              name="inStock"
-              defaultChecked={saved?.inStock ?? initial.inStock}
-              className="h-5 w-5 accent-blue-600"
-            />
+          </StyledCheckbox>
+          <StyledCheckbox name="inStock" defaultChecked={saved?.inStock ?? initial.inStock}>
             Còn hàng
-          </label>
-          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-slate-900">
-            <input
-              type="checkbox"
-              name="isFastDelivery"
-              defaultChecked={saved?.isFastDelivery ?? initial.isFastDelivery}
-              className="h-5 w-5 accent-blue-600"
-            />
+          </StyledCheckbox>
+          <StyledCheckbox
+            name="isFastDelivery"
+            defaultChecked={saved?.isFastDelivery ?? initial.isFastDelivery}
+          >
             Giao nhanh
-          </label>
+          </StyledCheckbox>
         </fieldset>
       </section>
 
@@ -449,12 +450,22 @@ export default function ProductForm({
         >
           {mode === "create" ? "Lưu sản phẩm" : "Lưu thay đổi"}
         </button>
-        <Link
-          href="/admin/products"
-          className="flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-5 text-sm font-bold text-slate-900 transition-colors hover:bg-slate-100"
-        >
-          Hủy
-        </Link>
+        {onSuccess === "back" ? (
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-5 text-sm font-bold text-slate-900 transition-colors hover:bg-slate-100"
+          >
+            Hủy
+          </button>
+        ) : (
+          <Link
+            href="/admin/products"
+            className="flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-5 text-sm font-bold text-slate-900 transition-colors hover:bg-slate-100"
+          >
+            Hủy
+          </Link>
+        )}
       </div>
     </form>
   );

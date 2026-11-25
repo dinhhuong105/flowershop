@@ -10,7 +10,9 @@ import {
 } from "@/lib/admin/orders";
 import { formatVND } from "@/lib/format";
 import { orderStatusLabel } from "@/lib/order-labels";
+import { Suspense } from "react";
 import OrderStatusBadge from "@/components/order/OrderStatusBadge";
+import OrdersFilterBar from "@/components/admin/OrdersFilterBar";
 import AdminIconButton, { EyeIcon } from "@/components/admin/AdminIconButton";
 
 export const dynamic = "force-dynamic";
@@ -180,81 +182,13 @@ export default async function AdminOrdersPage({
         ))}
       </nav>
 
-      <form
-        method="get"
-        action="/admin/orders"
-        className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-      >
-        <input type="hidden" name="tab" value={tab} />
-        <div className="min-w-48 flex-1">
-          <label htmlFor="admin-order-q" className="block text-sm font-semibold text-slate-900">
-            Tìm theo mã đơn, tên, SĐT
-          </label>
-          <input
-            id="admin-order-q"
-            name="q"
-            type="search"
-            defaultValue={q}
-            placeholder="Ví dụ: QAFNN907ZY, Hoa, 0900..."
-            className="mt-1 block w-full min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-base text-slate-900"
-          />
-        </div>
-        <div>
-          <label htmlFor="admin-order-payment" className="block text-sm font-semibold text-slate-900">
-            Thanh toán
-          </label>
-          <select
-            id="admin-order-payment"
-            name="payment"
-            defaultValue={payment}
-            className="mt-1 block min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-base text-slate-900"
-          >
-            <option value="all">Tất cả</option>
-            <option value="UNPAID">Chưa thanh toán</option>
-            <option value="PAID">Đã thanh toán</option>
-          </select>
-        </div>
-        {/* Phương thức thanh toán (Ngày 10 D10-2): thẻ dashboard
-            "Chuyển khoản chưa thu" trỏ tới đây với
-            method=BANK_TRANSFER; ô chọn để chủ shop tự lọc tay. */}
-        <div>
-          <label htmlFor="admin-order-method" className="block text-sm font-semibold text-slate-900">
-            Phương thức
-          </label>
-          <select
-            id="admin-order-method"
-            name="method"
-            defaultValue={method}
-            className="mt-1 block min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-base text-slate-900"
-          >
-            <option value="all">Tất cả</option>
-            <option value="BANK_TRANSFER">Chuyển khoản</option>
-            <option value="COD">COD</option>
-          </select>
-        </div>
-        {/* Giữ lại tham số loại trạng thái (vd exclude=CANCELLED từ
-            thẻ dashboard) khi bấm "Lọc" — form GET chỉ gửi các
-            trường trong form, không giữ thì mất bộ lọc. */}
-        {exclude !== "" ? <input type="hidden" name="exclude" value={exclude} /> : null}
-        <div>
-          <label htmlFor="admin-order-date" className="block text-sm font-semibold text-slate-900">
-            Ngày giao
-          </label>
-          <input
-            id="admin-order-date"
-            name="date"
-            type="date"
-            defaultValue={date}
-            className="mt-1 block min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-base text-slate-900"
-          />
-        </div>
-        <button
-          type="submit"
-          className="flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-5 text-sm font-bold text-white transition-opacity hover:opacity-90"
-        >
-          Lọc
-        </button>
-      </form>
+      {/* Thanh lọc tự động (25/11, theo góp ý của Henry: chọn
+          là lọc ngay, không còn nút "Lọc"). Param tab và exclude
+          không nằm ở đây nhưng vẫn được giữ nguyên trên URL (xem
+          useFilterNavigation). */}
+      <Suspense>
+        <OrdersFilterBar q={q} payment={payment} method={method} date={date} />
+      </Suspense>
 
       {list.orders.length === 0 ? (
         <p className="mt-6 rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
@@ -327,7 +261,7 @@ export default async function AdminOrdersPage({
                           label="Xem chi tiết"
                           icon={EyeIcon}
                           tooltipAlign="right"
-                          className="border border-slate-200 bg-white text-slate-900 transition-colors hover:border-blue-600 hover:text-blue-600"
+                          className="border border-slate-200 bg-white text-slate-900 hover:border-blue-600 hover:text-blue-600"
                         />
                       </td>
                     </tr>
@@ -361,7 +295,7 @@ export default async function AdminOrdersPage({
                       label="Xem chi tiết"
                       icon={EyeIcon}
                       tooltipAlign="right"
-                      className="border border-slate-200 bg-white text-slate-900 transition-colors hover:border-blue-600 hover:text-blue-600"
+                      className="border border-slate-200 bg-white text-slate-900 hover:border-blue-600 hover:text-blue-600"
                     />
                   </div>
                   <p className="mt-2 text-sm text-slate-500">

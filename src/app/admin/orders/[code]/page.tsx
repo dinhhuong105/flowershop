@@ -135,7 +135,7 @@ export default async function AdminOrderDetailPage({
             href={`/admin/orders/${order.code}/print`}
             label="In phiếu giao hàng"
             icon={PrinterIcon}
-            className="border border-slate-200 bg-white text-slate-900 transition-colors hover:border-blue-600 hover:text-blue-600"
+            className="border border-slate-200 bg-white text-slate-900 hover:border-blue-600 hover:text-blue-600"
           />
         </p>
       </section>

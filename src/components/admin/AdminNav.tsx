@@ -187,7 +187,7 @@ export default function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Quản trị" className="mt-2 flex-1 overflow-y-auto px-3 py-2">
+    <nav aria-label="Quản trị" className="admin-nav-scroll mt-2 flex-1 overflow-y-auto px-3 py-2">
       {SECTIONS.map((section) => (
         <div key={section.key} className="mt-4 first:mt-0">
           {section.label ? (

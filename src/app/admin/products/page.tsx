@@ -4,7 +4,9 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/admin/auth";
 import { listAdminCategories, listAdminProducts } from "@/lib/admin/products";
 import { formatVND } from "@/lib/format";
+import { Suspense } from "react";
 import ToggleActiveButton from "@/components/admin/ToggleActiveButton";
+import ProductsFilterBar from "@/components/admin/ProductsFilterBar";
 import AdminIconButton, { PencilIcon } from "@/components/admin/AdminIconButton";
 
 export const dynamic = "force-dynamic";
@@ -65,60 +67,11 @@ export default async function AdminProductsPage({
         {list.totalPages > 1 ? ` — trang ${list.page}/${list.totalPages}` : ""}
       </p>
 
-      <form method="get" action="/admin/products" className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="min-w-48 flex-1">
-          <label htmlFor="admin-q" className="block text-sm font-semibold text-slate-900">
-            Tìm theo tên/SKU
-          </label>
-          <input
-            id="admin-q"
-            name="q"
-            type="search"
-            defaultValue={q}
-            placeholder="Ví dụ: hong, HT-001"
-            className="mt-1 block w-full min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-base text-slate-900"
-          />
-        </div>
-        <div>
-          <label htmlFor="admin-category" className="block text-sm font-semibold text-slate-900">
-            Danh mục
-          </label>
-          <select
-            id="admin-category"
-            name="category"
-            defaultValue={categoryRaw}
-            className="mt-1 block min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-base text-slate-900"
-          >
-            <option value="">Tất cả</option>
-            {categories.map((c) => (
-              <option key={c.id} value={String(c.id)}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="admin-status" className="block text-sm font-semibold text-slate-900">
-            Trạng thái
-          </label>
-          <select
-            id="admin-status"
-            name="status"
-            defaultValue={status}
-            className="mt-1 block min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-base text-slate-900"
-          >
-            <option value="all">Tất cả</option>
-            <option value="active">Đang bán</option>
-            <option value="hidden">Đã ẩn</option>
-          </select>
-        </div>
-        <button
-          type="submit"
-          className="flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-5 text-sm font-bold text-white transition-opacity hover:opacity-90"
-        >
-          Lọc
-        </button>
-      </form>
+      {/* Thanh lọc tự động (25/11, theo góp ý của Henry: chọn
+          là lọc ngay, không còn nút "Lọc"). */}
+      <Suspense>
+        <ProductsFilterBar q={q} category={categoryRaw} status={status} categories={categories} />
+      </Suspense>
 
       {list.products.length === 0 ? (
         <p className="mt-6 rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
@@ -186,9 +139,9 @@ export default async function AdminProductsPage({
                           label="Sửa sản phẩm"
                           icon={PencilIcon}
                           tooltipAlign="right"
-                          className="border border-blue-600 bg-white text-blue-600 transition-colors hover:bg-slate-100"
+                          className="border border-blue-600 bg-white text-blue-600 hover:bg-slate-100"
                         />
-                        <ToggleActiveButton productId={p.id} productName={p.name} isActive={p.isActive} />
+                        <ToggleActiveButton productId={p.id} isActive={p.isActive} />
                       </div>
                     </td>
                   </tr>
@@ -239,9 +192,9 @@ export default async function AdminProductsPage({
                     href={`/admin/products/${p.id}`}
                     label="Sửa sản phẩm"
                     icon={PencilIcon}
-                    className="border border-blue-600 bg-white text-blue-600 transition-colors hover:bg-slate-100"
+                    className="border border-blue-600 bg-white text-blue-600 hover:bg-slate-100"
                   />
-                  <ToggleActiveButton productId={p.id} productName={p.name} isActive={p.isActive} />
+                  <ToggleActiveButton productId={p.id} isActive={p.isActive} />
                 </div>
               </li>
             ))}

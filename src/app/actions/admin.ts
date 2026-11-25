@@ -10,7 +10,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin/auth";
 import {
   createAdminProduct,
@@ -75,7 +74,9 @@ export async function createProductAction(
     return fail(fieldErrors, input);
   }
   revalidatePath("/", "layout");
-  redirect("/admin/products");
+  // 25/11: không redirect nữa — form tự điều hướng theo onSuccess
+  // ("back" đóng popup, "list" về danh sách). Xem ProductForm.
+  return { ok: true, fieldErrors: {}, formError: null, values: null };
 }
 
 export async function updateProductAction(
@@ -104,7 +105,9 @@ export async function updateProductAction(
     return fail(fieldErrors, input);
   }
   revalidatePath("/", "layout");
-  redirect("/admin/products");
+  // 25/11: không redirect nữa — form tự điều hướng theo onSuccess
+  // ("back" đóng popup, "list" về danh sách). Xem ProductForm.
+  return { ok: true, fieldErrors: {}, formError: null, values: null };
 }
 
 export type ToggleProductState = { ok: boolean; error: string | null };

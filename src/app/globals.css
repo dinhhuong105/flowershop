@@ -108,6 +108,32 @@
     font-family: var(--font-sans);
   }
 
+  /* Hiệu ứng vào trang nhẹ cho admin (25/11, theo góp ý của Henry):
+     các khối nội dung chính trong <main> hiện lên mờ dần + trượt
+     nhẹ 4 px trong 300 ms. Chỉ trong .admin-shell nên trang shop
+     không bị ảnh hưởng; tắt khi in (phiếu in không cần hiệu ứng).
+     Giảm chuyển động (prefers-reduced-motion) đã được khối cuối
+     file xử lý chung (animation-duration 0.01ms). */
+  .admin-shell main#noi-dung-chinh > * {
+    animation: admin-fade-up 300ms ease-out both;
+  }
+  @media print {
+    .admin-shell main#noi-dung-chinh > * {
+      animation: none;
+    }
+  }
+
+  /* Ẩn thanh cuộn của menu sidebar admin (25/11, theo góp ý của
+     Henry: khung trắng của thanh cuộn mặc định rất xấu trên nền
+     navy). Vẫn cuộn được bằng chạm/lăn chuột; CHỈ áp cho nav
+     sidebar — thanh cuộn của trang/nội dung chính không đổi. */
+  .admin-nav-scroll {
+    scrollbar-width: none;
+  }
+  .admin-nav-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
   :focus-visible {
     outline: 2px solid var(--color-gold-500);
     outline-offset: 2px;
@@ -246,6 +272,19 @@
   }
   to {
     opacity: 1;
+  }
+}
+
+/* Hiệu ứng vào trang nhẹ cho admin (25/11, theo góp ý của Henry):
+   khối nội dung hiện lên mờ dần + trượt nhẹ 4 px. */
+@keyframes admin-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

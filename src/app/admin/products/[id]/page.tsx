@@ -38,6 +38,7 @@ export default async function AdminEditProductPage({
           mode="edit"
           categories={categories}
           action={updateProductAction.bind(null, product.id)}
+          onSuccess="list"
           originalSlug={product.slug}
           productId={product.id}
           initial={{
