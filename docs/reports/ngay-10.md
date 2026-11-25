@@ -368,3 +368,140 @@ thành `phieu-giao-5-dong-ngay-10.pdf`; pdfinfo: 1 trang, khổ A5
   `clearExcludeHref`).
 - Ảnh/file: `chip-loai-don-huy-1440.png`,
   `chip-loai-don-huy-390.png`, `phieu-giao-5-dong-ngay-10.pdf`.
+
+## Thiết kế lại giao diện admin theo ảnh mẫu của Henry (25/11)
+
+Henry gửi ảnh mẫu trang quản trị BĐS (sidebar trái tối, thanh trên
+có ô tìm kiếm + chuông + avatar, 5 thẻ số liệu, bảng có bộ lọc, cột
+phải tiến độ + biểu đồ tròn + nổi bật) và nói "Tôi thích giao diện
+admin giống thế này, hãy chỉnh sửa lại giao diện admin". Henry duyệt
+phạm vi "Làm toàn bộ admin". Đầu trang ngang kiểu Ngày 7 (thương
+hiệu đầy đủ + menu 2 hàng, quyết định 24/11 ~23:12) được THAY bằng
+sidebar — đánh đổi Henry đã duyệt khi chọn phạm vi này.
+
+### 1. Sidebar trái màu tối — ĐẠT
+
+- `src/components/admin/AdminShell.tsx` (mới, client) +
+  `src/components/admin/AdminNav.tsx` (viết lại dọc):
+  sidebar màu xanh đậm token green-900 (#01321f) của shop (không
+  đổi sang xanh dương của ảnh mẫu), logo "Hoa Tươi Demo" + huy
+  hiệu vàng "QUẢN TRỊ", đủ 4 mục Tổng quan / Sản phẩm / Đơn hàng /
+  Xem shop ↗ chia 3 nhóm (Tổng quan, Quản lý, Cửa hàng), mục đang
+  mở nền green-800 + chữ trắng (`aria-current="page"`), icon SVG
+  tự vẽ, nút Đăng xuất ở cuối sidebar (desktop).
+- Mobile (< lg): sidebar thành drawer trượt từ trái (mẫu MobileMenu
+  của shop: translateX 300 ms, nền mờ fade 200 ms, đóng bằng Esc /
+  bấm nền mờ / bấm liên kết, khóa cuộn nền, trả focus về nút mở,
+  `inert` khi đóng). Nút Đăng xuất vẫn thấy trên topbar mobile.
+
+### 2. Thanh trên cùng — ĐẠT
+
+- Ô tìm kiếm THẬT (không phải trang trí): form GET tới
+  `/admin/orders` với `tab=all` ẩn, dùng đúng logic tìm theo mã
+  đơn/tên/SĐT sẵn có. Kiểm bằng trình duyệt: gõ SEED000001 ở ô
+  trên → ra trang đơn "Tìm thấy 1 đơn", đúng đơn đó. Ô tìm kiếm ẩn
+  dưới sm (ô tìm kiếm riêng của trang đơn vẫn dùng được).
+- Phải: "Quản trị viên / admin" + vòng tròn chữ Q + nút Đăng xuất
+  (mobile). Không có chuông thông báo (shop chưa có chức năng đó —
+  không làm nút chết).
+
+### 3. Trang tổng quan — ĐẠT
+
+- 5 thẻ số liệu giữ ĐÚNG số + link đích Ngày 10 (D10-2), thêm ô
+  icon màu kiểu ảnh mẫu. **Độ lệch so với ảnh mẫu (đã ghi trong
+  code): lưới thẻ là 3 cột (3+2) thay vì 5 thẻ 1 hàng, số tiền ở
+  hàng riêng cỡ text-2xl** — số VND dài ("4.130.000 ₫") ở text-3xl
+  đã tràn khỏi thẻ khi 5 thẻ xếp 1 hàng (nội dung thẻ chỉ ~139 px
+  ở 1280 px; ảnh kiểm đầu thấy "₫" lòi ra ngoài viền thẻ). Số trong
+  ảnh mẫu ngắn ("48", "87%") nên xếp 5 được; shop thì không.
+- Cột phải: "Tiến độ đơn hàng" (số đơn theo trạng thái + thanh
+  tiến độ) và "Thống kê theo trạng thái" (biểu đồ tròn vẽ bằng
+  `conic-gradient`, không thêm thư viện) — số từ DB qua 2 hàm mới
+  `getOrderStatusCounts()` + `getRecentOrders()` trong
+  `src/lib/admin/dashboard.ts`. **Thêm ngoài phạm vi ghi trong
+  nhiệm vụ: khối "Đơn mới nhất" (5 đơn mới nhất) ở cột trái** —
+  nếu không, dưới 5 thẻ sẽ là cột trái trống; số liệu đã có sẵn
+  trong DB, không thêm logic mới ngoài một truy vấn take-5.
+- Không hiện phần trăm tăng trưởng "↑12%" như ảnh mẫu (shop chưa
+  có số liệu đó — không bịa).
+
+### 4. Bảng đơn hàng — ĐẠT
+
+- Restyle nhẹ (bóng thẻ, nền đầu bảng cream-50, hover hàng):
+  GIỮ NGUYÊN mọi cột, bộ lọc (tab/trạng thái/thanh toán/phương
+  thức/ngày/tìm kiếm), chip "Không tính đơn đã hủy ✕", phân
+  trang 20/trang.
+
+### 5. Chi tiết đơn + trang sản phẩm — ĐẠT
+
+- Restyle đồng bộ qua shell chung (sidebar + topbar); giữ nguyên
+  mọi nội dung/chức năng (đổi trạng thái, in phiếu, quản lý sản
+  phẩm, upload ảnh). Trang sửa/thêm sản phẩm và /login đều 200.
+
+### 6. Trang in phiếu — ĐẠT (KHÔNG ĐỔI)
+
+- Không sửa file in. In lại bằng Chrome print-to-PDF sau khi đổi
+  layout: đơn hủy + đơn thường đều **1 trang, khổ A5**
+  (420 × 594.96 pt). Sidebar/topbar/drawer có `print:hidden`,
+  `<main id="noi-dung-chinh">` giữ nguyên nên rule làm trắng nền
+  kem vẫn trúng.
+
+### 7. Màu sắc — ĐẠT
+
+- Giữ token xanh lá/vàng của shop (giao-dien-v2); chỉ lấy BỐ CỤC
+  của ảnh mẫu.
+
+### 8. Đo ở 360 px (mục 5 verdict Ngày 10) — ĐẠT
+
+- Đo bằng CDP (`document.documentElement.scrollWidth` so với
+  `innerWidth`): dashboard 360 px: scrollWidth 345 = innerWidth
+  360 − 15 px thanh cuộn dọc cổ điển → **không tràn ngang**;
+  danh sách đơn 360 px cũng 345/360. Topbar 360 px: nút ☰ +
+  avatar + Đăng xuất vừa màn hình. Drawer 390 px mở/đóng đúng
+  (mở bằng nút ☰, đóng bằng Esc đã kiểm bằng CDP: trả về
+  "drawer CLOSED by Esc"). Bố cục cũ (nút Đăng xuất rớt hàng)
+  không còn vì đầu trang cũ đã bị thay bằng sidebar.
+
+### Kiểm chứng tổng hợp (tự chạy trên bản cuối)
+
+- Unit test **185/185 PASS**; test:db **10/10 PASS** (trước 8/8,
+  +2 ca mới: `getOrderStatusCounts` đủ 6 trạng thái/tổng khớp,
+  `getRecentOrders` đơn mới đứng đầu + tôn trọng giới hạn);
+  typecheck 0 lỗi; lint 0 lỗi (đã sửa 1 warning import thừa);
+  build OK; First Load JS `/` = **115 kB** (≤ 135 kB).
+- Curl local trên server standalone cổng 3000 (48 đơn = 45 seed +
+  3 mẫu): thẻ dashboard 38 / 8 / 7 / 4.130.000 ₫ / 4.130.000 ₫
+  khớp DB (giao hôm nay 8 chứ không phải 11 như Ngày 10 — ngày
+  seed nay là 25/11, phân bố ngày giao theo ngày chạy seed);
+  link thẻ: pending → "Tìm thấy 38 đơn", giao hôm nay → 8,
+  chuyển khoản chưa thu → 7; chip hiện với exclude (43 đơn) và
+  ẩn khi không có exclude (48 đơn); tìm q=SEED000001 → 1 đơn;
+  trang 2 → tổng vẫn 48; sản phẩm → 21; chi tiết đơn 200.
+- Ảnh đã mắt kiểm: `admin-moi-dashboard-1440.png` (v2, sau khi
+  sửa tràn số), `admin-moi-dashboard-1440-day-du.png` (toàn trang,
+  biểu đồ tròn), `admin-moi-don-hang-1440.png`,
+  `admin-moi-chi-tiet-don-1440.png`, `admin-moi-san-pham-1440.png`,
+  `admin-moi-dashboard-390.png`, `admin-moi-drawer-390.png`,
+  `admin-moi-topbar-360.png`.
+- Môi trường: giữa đợt VM bị thay mới (mất PostgreSQL + Chrome
+  đã cài) — đã cài lại PostgreSQL 16 + Chrome 158, dựng DB từ
+  migration + seed + `recreate-test-data.ts`.
+- DB cuối đợt: **3 đơn mẫu NEW/UNPAID, 21 sản phẩm, 4 khu vực,
+  0 phiên admin** (đã xóa 45 đơn SEED + 1 phiên bằng
+  `clean-test-data.ts --only=seed,sessions --delete`).
+- Server verification đang chạy trên cổng 3000 phục vụ bản mới.
+
+### File thay đổi đợt này
+
+- `src/components/admin/AdminShell.tsx` (mới) — sidebar +
+  drawer + topbar.
+- `src/components/admin/AdminNav.tsx` (viết lại) — menu dọc.
+- `src/app/admin/layout.tsx` (viết lại) — dùng AdminShell.
+- `src/app/admin/page.tsx` (viết lại) — 5 thẻ icon + đơn mới
+  nhất + tiến độ + biểu đồ tròn.
+- `src/lib/admin/dashboard.ts` — thêm `getOrderStatusCounts()`,
+  `getRecentOrders()`.
+- `src/app/admin/orders/page.tsx`, `src/app/admin/products/page.tsx`
+  — restyle nhẹ (bóng, nền đầu bảng, hover).
+- `src/lib/admin/orders.db.test.ts` — +2 ca test:db.
+- Ảnh: 8 file `admin-moi-*.png` ở `~/workspace/`.

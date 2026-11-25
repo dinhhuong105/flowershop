@@ -19,6 +19,7 @@
 
 import { db } from "@/lib/db";
 import { deliveryConfig } from "@/config/delivery";
+import type { OrderStatus } from "@prisma/client";
 
 export type AdminDashboardStats = {
   pendingCount: number;
@@ -109,4 +110,64 @@ export async function getAdminDashboardStats(
     revenue7Days: sumDistinct(completedWeek),
     todayVn: day,
   };
+}
+
+// Số đơn theo từng trạng thái (thiết kế lại admin 25/11: cột phải
+// dashboard "Tiến độ đơn hàng" + "Thống kê theo trạng thái"). Trả đủ
+// 6 trạng thái theo thứ tự cố định, trạng thái không có đơn thì 0 —
+// PREPARING là trạng thái dự trữ, hiện không dùng trong luồng (xem
+// ghi chú ở đầu file) nên thường là 0.
+export type OrderStatusCount = {
+  status: OrderStatus;
+  count: number;
+};
+
+const STATUS_ORDER: OrderStatus[] = [
+  "NEW",
+  "CONFIRMED",
+  "PREPARING",
+  "DELIVERING",
+  "COMPLETED",
+  "CANCELLED",
+];
+
+export async function getOrderStatusCounts(): Promise<OrderStatusCount[]> {
+  const rows = await db.order.groupBy({
+    by: ["status"],
+    _count: { _all: true },
+  });
+  const byStatus = new Map<OrderStatus, number>(
+    rows.map((r) => [r.status, r._count._all]),
+  );
+  return STATUS_ORDER.map((status) => ({
+    status,
+    count: byStatus.get(status) ?? 0,
+  }));
+}
+
+export type RecentAdminOrder = {
+  code: string;
+  senderName: string;
+  receiverName: string;
+  total: number;
+  status: OrderStatus;
+  createdAt: Date;
+};
+
+// 5 đơn mới nhất (thiết kế lại admin 25/11: khối "Đơn mới nhất" ở
+// cột trái dashboard, dưới 5 thẻ số liệu).
+export async function getRecentOrders(limit = 5): Promise<RecentAdminOrder[]> {
+  const rows = await db.order.findMany({
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    select: {
+      code: true,
+      senderName: true,
+      receiverName: true,
+      total: true,
+      status: true,
+      createdAt: true,
+    },
+  });
+  return rows;
 }

@@ -182,7 +182,7 @@ export default async function AdminOrdersPage({
       <form
         method="get"
         action="/admin/orders"
-        className="mt-4 flex flex-wrap items-end gap-3 rounded-[3px] border border-line bg-white p-4"
+        className="mt-4 flex flex-wrap items-end gap-3 rounded-[3px] border border-line bg-white p-4 shadow-[0_1px_2px_rgba(8,56,42,.06)]"
       >
         <input type="hidden" name="tab" value={tab} />
         <div className="min-w-48 flex-1">
@@ -262,10 +262,10 @@ export default async function AdminOrdersPage({
       ) : (
         <>
           {/* Bảng từ 768 px */}
-          <div className="mt-6 hidden overflow-x-auto rounded-[3px] border border-line bg-white md:block">
+          <div className="mt-6 hidden overflow-x-auto rounded-[3px] border border-line bg-white shadow-[0_1px_2px_rgba(8,56,42,.06)] md:block">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-line text-ink-soft">
+                <tr className="border-b border-line bg-cream-50 text-ink-soft">
                   <th scope="col" className="px-4 py-3 font-semibold">Mã đơn</th>
                   <th scope="col" className="px-4 py-3 font-semibold">Người đặt</th>
                   <th scope="col" className="px-4 py-3 font-semibold">Người nhận / Khu vực</th>
@@ -282,7 +282,7 @@ export default async function AdminOrdersPage({
                       ? orderDayBadge(o.deliveryDate, now)
                       : null;
                   return (
-                    <tr key={o.code} data-testid="admin-order-row" className="border-b border-line last:border-b-0">
+                    <tr key={o.code} data-testid="admin-order-row" className="border-b border-line last:border-b-0 hover:bg-cream-50/70">
                       <td className="px-4 py-3">
                         <Link
                           href={`/admin/orders/${o.code}`}
@@ -334,7 +334,7 @@ export default async function AdminOrdersPage({
                   ? orderDayBadge(o.deliveryDate, now)
                   : null;
               return (
-                <li key={o.code} data-testid="admin-order-row" className="rounded-[3px] border border-line bg-white p-4">
+                <li key={o.code} data-testid="admin-order-row" className="rounded-[3px] border border-line bg-white p-4 shadow-[0_1px_2px_rgba(8,56,42,.06)]">
                   <div className="flex flex-wrap items-center gap-2">
                     <Link
                       href={`/admin/orders/${o.code}`}

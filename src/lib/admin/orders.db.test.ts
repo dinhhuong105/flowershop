@@ -31,7 +31,7 @@ import {
   listAdminOrders,
   transitionOrder,
 } from "./orders";
-import { getAdminDashboardStats } from "./dashboard";
+import { getAdminDashboardStats, getOrderStatusCounts, getRecentOrders } from "./dashboard";
 
 const CODE_A = "DBTST00001"; // NEW, COD, UNPAID
 const CODE_B = "DBTST00002"; // CONFIRMED, BANK_TRANSFER, PAID
@@ -434,6 +434,67 @@ describe("link thẻ dashboard khớp số trên thẻ (Ngày 10 D10-2)", () => 
       await db.order.deleteMany({
         where: { code: { in: [CODE_F, CODE_G] } },
       });
+    }
+  });
+});
+
+describe("số liệu cột phải dashboard (thiết kế lại admin 25/11)", () => {
+  const CODE_H = "DBTST00008"; // NEW
+  const CODE_I = "DBTST00009"; // CANCELLED
+
+  // Đếm theo trạng thái: đủ 6 trạng thái, tổng bằng tổng số đơn,
+  // delta đúng khi thêm đơn mới/hủy. Dùng delta để không phụ thuộc
+  // dữ liệu có sẵn trong DB (đơn mẫu Ngày 7, đơn seed).
+  it("getOrderStatusCounts: đủ 6 trạng thái, tổng = tổng số đơn", async () => {
+    const before = await getOrderStatusCounts();
+    const totalBefore = await db.order.count();
+    assert.equal(before.length, 6, "phải trả đủ 6 trạng thái");
+    assert.equal(
+      before.reduce((sum, row) => sum + row.count, 0),
+      totalBefore,
+      "tổng số đếm theo trạng thái phải bằng tổng số đơn",
+    );
+    await createTestOrder(CODE_H, "NEW");
+    await createLinkTestOrder(CODE_I, "CANCELLED", new Date());
+    try {
+      const after = await getOrderStatusCounts();
+      const byStatus = new Map(after.map((row) => [row.status, row.count]));
+      const beforeMap = new Map(before.map((row) => [row.status, row.count]));
+      assert.equal(
+        (byStatus.get("NEW") ?? 0) - (beforeMap.get("NEW") ?? 0),
+        1,
+        "thêm 1 đơn NEW thì đếm NEW tăng 1",
+      );
+      assert.equal(
+        (byStatus.get("CANCELLED") ?? 0) - (beforeMap.get("CANCELLED") ?? 0),
+        1,
+        "thêm 1 đơn CANCELLED thì đếm CANCELLED tăng 1",
+      );
+      assert.equal(
+        after.reduce((sum, row) => sum + row.count, 0),
+        totalBefore + 2,
+        "tổng tăng đúng 2",
+      );
+    } finally {
+      await db.order.deleteMany({
+        where: { code: { in: [CODE_H, CODE_I] } },
+      });
+    }
+  });
+
+  // Đơn mới nhất: đơn vừa tạo phải đứng đầu, giới hạn đúng số lượng.
+  it("getRecentOrders: đơn mới tạo đứng đầu, tôn trọng giới hạn", async () => {
+    await createTestOrder(CODE_H, "NEW");
+    try {
+      const latest = await getRecentOrders(1);
+      assert.equal(latest.length, 1);
+      assert.equal(latest[0].code, CODE_H, "đơn mới tạo phải đứng đầu");
+      assert.equal(latest[0].status, "NEW");
+      const two = await getRecentOrders(2);
+      assert.equal(two.length, 2);
+      assert.equal(two[0].code, CODE_H);
+    } finally {
+      await db.order.deleteMany({ where: { code: CODE_H } });
     }
   });
 });

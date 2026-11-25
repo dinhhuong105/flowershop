@@ -64,7 +64,7 @@ export default async function AdminProductsPage({
         {list.totalPages > 1 ? ` — trang ${list.page}/${list.totalPages}` : ""}
       </p>
 
-      <form method="get" action="/admin/products" className="mt-4 flex flex-wrap items-end gap-3 rounded-[3px] border border-line bg-white p-4">
+      <form method="get" action="/admin/products" className="mt-4 flex flex-wrap items-end gap-3 rounded-[3px] border border-line bg-white p-4 shadow-[0_1px_2px_rgba(8,56,42,.06)]">
         <div className="min-w-48 flex-1">
           <label htmlFor="admin-q" className="block text-sm font-semibold text-ink">
             Tìm theo tên/SKU
@@ -126,10 +126,10 @@ export default async function AdminProductsPage({
       ) : (
         <>
           {/* Bảng từ 768 px */}
-          <div className="mt-6 hidden overflow-x-auto rounded-[3px] border border-line bg-white md:block">
+          <div className="mt-6 hidden overflow-x-auto rounded-[3px] border border-line bg-white shadow-[0_1px_2px_rgba(8,56,42,.06)] md:block">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-line text-ink-soft">
+                <tr className="border-b border-line bg-cream-50 text-ink-soft">
                   <th scope="col" className="px-4 py-3 font-semibold">Ảnh</th>
                   <th scope="col" className="px-4 py-3 font-semibold">Tên / SKU</th>
                   <th scope="col" className="px-4 py-3 font-semibold">Danh mục</th>
@@ -143,7 +143,7 @@ export default async function AdminProductsPage({
               </thead>
               <tbody>
                 {list.products.map((p) => (
-                  <tr key={p.id} data-testid="admin-product-row" className="border-b border-line last:border-b-0">
+                  <tr key={p.id} data-testid="admin-product-row" className="border-b border-line last:border-b-0 hover:bg-cream-50/70">
                     <td className="px-4 py-3">
                       <span className="block h-12 w-12 overflow-hidden rounded-[3px] border border-line bg-cream-100">
                         <Image
@@ -198,7 +198,7 @@ export default async function AdminProductsPage({
           {/* Thẻ dưới 768 px */}
           <ul className="mt-6 space-y-4 md:hidden">
             {list.products.map((p) => (
-              <li key={p.id} data-testid="admin-product-row" className="rounded-[3px] border border-line bg-white p-4">
+              <li key={p.id} data-testid="admin-product-row" className="rounded-[3px] border border-line bg-white p-4 shadow-[0_1px_2px_rgba(8,56,42,.06)]">
                 <div className="flex gap-3">
                   <span className="block h-16 w-16 shrink-0 overflow-hidden rounded-[3px] border border-line bg-cream-100">
                     <Image
