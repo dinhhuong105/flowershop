@@ -2,7 +2,7 @@
 
 - Ngày: 26/11/2026.
 - Nền: commit `f750c78` (Ngày 14).
-- Commit Ngày 15: 1 commit trên `f750c78` (lấy hash đầy đủ bằng `git log`).
+- Commit Ngày 15: 1 commit trên `f750c78` (lấy hash đầy đủ bằng `git log`) + 1 commit sửa lint (bỏ hàm `pageValues` thừa trong test, xem "Sự cố").
 - Phạm vi theo đặc tả: Phần B (B1 → B2 → B3) trước, Phần C (C0 → C1 → C2), rồi B4; Phần D (B6, E2) KHÔNG LÀM — hết giờ sau khi kiểm chứng đầy đủ, chuyển ngày sau (đặc tả cho phép). Phần A chỉ ghi trạng thái (chỉ đọc). Phần G KHÔNG ÁP DỤNG.
 - Link live (mọi báo cáo cho Claude đều kèm): https://flowershop-steel.vercel.app/
 
@@ -72,7 +72,7 @@ Lịch sử trạng thái đơn nằm riêng ở `order_events` — KHÔNG thu�
 
 - Unit: **313/313 PASS** (Ngày 14: 298; +15: activity 10, bank-warning 2, page-validation 2, category-validation 1).
 - test:db: **56/56 PASS** (Ngày 14: 42; +14: slug-collision 4, activity 6, pages-legacy B2 4). Đúng trình tự: `recreate-test-data` → `test:db` → `clean-test-data --delete`.
-- Typecheck: **0 lỗi**. Lint: **0 lỗi**, 2 warning `<img>` có từ trước (`SettingsImageField.tsx`, `Header.tsx`).
+- Typecheck: **0 lỗi**. Lint: **0 lỗi**, 2 warning `<img>` có từ trước (`SettingsImageField.tsx`, `Header.tsx`) — bản đầu có thêm 1 warning biến thừa `pageValues` trong `slug-collision.db.test.ts`, đã bỏ hàm thừa ở commit sửa lint sau đó, chạy lại lint còn đúng 2 warning.
 - Build: OK. First Load JS `/` = **115 kB** (≤ 135 kB, như Ngày 14); `/admin/activity` = 106 kB.
 - Smoke local (`scripts/smoke-live.sh http://localhost:3000`): **20/21 PASS** — FAIL duy nhất là sitemap-localhost (SITE_URL là http://localhost:3000 ở local; trên production sẽ PASS — giống Ngày 14). Check mới PASS: `/admin/activity` chưa đăng nhập → 307 `/login`.
 - CDP (headless Chrome 158, server standalone :3000, phiên admin tạo trực tiếp trong DB local): **26/26 PASS** — B1a popup Thêm danh mục (lỗi đúng ô + giữ giá trị), B1b toggle xuất bản trang trùng (lỗi dưới nút), B2a hộp vàng `/contact` nguyên văn + không tick → lỗi + giữ giá trị + bỏ tick → lỗi lại + tick → lưu được, B2b `/about` không hộp vàng/không checkbox, B4a đổi STK → câu cũ + B4b chỉ tắt công tắc → câu mới (N = 1 đơn chuyển khoản chưa thu), C1a đổi hotline, C1b sửa ngân hàng có nhập lại mật khẩu (mật khẩu thử local — xem "Sự cố"), C1c xuất bản rồi gỡ xuất bản trang, C1d `/admin/activity` 1440 + 390 (dòng `contact.hotline`, dòng `bank.accountNumber` đã che `****9012 → ****1098`, dòng `page:gioi-thieu`, không lộ STK đầy đủ, lọc Khu vực = Ngân hàng chỉ còn dòng ngân hàng).
@@ -99,6 +99,7 @@ Lịch sử trạng thái đơn nằm riêng ở `order_events` — KHÔNG thu�
 - **`next build` tạo lại toàn bộ `.next/standalone/`** — file `.next/static` + `public` copy vào standalone ở lần build trước bị xóa ở lần build sau. Lần probe CDP đầu chạy với server thiếu CSS/JS (404 mọi chunk): trang hiện dạng HTML trần, không hydrate — form dùng `action={dispatch}` (danh mục, nút mắt) vẫn chạy nhờ progressive enhancement nên B1 PASS, còn form dùng `onSubmit` + `dispatch` (trang tĩnh) submit native → reload trắng → B2/B4/C1 FAIL giả. Sửa: copy lại `.next/static` → `.next/standalone/.next/static` + `public` → `.next/standalone/public` SAU lần build cuối rồi mới khởi động server; chạy lại probe thì 26/26 PASS. Bài học: sau mỗi lần build, kiểm tra `curl /_next/static/css/…` trả 200 trước khi probe.
 - **Test:db làm bẩn dữ liệu seed.** `slug-collision.db.test.ts` ban đầu xuất bản trang seed bằng `updateAdminPage` với tiêu đề test ("Trang gioi-thieu") — so `<head>` bắt được ngay (title trang tĩnh lệch 1 dòng). Sửa: xuất bản bằng `setAdminPagePublished` (chỉ đổi cờ) + `after()` trả lại tiêu đề gốc đã lưu từ `before()`. Chạy lại test: 4/4 PASS, tiêu đề seed nguyên vẹn.
 - **`bankCode` phải là mã BIN 6 số, không phải mã 3 chữ.** Probe ghi `bankCode='VCB'` vào DB test → lưu ngân hàng báo "Kiểm tra lại các trường tô đỏ." (validate `^\d{6}$`), không phải lỗi mật khẩu — chẩn đoán bằng mini-probe (0 lần thử sai trong `admin_login_attempts` chứng tỏ chưa tới bước kiểm mật khẩu). Sửa: dùng BIN Vietcombank `970436`.
+- **Lint warning biến thừa.** `slug-collision.db.test.ts` định nghĩa hàm `pageValues` nhưng không dùng (test xuất bản trang seed bằng `setAdminPagePublished` thay vì tạo trang mới) → lint báo 1 warning thừa. Sửa: xóa hẳn hàm `pageValues` (commit riêng sau commit chính), chạy lại lint còn đúng 2 warning `<img>` có từ trước, chạy lại test:db vẫn 56/56.
 - **`/proc/<pid>/environ` không phản ánh biến `--env-file`.** Environ của tiến trình chỉ giữ giá trị lúc `exec`; biến Node nạp từ env-file không hiện ở đó — đừng dùng cách này để kiểm env của server. (Mật khẩu thử local chỉ dùng cho server chạy bằng env thử; file env thử đã xóa sau probe; mật khẩu thật của Henry không đụng tới.)
 - **Lập chỉ mục vẫn TẮT** trên live theo quyết định của Henry — ngày này không đụng vào (bật lại chỉ ở go-live, bước 6 checklist).
 

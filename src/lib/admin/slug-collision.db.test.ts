@@ -36,21 +36,6 @@ function categoryValues(slug: string) {
   return { name: `Danh mục ${slug}`, slug, sortOrder: 99, seoTitle: "", seoDescription: "" };
 }
 
-function pageValues(slug: string, isPublished: boolean) {
-  return {
-    title: `Trang ${slug}`,
-    slug,
-    content: "Nội dung thử.",
-    seoTitle: "",
-    seoDescription: "",
-    sortOrder: 99,
-    isPublished,
-    showInFooter: false,
-    legacyPath: null,
-    confirmReplace: false,
-  };
-}
-
 describe("va chạm slug danh mục ↔ trang tĩnh (Ngày 15 B1)", () => {
   let seedTitle = "";
 
