@@ -5,10 +5,12 @@
 # Ngân hàng & QR, Khu vực & phí, Telegram khi chưa đăng nhập;
 # Ngày 13 D2 thêm 4 mục: trang tĩnh nháp → 404, Trang tĩnh + Cài
 # đặt SEO khi chưa đăng nhập, sitemap đếm đúng số trang đã xuất bản
-# — biến SMOKE_EXPECTED_PUBLISHED_PAGES, mặc định 0 vì hiện chưa có
-# trang nào xuất bản) — thay cho chuỗi curl gõ tay (D9-1). Chỉ dùng
-# GET, không đăng nhập, không ghi dữ liệu. Thoát 0 khi mọi mục PASS,
-# khác 0 khi có mục FAIL.
+# — biến SMOKE_PUBLISHED_PAGE_SLUGS (danh sách slug, cách nhau bằng
+# dấu phẩy; mặc định rỗng → 0 vì hiện chưa có trang nào xuất bản);
+# Ngày 14: trang tĩnh ở slug gốc (không còn /trang/), sitemap
+# không được chứa URL /trang/ nào) — thay cho chuỗi curl gõ tay
+# (D9-1). Chỉ dùng GET, không đăng nhập, không ghi dữ liệu. Thoát 0
+# khi mọi mục PASS, khác 0 khi có mục FAIL.
 #
 #   ./scripts/smoke-live.sh https://flowershop-steel.vercel.app/
 #   ./scripts/smoke-live.sh http://localhost:3000   (kiểm bản local)
@@ -70,9 +72,12 @@ check() {
   fi
 }
 
-# check_sitemap_pages <tên> — đếm URL /trang/ trong sitemap, so
-# với SMOKE_EXPECTED_PUBLISHED_PAGES (mặc định 0). Sitemap chỉ liệt
-# kê trang đã xuất bản (Ngày 13 B4) nên số này phải đúng.
+# check_sitemap_pages <tên> — đếm URL trang tĩnh đã xuất bản trong
+# sitemap, so với danh sách slug trong SMOKE_PUBLISHED_PAGE_SLUGS
+# (cách nhau bằng dấu phẩy, mặc định rỗng → 0 vì hiện chưa có trang
+# nào xuất bản; Ngày 14: trang tĩnh ở slug gốc, không còn /trang/).
+# Sitemap chỉ liệt kê trang đã xuất bản nên số này phải đúng, và
+# không được còn URL /trang/ nào.
 check_sitemap_pages() {
   local name="$1"
   local body="$TMP/sitemap-pages-body"
@@ -82,16 +87,33 @@ check_sitemap_pages() {
   code="${out%% *}"
   time_s="${out##* }"
   local count=0
-  if [ -f "$body" ]; then count="$(grep -c "/trang/" "$body" || true)"; fi
-  local expected="${SMOKE_EXPECTED_PUBLISHED_PAGES:-0}"
+  local expected_list="${SMOKE_PUBLISHED_PAGE_SLUGS:-}"
+  local expected=0
+  if [ -n "$expected_list" ]; then
+    expected="$(printf '%s' "$expected_list" | awk -F, '{ print NF }')"
+  fi
+  if [ -f "$body" ]; then
+    count=0
+    # Đếm từng slug mong đợi có mặt trong sitemap.
+    local slug
+    IFS=',' read -ra SLUGS <<< "$expected_list"
+    for slug in "${SLUGS[@]}"; do
+      slug="$(printf '%s' "$slug" | xargs)"
+      if [ -n "$slug" ] && grep -qF "$BASE/$slug<" "$body"; then
+        count=$((count + 1))
+      fi
+    done
+  fi
   local ms
   ms="$(awk -v t="$time_s" 'BEGIN { printf "%d", t * 1000 }')"
-  if [ "$code" = "200" ] && [ "$count" = "$expected" ]; then
+  local trang_left=0
+  if [ -f "$body" ]; then trang_left="$(grep -c "/trang/" "$body" || true)"; fi
+  if [ "$code" = "200" ] && [ "$count" = "$expected" ] && [ "$trang_left" = "0" ]; then
     PASS=$((PASS + 1))
     printf "%-32s %-42s %4s %6s ms  PASS (%s trang đã xuất bản)\n" "$name" "/sitemap.xml" "$code" "$ms" "$count"
   else
     FAIL=$((FAIL + 1))
-    printf "%-32s %-42s %4s %6s ms  FAIL (muốn %s trang, được %s; mã %s)\n" "$name" "/sitemap.xml" "$code" "$ms" "$expected" "$count" "$code"
+    printf "%-32s %-42s %4s %6s ms  FAIL (muốn %s trang, được %s; còn %s URL /trang/; mã %s)\n" "$name" "/sitemap.xml" "$code" "$ms" "$expected" "$count" "$trang_left" "$code"
   fi
 }
 
@@ -111,7 +133,8 @@ check "Cài đặt chung (chưa đăng nhập)" "/admin/settings/general" "307" 
 check "Ngân hàng & QR (chưa đăng nhập)" "/admin/settings/bank" "307" "location-login"
 check "Khu vực & phí (chưa đăng nhập)" "/admin/shipping-zones" "307" "location-login"
 check "Telegram (chưa đăng nhập)" "/admin/settings/telegram" "307" "location-login"
-check "Trang tĩnh nháp (giới thiệu)" "/trang/gioi-thieu" "404"
+check "Trang tĩnh nháp (giới thiệu)" "/gioi-thieu" "404"
+check "Tiền tố /trang/ đã bỏ" "/trang/gioi-thieu" "404"
 check "Trang tĩnh (chưa đăng nhập)" "/admin/pages" "307" "location-login"
 check "Cài đặt SEO (chưa đăng nhập)" "/admin/settings/seo" "307" "location-login"
 check_sitemap_pages "Sitemap (số trang đã xuất bản)"

@@ -6,7 +6,14 @@ import type { CatalogParams } from "./catalog-params";
 import type { ProductSummary } from "./queries";
 
 export type CategoryPageData = {
-  category: { id: number; name: string; slug: string };
+  category: {
+    id: number;
+    name: string;
+    slug: string;
+    // SEO riêng (Ngày 14 D1/D2): rỗng = dùng tên/mô tả như hiện nay.
+    seoTitle: string;
+    seoDescription: string;
+  };
   products: ProductSummary[]; // tối đa PAGE_SIZE, đã lọc/sắp xếp/phân trang, kèm categorySlug
   total: number; // tổng sản phẩm khớp bộ lọc (trước phân trang)
   totalPages: number; // Math.ceil(total / PAGE_SIZE), 0 nếu rỗng
@@ -23,7 +30,7 @@ async function fetchCategoryPage(
   // Truy vấn 1: danh mục theo slug.
   const category = await db.category.findUnique({
     where: { slug },
-    select: { id: true, name: true, slug: true },
+    select: { id: true, name: true, slug: true, seoTitle: true, seoDescription: true },
   });
   if (!category) return null;
 

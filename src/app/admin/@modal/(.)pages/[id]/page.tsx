@@ -23,7 +23,7 @@ export default async function AdminEditPageModal({
   const page = await getAdminPage(pageId);
   if (!page) notFound();
   return (
-    <ProductModal title={`Sửa trang ${page.title}`}>
+    <ProductModal title={`Sửa trang: ${page.title}`}>
       <PageForm
         mode="edit"
         action={updatePageAction.bind(null, page.id)}
@@ -39,6 +39,7 @@ export default async function AdminEditPageModal({
           sortOrder: String(page.sortOrder),
           isPublished: page.isPublished,
           showInFooter: page.showInFooter,
+            legacyPath: page.legacyPath ?? "",
         }}
       />
     </ProductModal>

@@ -13,6 +13,7 @@ function input(overrides: Partial<PageFormInput> = {}): PageFormInput {
     sortOrder: "0",
     isPublished: false,
     showInFooter: false,
+    legacyPath: "",
     ...overrides,
   };
 }
@@ -58,5 +59,13 @@ describe("validatePageForm", () => {
     const { values } = validatePageForm(input({ isPublished: true, showInFooter: true }));
     assert.equal(values?.isPublished, true);
     assert.equal(values?.showInFooter, true);
+  });
+  it("legacyPath: rỗng → null; bốn đường dẫn cũ → nhận; khác → lỗi (Ngày 14 C1)", () => {
+    assert.equal(validatePageForm(input()).values?.legacyPath, null);
+    for (const p of ["/about", "/policy", "/faq", "/contact"]) {
+      assert.equal(validatePageForm(input({ legacyPath: p })).values?.legacyPath, p);
+    }
+    assert.ok(validatePageForm(input({ legacyPath: "/gioi-thieu" })).errors.legacyPath);
+    assert.ok(validatePageForm(input({ legacyPath: "about" })).errors.legacyPath);
   });
 });

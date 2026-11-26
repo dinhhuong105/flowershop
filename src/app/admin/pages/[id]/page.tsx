@@ -28,7 +28,7 @@ export default async function AdminEditPagePage({
   if (!page) notFound();
   return (
     <div>
-      <h1 className="text-3xl font-bold text-slate-900">Sửa trang {page.title}</h1>
+      <h1 className="text-3xl font-bold text-slate-900">Sửa trang: {page.title}</h1>
       <div className="mt-6">
         <PageForm
           mode="edit"
@@ -45,6 +45,7 @@ export default async function AdminEditPagePage({
             sortOrder: String(page.sortOrder),
             isPublished: page.isPublished,
             showInFooter: page.showInFooter,
+            legacyPath: page.legacyPath ?? "",
           }}
         />
       </div>

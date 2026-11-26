@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -107,25 +107,6 @@ const ICON_SHIELD = (
     <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
   </Icon>
 );
-const ICON_PIN = (
-  <Icon>
-    <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
-    <circle cx="12" cy="10" r="3" />
-  </Icon>
-);
-const ICON_BANKNOTE = (
-  <Icon>
-    <rect x="2" y="6" width="20" height="12" rx="2" />
-    <circle cx="12" cy="12" r="2" />
-    <path d="M6 12h.01M18 12h.01" />
-  </Icon>
-);
-const ICON_SEND = (
-  <Icon>
-    <path d="m22 2-7 20-4-9-9-4Z" />
-    <path d="M22 2 11 13" />
-  </Icon>
-);
 const ICON_SETTINGS = (
   <Icon>
     <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
@@ -153,8 +134,9 @@ type NavItem = {
   href?: string;
   match?: (pathname: string) => boolean;
   soon?: boolean;
-  // Nhóm con (Ngày 11 B3): mục cha không phải link, các mục con là
-  // link thật (vd "Cài đặt shop" → Chung / Liên hệ).
+  // Nhóm con (Ngày 11 B3, Ngày 14 B2): mục cha là nút mở/đóng,
+  // các mục con là link thật. Nhóm tự mở khi đang ở một mục con.
+  collapsible?: boolean;
   children?: Array<{ label: string; href: string; match: (pathname: string) => boolean }>;
 };
 
@@ -170,23 +152,34 @@ const ITEMS: NavItem[] = [
   { label: "Tin nhắn", section: "sales", icon: ICON_MESSAGE, soon: true },
   { label: "Tài khoản quản trị", section: "users", icon: ICON_USER, soon: true },
   { label: "Vai trò & phân quyền", section: "users", icon: ICON_SHIELD, soon: true },
-  { label: "Khu vực & phí giao hàng", section: "config", icon: ICON_PIN, href: "/admin/shipping-zones", match: (p) => p === "/admin/shipping-zones" || p.startsWith("/admin/shipping-zones/") },
-  { label: "Ngân hàng & QR", section: "config", icon: ICON_BANKNOTE, href: "/admin/settings/bank", match: (p) => p === "/admin/settings/bank" },
-  { label: "Telegram", section: "config", icon: ICON_SEND, href: "/admin/settings/telegram", match: (p) => p === "/admin/settings/telegram" },
+  // Nhóm "Cài đặt" (Ngày 14 B2): một mục mở/đóng chứa 6 mục con —
+  // Chung, Liên hệ, SEO, Khu vực & phí giao hàng, Ngân hàng & QR,
+  // Telegram. URL các trang con KHÔNG đổi nên không cần chuyển hướng.
+  // Nhóm tự mở khi đang ở một trang con; nút mở/đóng có
+  // aria-expanded, bấm được bằng Enter/Space (button gốc).
   {
-    label: "Cài đặt shop",
+    label: "Cài đặt",
     section: "config",
     icon: ICON_SETTINGS,
-    // Chỉ sáng nhóm khi đang ở một mục con của nó (Chung/Liên hệ);
-    // Ngân hàng & QR và Telegram là mục riêng nên không tính.
-    match: (p) => p === "/admin/settings/general" || p === "/admin/settings/contact",
+    match: (p) =>
+      p === "/admin/settings/general" ||
+      p === "/admin/settings/contact" ||
+      p === "/admin/settings/seo" ||
+      p === "/admin/shipping-zones" ||
+      p.startsWith("/admin/shipping-zones/") ||
+      p === "/admin/settings/bank" ||
+      p === "/admin/settings/telegram",
+    collapsible: true,
     children: [
       { label: "Chung", href: "/admin/settings/general", match: (p) => p === "/admin/settings/general" },
       { label: "Liên hệ", href: "/admin/settings/contact", match: (p) => p === "/admin/settings/contact" },
+      { label: "SEO", href: "/admin/settings/seo", match: (p) => p === "/admin/settings/seo" },
+      { label: "Khu vực & phí giao hàng", href: "/admin/shipping-zones", match: (p) => p === "/admin/shipping-zones" || p.startsWith("/admin/shipping-zones/") },
+      { label: "Ngân hàng & QR", href: "/admin/settings/bank", match: (p) => p === "/admin/settings/bank" },
+      { label: "Telegram", href: "/admin/settings/telegram", match: (p) => p === "/admin/settings/telegram" },
     ],
   },
   { label: "Nhật ký hoạt động", section: "config", icon: ICON_CLOCK, soon: true },
-  { label: "Cài đặt SEO", section: "config", icon: ICON_FILE, href: "/admin/settings/seo", match: (p) => p === "/admin/settings/seo" },
   { label: "Xem shop ↗", section: "shop", icon: ICON_EXTERNAL, href: "/", match: () => false },
 ];
 
@@ -198,6 +191,68 @@ const SECTIONS: Array<{ key: string; label: string | null }> = [
   { key: "config", label: "Cấu hình" },
   { key: "shop", label: "Cửa hàng" },
 ];
+
+// Nhóm mục con có nút mở/đóng (Ngày 14 B2): nút có aria-expanded,
+// bấm được bằng Enter/Space (button gốc). Nhóm tự mở khi đang ở
+// một mục con — lúc đó nút luôn hiện mở (không đóng được để mục
+// đang mở không biến mất khỏi menu, A4 Ngày 13 vẫn cuộn được tới
+// mục đang mở).
+function NavGroup({
+  item,
+  pathname,
+  onNavigate,
+}: {
+  item: NavItem;
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  const groupActive = item.match ? item.match(pathname) : false;
+  const [manuallyOpen, setManuallyOpen] = useState(false);
+  const open = groupActive || manuallyOpen;
+  return (
+    <li>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setManuallyOpen((v) => !v)}
+        className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold ${
+          groupActive ? "text-white" : "text-slate-400 hover:bg-white/10 hover:text-white"
+        }`}
+      >
+        <span className="shrink-0" aria-hidden="true">
+          {item.icon}
+        </span>
+        <span className="min-w-0 flex-1 text-left leading-snug">{item.label}</span>
+        <span aria-hidden="true" className="shrink-0 text-xs">
+          {open ? "▾" : "▸"}
+        </span>
+      </button>
+      {open ? (
+        <ul className="space-y-1">
+          {item.children!.map((child) => {
+            const childActive = child.match(pathname);
+            return (
+              <li key={child.href}>
+                <Link
+                  href={child.href}
+                  aria-current={childActive ? "page" : undefined}
+                  onClick={onNavigate}
+                  className={`flex min-h-11 items-center gap-3 rounded-lg py-2 pl-11 pr-3 text-sm font-semibold transition-colors duration-150 ${
+                    childActive
+                      ? "bg-[#2563eb] font-bold text-white"
+                      : "text-slate-400 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  {child.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </li>
+  );
+}
 
 export default function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
@@ -224,42 +279,13 @@ export default function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
           <ul className="space-y-1">
             {ITEMS.filter((item) => item.section === section.key).map((item) => {
               if (item.children) {
-                const groupActive = item.match ? item.match(pathname) : false;
                 return (
-                  <li key={item.label}>
-                    <span
-                      aria-current={groupActive ? "true" : undefined}
-                      className={`flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold ${
-                        groupActive ? "text-white" : "text-slate-400"
-                      }`}
-                    >
-                      <span className="shrink-0" aria-hidden="true">
-                        {item.icon}
-                      </span>
-                      <span className="min-w-0 leading-snug">{item.label}</span>
-                    </span>
-                    <ul className="space-y-1">
-                      {item.children.map((child) => {
-                        const childActive = child.match(pathname);
-                        return (
-                          <li key={child.href}>
-                            <Link
-                              href={child.href}
-                              aria-current={childActive ? "page" : undefined}
-                              onClick={onNavigate}
-                              className={`flex min-h-11 items-center gap-3 rounded-lg py-2 pl-11 pr-3 text-sm font-semibold transition-colors duration-150 ${
-                                childActive
-                                  ? "bg-[#2563eb] font-bold text-white"
-                                  : "text-slate-400 hover:bg-white/10 hover:text-white"
-                              }`}
-                            >
-                              {child.label}
-                            </Link>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </li>
+                  <NavGroup
+                    key={item.label}
+                    item={item}
+                    pathname={pathname}
+                    onNavigate={onNavigate}
+                  />
                 );
               }
               if (item.soon || !item.href) {

@@ -56,6 +56,8 @@ describe("admin categories (DB)", () => {
       name: "DB Test Danh Mục",
       slug: TEST_SLUG,
       sortOrder: 99,
+      seoTitle: "",
+      seoDescription: "",
     });
     assert.ok(!("conflict" in created), "không được trùng slug");
     const rows = await listAdminCategoriesWithCounts();
@@ -71,6 +73,8 @@ describe("admin categories (DB)", () => {
       name: "DB Test Trùng",
       slug: TEST_SLUG,
       sortOrder: 1,
+      seoTitle: "",
+      seoDescription: "",
     });
     assert.ok("conflict" in result, "phải trả conflict");
     assert.equal(result.conflict.field, "slug");
@@ -88,6 +92,8 @@ describe("admin categories (DB)", () => {
       name: "DB Test Đã Sửa",
       slug: TEST_SLUG_2,
       sortOrder: 5,
+      seoTitle: "",
+      seoDescription: "",
     });
     assert.ok(updated !== null && !("conflict" in updated), "sửa phải thành công");
     const after = await getAdminCategory(row.id);

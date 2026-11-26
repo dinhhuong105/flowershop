@@ -48,6 +48,10 @@ export const MIN_PRODUCT_PRICE = 1000;
 export const MAX_PRODUCT_PRICE = 100000000;
 export const MIN_PRODUCT_SORT_ORDER = 0;
 export const MAX_PRODUCT_SORT_ORDER = 9999;
+// Giới hạn SEO riêng (Ngày 14 D1): tiêu đề ≤ 120, mô tả ≤ 160,
+// cho phép rỗng (trống thì dùng tên/mô tả như hiện nay).
+export const MAX_SEO_TITLE_LENGTH = 120;
+export const MAX_SEO_DESCRIPTION_LENGTH = 160;
 
 // Dữ liệu thô từ FormData (mọi trường đều là chuỗi).
 export type ProductFormInput = {
@@ -64,6 +68,9 @@ export type ProductFormInput = {
   inStock: boolean;
   isFastDelivery: boolean;
   images: string[];
+  // SEO riêng (Ngày 14 D1): rỗng = dùng tên/mô tả như hiện nay.
+  seoTitle: string;
+  seoDescription: string;
 };
 
 export type ProductFormValues = {
@@ -80,6 +87,8 @@ export type ProductFormValues = {
   inStock: boolean;
   isFastDelivery: boolean;
   images: string[];
+  seoTitle: string;
+  seoDescription: string;
 };
 
 export type ProductFormErrors = Partial<
@@ -93,7 +102,9 @@ export type ProductFormErrors = Partial<
     | "description"
     | "tags"
     | "sortOrder"
-    | "images",
+    | "images"
+    | "seoTitle"
+    | "seoDescription",
     string
   >
 >;
@@ -212,6 +223,16 @@ export function validateProductForm(
     errors.images = "Ảnh không hợp lệ.";
   }
 
+  // SEO riêng (Ngày 14 D1): cho phép rỗng, tối đa 120/160 ký tự.
+  const seoTitle = input.seoTitle.trim();
+  if (seoTitle.length > MAX_SEO_TITLE_LENGTH) {
+    errors.seoTitle = "Tiêu đề SEO tối đa 120 ký tự.";
+  }
+  const seoDescription = input.seoDescription.trim();
+  if (seoDescription.length > MAX_SEO_DESCRIPTION_LENGTH) {
+    errors.seoDescription = "Mô tả SEO tối đa 160 ký tự.";
+  }
+
   if (Object.keys(errors).length > 0) return { errors, values: null };
   return {
     errors,
@@ -229,6 +250,8 @@ export function validateProductForm(
       inStock: input.inStock,
       isFastDelivery: input.isFastDelivery,
       images,
+      seoTitle,
+      seoDescription,
     },
   };
 }

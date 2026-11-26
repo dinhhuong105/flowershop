@@ -32,6 +32,7 @@ export default async function AdminNewPagePage() {
             sortOrder: "0",
             isPublished: false,
             showInFooter: false,
+            legacyPath: "",
           }}
         />
       </div>

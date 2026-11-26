@@ -385,6 +385,16 @@ describe("validateSeoValues (Ngày 13 C1)", () => {
         .titleTemplate,
     );
   });
+  it("{siteName} hai lần, {...} khác → lỗi; mẫu mặc định mới hợp lệ", () => {
+    assert.ok(
+      validateSeoValues({ titleTemplate: "%s | {siteName} {siteName}" }).errors
+        .titleTemplate,
+    );
+    assert.ok(
+      validateSeoValues({ titleTemplate: "%s | {shop}" }).errors.titleTemplate,
+    );
+    assert.deepEqual(validateSeoValues({ titleTemplate: "%s | {siteName}" }).errors, {});
+  });
   it("mô tả > 160, từ khóa > 200, OG svg → lỗi; OG rỗng → được", () => {
     assert.ok(
       validateSeoValues({ titleTemplate: "%s | X", defaultDescription: "x".repeat(161) })
@@ -403,8 +413,8 @@ describe("validateSeoValues (Ngày 13 C1)", () => {
       {},
     );
   });
-  it("mặc định seo: mẫu đúng tên shop hiện nay, lập chỉ mục BẬT", () => {
-    assert.equal(DEFAULT_SETTINGS.titleTemplate, "%s | Hoa Tươi Demo");
+  it("mặc định seo: mẫu mới dùng {siteName}, lập chỉ mục BẬT", () => {
+    assert.equal(DEFAULT_SETTINGS.titleTemplate, "%s | {siteName}");
     assert.equal(DEFAULT_SETTINGS.allowIndexing, true);
     assert.equal(DEFAULT_SETTINGS.defaultOgImage, "");
   });

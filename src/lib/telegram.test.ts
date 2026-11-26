@@ -306,4 +306,59 @@ describe("sendBankChangeNotification với mock Telegram (Ngày 12 B3)", () => {
       child.kill();
     }
   });
+
+  it("có N đơn chưa thu → tin nhắn thêm câu N đơn bị ảnh hưởng (Ngày 14 B5)", async () => {
+    const port = 18084;
+    const logPath = "/tmp/mock-telegram-b5-test.jsonl";
+    rmSync(logPath, { force: true });
+    const mockPath = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      "../../scripts/mock-telegram.mjs",
+    );
+    const child = spawn(process.execPath, [mockPath], {
+      env: {
+        ...process.env,
+        MOCK_TELEGRAM_PORT: String(port),
+        MOCK_TELEGRAM_MODE: "ok",
+        MOCK_TELEGRAM_LOG: logPath,
+      },
+      stdio: "ignore",
+    });
+    try {
+      const base = `http://127.0.0.1:${port}`;
+      let up = false;
+      for (let i = 0; i < 50 && !up; i++) {
+        try {
+          const res = await fetch(base, { signal: AbortSignal.timeout(500) });
+          up = res.ok;
+        } catch {
+          await new Promise((r) => setTimeout(r, 100));
+        }
+      }
+      assert.ok(up, "mock Telegram không khởi động được");
+      const prevToken = process.env.TELEGRAM_BOT_TOKEN;
+      const prevChatId = process.env.TELEGRAM_CHAT_ID;
+      const prevBase = process.env.TELEGRAM_API_BASE;
+      process.env.TELEGRAM_BOT_TOKEN = "test-token";
+      process.env.TELEGRAM_CHAT_ID = "123456";
+      process.env.TELEGRAM_API_BASE = base;
+      try {
+        const result = await sendBankChangeNotification(3);
+        assert.equal(result.ok, true);
+      } finally {
+        if (prevToken === undefined) delete process.env.TELEGRAM_BOT_TOKEN;
+        else process.env.TELEGRAM_BOT_TOKEN = prevToken;
+        if (prevChatId === undefined) delete process.env.TELEGRAM_CHAT_ID;
+        else process.env.TELEGRAM_CHAT_ID = prevChatId;
+        if (prevBase === undefined) delete process.env.TELEGRAM_API_BASE;
+        else process.env.TELEGRAM_API_BASE = prevBase;
+      }
+      const logged = JSON.parse(readFileSync(logPath, "utf-8").trim().split("\n").pop()!);
+      const text = (logged.body as { text: string }).text;
+      assert.ok(text.includes("3 đơn chưa thu bị ảnh hưởng"));
+      assert.equal(text.includes("1234567890"), false);
+    } finally {
+      child.kill();
+    }
+  });
 });

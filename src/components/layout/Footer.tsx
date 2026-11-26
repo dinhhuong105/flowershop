@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { siteConfig, telHref, zaloHref } from "@/config/site";
 import { isBankConfiguredFromSettings } from "@/lib/bank";
+import { resolveLegacyLink } from "@/lib/legacy-paths";
 import type { ShopSettings } from "@/lib/settings";
 
 // Footer (mục 4.3 phụ lục): nền green-900, 5 cột. Cột 2–4 ("Về chúng
@@ -12,19 +13,30 @@ import type { ShopSettings } from "@/lib/settings";
 // phải trường cài đặt). Không cột newsletter, không logo
 // VISA/Mastercard/MoMo/ZaloPay. Thanh dưới: © + badge COD, Chuyển khoản.
 //
-// Ngày 13 B4: thêm cột "Trang tĩnh" liệt kê trang đã xuất bản +
-// showInFooter (theo sortOrder) — chỉ hiện khi có ít nhất một trang.
+// Ngày 13 B4, Ngày 14: thêm cột "Trang tĩnh" liệt kê trang đã xuất
+// bản + showInFooter (theo sortOrder) — chỉ hiện khi có ít nhất một
+// trang. Trang tĩnh ở slug gốc (bỏ /trang theo lệnh Henry 26/11).
 // Các mục footer cũ giữ nguyên (không tự gỡ /policy hay các link cũ
 // khi có trang thay thế — việc thay thế do Henry quyết từng trang;
 // không để link chết vì /policy vẫn tồn tại).
 export default function Footer({
   settings,
   footerPages = [],
+  legacyReplacements = new Map(),
 }: {
   settings: ShopSettings;
   footerPages?: Array<{ slug: string; title: string }>;
+  // Đường dẫn cũ → slug trang mới đã xuất bản (Ngày 14 C3).
+  legacyReplacements?: ReadonlyMap<string, string>;
 }) {
   const year = new Date().getFullYear();
+  // Link cũ trỏ sang trang tĩnh thay thế khi có; mục cũ bị ẩn khi
+  // đích của nó trùng URL trang tĩnh trong cột "Trang tĩnh" (tránh
+  // hai link khác nhau cùng dẫn tới một trang).
+  const footerUrls = new Set(footerPages.map((p) => `/${p.slug}`));
+  const legacyHref = (path: string) =>
+    resolveLegacyLink(path, legacyReplacements);
+  const showLegacy = (path: string) => !footerUrls.has(legacyHref(path));
   const hasContact =
     settings.address || settings.hotline || settings.zalo || settings.openHours;
   const socialLinks = [
@@ -65,46 +77,60 @@ export default function Footer({
             </ul>
           ) : null}
         </div>
-        <nav aria-label="Về chúng tôi">
-          <p className="font-semibold">Về chúng tôi</p>
-          <ul className="mt-3 space-y-2 text-sm text-white/80">
-            <li>
-              <Link href="/about" className="hover:text-white hover:underline">
-                Giới thiệu
-              </Link>
-            </li>
-            <li>
-              <Link href="/faq" className="hover:text-white hover:underline">
-                Câu hỏi thường gặp
-              </Link>
-            </li>
-          </ul>
-        </nav>
-        <nav aria-label="Hỗ trợ khách hàng">
-          <p className="font-semibold">Hỗ trợ khách hàng</p>
-          <ul className="mt-3 space-y-2 text-sm text-white/80">
-            <li>
-              <Link href="/faq" className="hover:text-white hover:underline">
-                Câu hỏi thường gặp
-              </Link>
-            </li>
-            <li>
-              <Link href="/contact" className="hover:text-white hover:underline">
-                Liên hệ
-              </Link>
-            </li>
-          </ul>
-        </nav>
-        <nav aria-label="Chính sách">
-          <p className="font-semibold">Chính sách</p>
-          <ul className="mt-3 space-y-2 text-sm text-white/80">
-            <li>
-              <Link href="/policy" className="hover:text-white hover:underline">
-                Chính sách giao hàng, thanh toán, đổi trả
-              </Link>
-            </li>
-          </ul>
-        </nav>
+        {showLegacy("/about") || showLegacy("/faq") ? (
+          <nav aria-label="Về chúng tôi">
+            <p className="font-semibold">Về chúng tôi</p>
+            <ul className="mt-3 space-y-2 text-sm text-white/80">
+              {showLegacy("/about") ? (
+                <li>
+                  <Link href={legacyHref("/about")} className="hover:text-white hover:underline">
+                    Giới thiệu
+                  </Link>
+                </li>
+              ) : null}
+              {showLegacy("/faq") ? (
+                <li>
+                  <Link href={legacyHref("/faq")} className="hover:text-white hover:underline">
+                    Câu hỏi thường gặp
+                  </Link>
+                </li>
+              ) : null}
+            </ul>
+          </nav>
+        ) : null}
+        {showLegacy("/faq") || showLegacy("/contact") ? (
+          <nav aria-label="Hỗ trợ khách hàng">
+            <p className="font-semibold">Hỗ trợ khách hàng</p>
+            <ul className="mt-3 space-y-2 text-sm text-white/80">
+              {showLegacy("/faq") ? (
+                <li>
+                  <Link href={legacyHref("/faq")} className="hover:text-white hover:underline">
+                    Câu hỏi thường gặp
+                  </Link>
+                </li>
+              ) : null}
+              {showLegacy("/contact") ? (
+                <li>
+                  <Link href={legacyHref("/contact")} className="hover:text-white hover:underline">
+                    Liên hệ
+                  </Link>
+                </li>
+              ) : null}
+            </ul>
+          </nav>
+        ) : null}
+        {showLegacy("/policy") ? (
+          <nav aria-label="Chính sách">
+            <p className="font-semibold">Chính sách</p>
+            <ul className="mt-3 space-y-2 text-sm text-white/80">
+              <li>
+                <Link href={legacyHref("/policy")} className="hover:text-white hover:underline">
+                  Chính sách giao hàng, thanh toán, đổi trả
+                </Link>
+              </li>
+            </ul>
+          </nav>
+        ) : null}
         {footerPages.length > 0 ? (
           <nav aria-label="Trang tĩnh">
             <p className="font-semibold">Trang tĩnh</p>
@@ -112,7 +138,7 @@ export default function Footer({
               {footerPages.map((page) => (
                 <li key={page.slug}>
                   <Link
-                    href={`/trang/${page.slug}`}
+                    href={`/${page.slug}`}
                     className="hover:text-white hover:underline"
                   >
                     {page.title}

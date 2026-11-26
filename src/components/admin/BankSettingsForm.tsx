@@ -14,6 +14,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { saveBankSettingsAction } from "@/app/admin/settings/actions";
 import {
@@ -22,6 +23,7 @@ import {
 } from "@/lib/admin/settings-form-state";
 import { BANK_NAMES, bankNameForBin } from "@/lib/bank";
 import { maskAccountNumber } from "@/lib/settings";
+import { bankChangeWarningText } from "@/lib/admin/bank-warning";
 import BankQrPreview from "@/components/admin/BankQrPreview";
 
 const inputClass =
@@ -30,6 +32,7 @@ const labelClass = "block text-sm font-semibold text-slate-900";
 
 export default function BankSettingsForm({
   initial,
+  unpaidBankTransferCount,
 }: {
   initial: {
     bankCode: string;
@@ -38,6 +41,8 @@ export default function BankSettingsForm({
     transferNoteTemplate: string;
     bankEnabled: boolean;
   };
+  /** Số đơn chuyển khoản chưa thu lúc mở trang (Ngày 14 B5). */
+  unpaidBankTransferCount: number;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -75,6 +80,17 @@ export default function BankSettingsForm({
   }
 
   const maskedAccount = accountNumber === "" ? "" : maskAccountNumber(accountNumber);
+
+  // Cảnh báo khi lưu (Ngày 14 B5): form khác giá trị đang lưu và
+  // có đơn chuyển khoản chưa thu thì các đơn đó sẽ hiển thị QR mới.
+  // So tên chủ TK theo dạng đã chuẩn hóa (máy chủ lưu in hoa).
+  const hasChanges =
+    bankCode !== initial.bankCode ||
+    accountNumber !== initial.accountNumber ||
+    accountName.toUpperCase() !== initial.accountName.toUpperCase() ||
+    transferNoteTemplate !== initial.transferNoteTemplate ||
+    bankEnabled !== initial.bankEnabled;
+  const showBankWarning = hasChanges && unpaidBankTransferCount > 0;
 
   // Gửi trực tiếp qua dispatch (không native submit): tránh React
   // reset form sau action, làm mất <select>/<checkbox> đã chọn.
@@ -264,6 +280,24 @@ export default function BankSettingsForm({
           </p>
         </div>
       </section>
+
+      {/* Cảnh báo khi lưu (Ngày 14 B5): chỉ hiện khi form đã đổi và
+          có đơn chuyển khoản chưa thu; đổi lại về như cũ thì ẩn. */}
+      {showBankWarning ? (
+        <p
+          data-testid="bank-change-warning"
+          role="status"
+          className="rounded-lg border border-yellow-600/40 bg-yellow-50 px-4 py-3 text-sm font-medium text-yellow-800"
+        >
+          {bankChangeWarningText(unpaidBankTransferCount)}{" "}
+          <Link
+            href="/admin/orders?tab=all&payment=UNPAID&method=BANK_TRANSFER&exclude=CANCELLED"
+            className="font-bold underline hover:text-yellow-900"
+          >
+            Xem danh sách
+          </Link>
+        </p>
+      ) : null}
 
       <button
         type="submit"

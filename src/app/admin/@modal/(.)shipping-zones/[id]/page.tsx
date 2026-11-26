@@ -23,7 +23,7 @@ export default async function AdminEditZoneModal({
   const zone = await getAdminZone(zoneId);
   if (!zone) notFound();
   return (
-    <ProductModal title={`Sửa khu vực ${zone.name}`}>
+    <ProductModal title={`Sửa khu vực: ${zone.name}`}>
       <ZoneForm
         mode="edit"
         action={updateZoneAction.bind(null, zone.id)}

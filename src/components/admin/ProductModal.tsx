@@ -48,7 +48,7 @@ export default function ProductModal({
       className="m-auto w-[calc(100vw-2rem)] max-w-3xl rounded-xl border border-slate-200 bg-white p-6 shadow-[0_24px_64px_rgba(15,30,51,0.35)] backdrop:bg-black/40"
     >
       <div className="flex items-start justify-between gap-4">
-        <h2 className="text-xl font-bold text-slate-900">{title}</h2>
+        <h2 className="min-w-0 flex-1 truncate text-xl font-bold text-slate-900">{title}</h2>
         <button
           type="button"
           onClick={close}

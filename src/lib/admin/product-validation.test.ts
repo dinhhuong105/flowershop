@@ -24,6 +24,8 @@ function baseInput(overrides: Partial<ProductFormInput> = {}): ProductFormInput 
     inStock: true,
     isFastDelivery: false,
     images: [],
+    seoTitle: "",
+    seoDescription: "",
     ...overrides,
   };
 }
@@ -91,6 +93,23 @@ describe("validateProductForm", () => {
     assert.equal(
       validateProductForm(baseInput({ salePrice: "1000" })).values?.salePrice,
       1000,
+    );
+  });
+  it("SEO: rỗng → chuỗi rỗng; ≤ 120/160 → nhận; quá dài → lỗi (Ngày 14 D1)", () => {
+    const { errors, values } = validateProductForm(
+      baseInput({ seoTitle: "Bó hồng đỏ đẹp", seoDescription: "Mô tả ngắn gọn." }),
+    );
+    assert.deepEqual(errors, {});
+    assert.equal(values?.seoTitle, "Bó hồng đỏ đẹp");
+    assert.equal(values?.seoDescription, "Mô tả ngắn gọn.");
+    assert.equal(
+      validateProductForm(baseInput({ seoTitle: "T".repeat(121) })).errors.seoTitle,
+      "Tiêu đề SEO tối đa 120 ký tự.",
+    );
+    assert.equal(
+      validateProductForm(baseInput({ seoDescription: "M".repeat(161) })).errors
+        .seoDescription,
+      "Mô tả SEO tối đa 160 ký tự.",
     );
   });
   it("K-4: ảnh do client gửi không có trong DB → lỗi, dù action đã đọc ảnh đã có từ DB", () => {

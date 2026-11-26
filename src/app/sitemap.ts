@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
 import { siteConfig } from "@/config/site";
+import { getLegacyReplacements } from "@/lib/admin/pages";
 
 // Sitemap (Ngày 9, lộ trình gốc): trang tĩnh + danh mục + sản phẩm
 // đang bán. force-dynamic để không truy vấn DB lúc `next build`
@@ -13,13 +14,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // trước đây lastModified: now đổi mỗi lần request, Google dần bỏ
   // qua tín hiệu này. Danh mục/sản phẩm giữ lastmod thật theo
   // updatedAt trong DB.
+  // Đường dẫn cũ đã có trang thay thế thì KHÔNG vào sitemap
+  // (Ngày 14 C3) — chỉ trang mới được lập chỉ mục.
+  const replacements = await getLegacyReplacements();
   const staticPages: MetadataRoute.Sitemap = [
     { url: base },
     { url: `${base}/faq` },
     { url: `${base}/about` },
     { url: `${base}/contact` },
     { url: `${base}/policy` },
-  ];
+  ].filter((entry) => {
+    const path = entry.url.slice(base.length);
+    return !replacements.has(path);
+  });
   const categories = await db.category.findMany({
     select: { slug: true, updatedAt: true },
     orderBy: { sortOrder: "asc" },
@@ -33,8 +40,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     orderBy: { id: "asc" },
   });
-  // Trang tĩnh đã xuất bản (Ngày 13 B4): chỉ trang đã xuất bản mới
-  // vào sitemap; nháp không lộ.
+  // Trang tĩnh đã xuất bản (Ngày 13 B4, Ngày 14: ở slug gốc, bỏ
+  // /trang theo lệnh Henry 26/11): chỉ trang đã xuất bản mới vào
+  // sitemap; nháp không lộ.
   const pages = await db.page.findMany({
     where: { isPublished: true },
     select: { slug: true, updatedAt: true },
@@ -51,7 +59,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: p.updatedAt,
     })),
     ...pages.map((p) => ({
-      url: `${base}/trang/${p.slug}`,
+      url: `${base}/${p.slug}`,
       lastModified: p.updatedAt,
     })),
   ];

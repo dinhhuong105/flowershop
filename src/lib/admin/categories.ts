@@ -21,6 +21,8 @@ export type AdminCategoryDetail = {
   slug: string;
   sortOrder: number;
   productCount: number;
+  seoTitle: string;
+  seoDescription: string;
 };
 
 export async function listAdminCategoriesWithCounts(): Promise<AdminCategoryRow[]> {
@@ -51,6 +53,8 @@ export async function getAdminCategory(id: number): Promise<AdminCategoryDetail 
       name: true,
       slug: true,
       sortOrder: true,
+      seoTitle: true,
+      seoDescription: true,
       _count: { select: { products: true } },
     },
   });
@@ -61,6 +65,8 @@ export async function getAdminCategory(id: number): Promise<AdminCategoryDetail 
     slug: row.slug,
     sortOrder: row.sortOrder,
     productCount: row._count.products,
+    seoTitle: row.seoTitle,
+    seoDescription: row.seoDescription,
   };
 }
 
@@ -88,6 +94,8 @@ export async function createAdminCategory(
       name: values.name,
       slug: values.slug,
       sortOrder: values.sortOrder,
+      seoTitle: values.seoTitle,
+      seoDescription: values.seoDescription,
     },
     select: { id: true },
   });
@@ -121,6 +129,8 @@ export async function updateAdminCategory(
       name: values.name,
       slug: values.slug,
       sortOrder: values.sortOrder,
+      seoTitle: values.seoTitle,
+      seoDescription: values.seoDescription,
     },
   });
   return { id };

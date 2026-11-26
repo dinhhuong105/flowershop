@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/admin/auth";
+import { getSettings } from "@/lib/settings-cache";
 import { getAdminCategory } from "@/lib/admin/categories";
 import { updateCategoryAction } from "@/app/actions/admin";
 import CategoryForm from "@/components/admin/CategoryForm";
 import ProductModal from "@/components/admin/ProductModal";
+import { CATEGORY_DESCRIPTIONS } from "@/lib/category-descriptions";
 
 export const dynamic = "force-dynamic";
 
@@ -20,19 +22,27 @@ export default async function AdminEditCategoryModal({
   const { id } = await params;
   const categoryId = Number(id);
   if (!Number.isInteger(categoryId) || categoryId <= 0) notFound();
-  const category = await getAdminCategory(categoryId);
+  const [category, settings] = await Promise.all([
+    getAdminCategory(categoryId),
+    getSettings(),
+  ]);
   if (!category) notFound();
   return (
-    <ProductModal title={`Sửa danh mục ${category.name}`}>
+    <ProductModal title={`Sửa danh mục: ${category.name}`}>
       <CategoryForm
         mode="edit"
         action={updateCategoryAction.bind(null, category.id)}
         onSuccess="back"
         originalSlug={category.slug}
+        siteName={settings.siteName}
+        urlPath={`/${category.slug}`}
+        fallbackDescription={CATEGORY_DESCRIPTIONS[category.slug] ?? ""}
         initial={{
           name: category.name,
           slug: category.slug,
           sortOrder: String(category.sortOrder),
+          seoTitle: category.seoTitle,
+          seoDescription: category.seoDescription,
         }}
       />
     </ProductModal>

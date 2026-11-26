@@ -43,6 +43,9 @@ model Category {
   slug        String    @unique
   description String?
   sortOrder   Int       @default(0)
+  // SEO riêng (Ngày 14 D1): rỗng = dùng tên/mô tả mặc định như trước.
+  seoTitle       String   @default("")
+  seoDescription String   @default("")
   products    Product[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -66,6 +69,9 @@ model Product {
   sku            String?    @unique // mã sản phẩm hiển thị, ví dụ HT-001
   inStock        Boolean    @default(true) // false = tạm hết hàng (vẫn hiển thị, không cho mua)
   sortOrder      Int        @default(0)
+  // SEO riêng (Ngày 14 D1): rỗng = dùng tên/mô tả mặc định như trước.
+  seoTitle       String     @default("")
+  seoDescription String     @default("")
   cartItems      CartItem[]
   orderItems     OrderItem[]
   createdAt      DateTime   @default(now())
@@ -214,6 +220,10 @@ model Page {
   seoDescription String   @default("")
   sortOrder      Int      @default(0)
   showInFooter   Boolean  @default(false)
+  // Đường dẫn cũ được trang này thay thế (Ngày 14 C1): chỉ một trang
+  // được giữ một legacyPath; chỉ có hiệu lực khi trang đã xuất bản.
+  // NULL = không thay trang cũ nào.
+  legacyPath     String?  @unique
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

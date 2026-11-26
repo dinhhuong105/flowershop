@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/admin/auth";
+import { getSettings } from "@/lib/settings-cache";
 import { listAdminCategories } from "@/lib/admin/products";
 import { createProductAction } from "@/app/actions/admin";
 import ProductForm from "@/components/admin/ProductForm";
@@ -12,7 +13,10 @@ export const dynamic = "force-dynamic";
 // /admin/products/new đầy đủ hiện thay (không phải popup này).
 export default async function AdminNewProductModal() {
   await requireAdmin();
-  const categories = await listAdminCategories();
+  const [categories, settings] = await Promise.all([
+    listAdminCategories(),
+    getSettings(),
+  ]);
   return (
     <ProductModal title="Thêm sản phẩm">
       <ProductForm
@@ -20,6 +24,7 @@ export default async function AdminNewProductModal() {
         categories={categories}
         action={createProductAction}
         onSuccess="back"
+        siteName={settings.siteName}
         initial={{
           name: "",
           slug: "",
@@ -34,6 +39,8 @@ export default async function AdminNewProductModal() {
           inStock: true,
           isFastDelivery: false,
           images: [],
+          seoTitle: "",
+          seoDescription: "",
         }}
       />
     </ProductModal>

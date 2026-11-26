@@ -28,6 +28,7 @@ import { useRouter } from "next/navigation";
 import { slugifyName } from "@/lib/admin/product-validation";
 import { MAX_IMAGES_PER_PRODUCT } from "@/lib/admin/upload-rules";
 import { FilterSelectField, StyledCheckbox } from "@/components/admin/filter-controls";
+import SeoFieldsSection from "@/components/admin/SeoFieldsSection";
 import {
   initialAdminProductState,
   type AdminProductState,
@@ -47,6 +48,8 @@ export type ProductFormInitial = {
   inStock: boolean;
   isFastDelivery: boolean;
   images: string[];
+  seoTitle: string;
+  seoDescription: string;
 };
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -62,6 +65,8 @@ export default function ProductForm({
   action,
   originalSlug,
   productId,
+  siteName = "Hoa Tươi Demo",
+  urlPath = "",
   onSuccess = "list",
 }: {
   mode: "create" | "edit";
@@ -73,6 +78,10 @@ export default function ProductForm({
   ) => Promise<AdminProductState>;
   originalSlug?: string;
   productId?: number;
+  /** Tên shop cho xem trước SEO; trang gọi truyền tên thật từ Cài đặt. */
+  siteName?: string;
+  /** Đường dẫn trang để xem trước (rỗng khi tạo mới). */
+  urlPath?: string;
   // Sau khi lưu thành công: "back" quay lại trang trước (popup —
   // giữ nguyên bộ lọc trên URL), "list" về /admin/products (trang
   // trực tiếp). Mặc định "list" để giữ đúng hành vi cũ.
@@ -93,6 +102,8 @@ export default function ProductForm({
   const slugRef = useRef<HTMLInputElement | null>(null);
   const slugTouchedRef = useRef(false);
   const [slugValue, setSlugValue] = useState(saved?.slug ?? initial.slug);
+  // Tên hiện tại để xem trước SEO (theo dõi khi gõ — xem SeoFieldsSection).
+  const [nameValue, setNameValue] = useState(saved?.name ?? initial.name);
   const [images, setImages] = useState<string[]>(initial.images);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -111,6 +122,7 @@ export default function ProductForm({
   }
 
   function handleNameChange(event: React.ChangeEvent<HTMLInputElement>) {
+    setNameValue(event.target.value);
     if (!slugTouchedRef.current && slugRef.current) {
       const generated = slugifyName(event.target.value);
       slugRef.current.value = generated;
@@ -443,6 +455,19 @@ export default function ProductForm({
           {fieldError("images")}
         </div>
       </section>
+
+      {/* SEO riêng (Ngày 14 D1): phần gập, không bắt buộc. */}
+      <SeoFieldsSection
+        siteName={siteName}
+        fallbackTitle={nameValue}
+        fallbackDescription={saved?.description ?? initial.description}
+        fallbackDescriptionNote="Để trống thì dùng mô tả sản phẩm (cắt 155 ký tự)."
+        urlPath={urlPath}
+        initialTitle={saved?.seoTitle ?? initial.seoTitle}
+        initialDescription={saved?.seoDescription ?? initial.seoDescription}
+        titleError={err("seoTitle")}
+        descriptionError={err("seoDescription")}
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <button

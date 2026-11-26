@@ -16,6 +16,8 @@ export type AdminPageRow = {
   showInFooter: boolean;
   sortOrder: number;
   updatedAt: Date;
+  // Đường dẫn cũ thay thế (Ngày 14 C1), null = không thay trang nào.
+  legacyPath: string | null;
 };
 
 export type AdminPageDetail = AdminPageRow & {
@@ -44,6 +46,7 @@ export async function listAdminPages(): Promise<AdminPageRow[]> {
       showInFooter: true,
       sortOrder: true,
       updatedAt: true,
+      legacyPath: true,
     },
   });
 }
@@ -62,6 +65,7 @@ export async function getAdminPage(id: number): Promise<AdminPageDetail | null> 
       sortOrder: true,
       showInFooter: true,
       updatedAt: true,
+      legacyPath: true,
     },
   });
 }
@@ -79,6 +83,39 @@ export async function getPublishedPageBySlug(slug: string): Promise<PublishedPag
       updatedAt: true,
     },
   });
+}
+
+// Trang đã xuất bản thay thế một đường dẫn cũ (Ngày 14 C1/C2):
+// nháp/không tồn tại/không thay đường dẫn này → null.
+export async function getPublishedPageByLegacyPath(
+  legacyPath: string,
+): Promise<PublishedPage | null> {
+  return db.page.findFirst({
+    where: { legacyPath, isPublished: true },
+    select: {
+      slug: true,
+      title: true,
+      content: true,
+      seoTitle: true,
+      seoDescription: true,
+      updatedAt: true,
+    },
+  });
+}
+
+// Map đường dẫn cũ → slug trang mới đã xuất bản (Ngày 14 C3):
+// dùng cho Footer, sitemap và liên kết nội bộ. Chỉ trang đã xuất
+// bản mới được thay thế đường dẫn cũ.
+export async function getLegacyReplacements(): Promise<Map<string, string>> {
+  const rows = await db.page.findMany({
+    where: { isPublished: true, legacyPath: { not: null } },
+    select: { slug: true, legacyPath: true },
+  });
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    if (row.legacyPath !== null) map.set(row.legacyPath, row.slug);
+  }
+  return map;
 }
 
 // Trang hiện ở chân trang (B4): đã xuất bản + showInFooter, theo
@@ -138,7 +175,10 @@ export async function seedDefaultPages(): Promise<number> {
   });
   return seeds.length;
 }
-export type PageSaveConflict = { field: "slug"; message: string };
+export type PageSaveConflict = {
+  field: "slug" | "legacyPath";
+  message: string;
+};
 
 // Slug không được trùng trang khác, không trùng slug danh mục
 // (B1), không trùng đường dẫn cố định (phòng thủ thêm — form đã
@@ -170,11 +210,36 @@ async function findSlugClash(
   return null;
 }
 
+// Một đường dẫn cũ chỉ được một trang thay thế (Ngày 14 C1).
+// DB có unique index làm chốt chặn; kiểm trước để báo lỗi thân thiện.
+async function findLegacyPathClash(
+  legacyPath: string | null,
+  excludeId?: number,
+): Promise<PageSaveConflict | null> {
+  if (legacyPath === null) return null;
+  const clash = await db.page.findFirst({
+    where: {
+      legacyPath,
+      ...(excludeId !== undefined ? { id: { not: excludeId } } : {}),
+    },
+    select: { id: true, slug: true },
+  });
+  if (clash) {
+    return {
+      field: "legacyPath",
+      message: `Đường dẫn cũ này đã được trang /${clash.slug} thay thế.`,
+    };
+  }
+  return null;
+}
+
 export async function createAdminPage(
   values: PageFormValues,
 ): Promise<{ id: number } | { conflict: PageSaveConflict }> {
   const clash = await findSlugClash(values.slug);
   if (clash) return { conflict: clash };
+  const legacyClash = await findLegacyPathClash(values.legacyPath);
+  if (legacyClash) return { conflict: legacyClash };
   const created = await db.$transaction(async (tx) => {
     const page = await tx.page.create({
       data: {
@@ -186,6 +251,7 @@ export async function createAdminPage(
         seoDescription: values.seoDescription,
         sortOrder: values.sortOrder,
         showInFooter: values.showInFooter,
+        legacyPath: values.legacyPath,
       },
       select: { id: true, slug: true },
     });
@@ -203,11 +269,14 @@ export async function updateAdminPage(
 ): Promise<{ id: number } | { conflict: PageSaveConflict } | null> {
   const existing = await db.page.findUnique({
     where: { id },
-    select: { id: true, title: true, slug: true },
+    select: { id: true, title: true, slug: true, legacyPath: true },
   });
   if (!existing) return null;
   const clash = await findSlugClash(values.slug, id);
   if (clash) return { conflict: clash };
+  const legacyClash = await findLegacyPathClash(values.legacyPath, id);
+  if (legacyClash) return { conflict: legacyClash };
+  const legacyChanged = existing.legacyPath !== values.legacyPath;
   await db.$transaction(async (tx) => {
     await tx.page.update({
       where: { id },
@@ -220,6 +289,7 @@ export async function updateAdminPage(
         seoDescription: values.seoDescription,
         sortOrder: values.sortOrder,
         showInFooter: values.showInFooter,
+        legacyPath: values.legacyPath,
       },
     });
     await tx.settingsAudit.create({
@@ -230,6 +300,21 @@ export async function updateAdminPage(
         updatedBy: "admin",
       },
     });
+    // Ghi rõ thay đổi legacyPath (cùng transaction) để nhật ký
+    // hoạt động thấy được ai thay/gỡ trang cũ nào.
+    if (legacyChanged) {
+      await tx.settingsAudit.create({
+        data: {
+          key: `page:${values.slug}`,
+          oldValue: existing.legacyPath ?? "(không thay trang cũ)",
+          newValue:
+            values.legacyPath === null
+              ? "(đã gỡ thay thế)"
+              : `thay thế ${values.legacyPath}`,
+          updatedBy: "admin",
+        },
+      });
+    }
   });
   return { id };
 }

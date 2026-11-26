@@ -248,6 +248,19 @@ function tabCondition(tab: OrderTab): Prisma.Sql | null {
   }
 }
 
+// Số đơn chuyển khoản chưa thu (Ngày 14 B5): phương thức chuyển
+// khoản, chưa thanh toán, không tính đơn đã hủy. Dùng cho cảnh báo
+// trên trang Ngân hàng & QR và tin Telegram báo đổi ngân hàng.
+export async function countUnpaidBankTransferOrders(): Promise<number> {
+  return db.order.count({
+    where: {
+      paymentMethod: "BANK_TRANSFER",
+      paymentStatus: "UNPAID",
+      status: { not: "CANCELLED" },
+    },
+  });
+}
+
 export async function listAdminOrders(
   opts: ListAdminOrdersOpts = {},
 ): Promise<AdminOrderList> {

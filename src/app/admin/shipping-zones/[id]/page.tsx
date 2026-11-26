@@ -28,7 +28,7 @@ export default async function AdminEditZonePage({
   if (!zone) notFound();
   return (
     <div>
-      <h1 className="text-3xl font-bold text-slate-900">Sửa khu vực {zone.name}</h1>
+      <h1 className="text-3xl font-bold text-slate-900">Sửa khu vực: {zone.name}</h1>
       <div className="mt-6">
         <ZoneForm
           mode="edit"

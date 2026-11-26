@@ -28,6 +28,7 @@ export default async function AdminNewPageModal() {
           sortOrder: "0",
           isPublished: false,
           showInFooter: false,
+            legacyPath: "",
         }}
       />
     </ProductModal>

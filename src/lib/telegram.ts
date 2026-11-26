@@ -227,10 +227,15 @@ export async function sendTelegramMessage(
   }
 }
 
-// Báo chủ shop khi nhóm bank đổi (B3): chỉ báo giờ đổi, KHÔNG kèm
+// Báo chủ shop khi nhóm bank đổi (B3, B5 Ngày 14): chỉ báo giờ đổi
+// + số đơn chuyển khoản chưa thu bị ảnh hưởng (nếu có), KHÔNG kèm
 // số tài khoản hay số đầy đủ nào.
-export async function sendBankChangeNotification(): Promise<{ ok: boolean; error?: string }> {
+export async function sendBankChangeNotification(
+  unpaidCount = 0,
+): Promise<{ ok: boolean; error?: string }> {
+  const affected =
+    unpaidCount > 0 ? ` ${unpaidCount} đơn chưa thu bị ảnh hưởng.` : "";
   return sendTelegramMessage(
-    `Thông tin ngân hàng vừa được thay đổi lúc ${formatVnDateTime(new Date())}.`,
+    `Thông tin ngân hàng vừa được thay đổi lúc ${formatVnDateTime(new Date())}.${affected}`,
   );
 }

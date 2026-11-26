@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/admin/auth";
+import { getSettings } from "@/lib/settings-cache";
 import { createCategoryAction } from "@/app/actions/admin";
 import CategoryForm from "@/components/admin/CategoryForm";
 import ProductModal from "@/components/admin/ProductModal";
@@ -13,13 +14,15 @@ export const dynamic = "force-dynamic";
 // nội dung con, không riêng gì sản phẩm.
 export default async function AdminNewCategoryModal() {
   await requireAdmin();
+  const settings = await getSettings();
   return (
     <ProductModal title="Thêm danh mục">
       <CategoryForm
         mode="create"
         action={createCategoryAction}
         onSuccess="back"
-        initial={{ name: "", slug: "", sortOrder: "0" }}
+        siteName={settings.siteName}
+        initial={{ name: "", slug: "", sortOrder: "0", seoTitle: "", seoDescription: "" }}
       />
     </ProductModal>
   );

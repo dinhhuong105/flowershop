@@ -1,16 +1,27 @@
 import type { Metadata } from "next";
+import { redirectIfReplaced } from "@/lib/legacy-redirect";
 
-export const metadata: Metadata = {
-  title: "Chính sách",
-  description:
-    "Chính sách giao hàng, thanh toán, đổi trả và bảo mật thông tin của Hoa Tươi Demo.",
+type Props = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
+
+// Chuyển vĩnh viễn sang trang tĩnh thay thế khi Henry đã xuất bản
+// (Ngày 14 C2); chưa thay thì hiện trang cũ như thường.
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+  await redirectIfReplaced("/policy", await searchParams);
+  return {
+    title: "Chính sách",
+    description:
+      "Chính sách giao hàng, thanh toán, đổi trả và bảo mật thông tin của Hoa Tươi Demo.",
+  };
+}
 
 // Trang chính sách (Ngày 9, lộ trình gốc). Chỉ ghi điều đã xác nhận
 // được từ cách website đang chạy; mọi chi tiết chính sách cụ thể
 // (phí, thời hạn, điều kiện đổi trả) đều ghi rõ "Đang cập nhật." —
 // không bịa cam kết hay con số.
-export default function PolicyPage() {
+export default async function PolicyPage({ searchParams }: Props) {
+  await redirectIfReplaced("/policy", await searchParams);
   return (
     <div className="shell pb-12 pt-6">
       <h1 className="font-display text-3xl font-semibold text-ink sm:text-4xl">

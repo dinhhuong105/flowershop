@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/admin/auth";
+import { getSettings } from "@/lib/settings-cache";
 import { createCategoryAction } from "@/app/actions/admin";
 import CategoryForm from "@/components/admin/CategoryForm";
 
@@ -15,6 +16,7 @@ export const metadata: Metadata = {
 // (intercepting route @modal) hiện thay.
 export default async function AdminNewCategoryPage() {
   await requireAdmin();
+  const settings = await getSettings();
   return (
     <div>
       <h1 className="text-3xl font-bold text-slate-900">Thêm danh mục</h1>
@@ -23,7 +25,8 @@ export default async function AdminNewCategoryPage() {
           mode="create"
           action={createCategoryAction}
           onSuccess="list"
-          initial={{ name: "", slug: "", sortOrder: "0" }}
+          siteName={settings.siteName}
+          initial={{ name: "", slug: "", sortOrder: "0", seoTitle: "", seoDescription: "" }}
         />
       </div>
     </div>

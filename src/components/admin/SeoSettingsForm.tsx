@@ -15,6 +15,7 @@ import {
   initialSettingsFormState,
   type SettingsFormState,
 } from "@/lib/admin/settings-form-state";
+import { applyTitleTemplate } from "@/lib/title-template";
 import SettingsImageField from "@/components/admin/SettingsImageField";
 
 const inputClass =
@@ -27,6 +28,7 @@ const SAMPLE_PAGE_TITLE = "Bó Hồng Đỏ Tình Yêu";
 export default function SeoSettingsForm({
   initial,
   siteUrl,
+  siteName,
 }: {
   initial: {
     titleTemplate: string;
@@ -37,6 +39,8 @@ export default function SeoSettingsForm({
   };
   /** Domain shop (để xem trước đường dẫn) — máy chủ truyền vào. */
   siteUrl: string;
+  /** Tên shop hiện nay (để xem trước {siteName}) — máy chủ truyền vào. */
+  siteName: string;
 }) {
   const router = useRouter();
   const [state, dispatch] = useActionState<SettingsFormState, FormData>(
@@ -67,10 +71,14 @@ export default function SeoSettingsForm({
     );
   }
 
-  // Tiêu đề xem trước: thay %s bằng tên trang mẫu (mẫu lỗi thì hiện nguyên mẫu).
-  const previewTitle = titleTemplate.includes("%s")
-    ? titleTemplate.replace("%s", SAMPLE_PAGE_TITLE)
-    : titleTemplate;
+  // Tiêu đề xem trước: áp mẫu (thay %s bằng tên trang mẫu,
+  // {siteName} bằng tên shop hiện nay) — một lượt, không lồng.
+  const previewTitle = applyTitleTemplate(titleTemplate, SAMPLE_PAGE_TITLE, siteName);
+  // Mẫu đang ghi tên shop theo chữ cứng thì gợi ý dùng {siteName}.
+  const suggestsSiteName =
+    siteName !== "" &&
+    titleTemplate.includes(siteName) &&
+    !titleTemplate.includes("{siteName}");
   const previewDescription =
     defaultDescription === ""
       ? "Chưa nhập mô tả mặc định — trang sẽ dùng slogan của shop."
@@ -134,8 +142,13 @@ export default function SeoSettingsForm({
           {fieldError("titleTemplate")}
           <p className="mt-1 text-sm text-slate-500">
             {titleTemplate.length}/80 ký tự. %s là tên trang/sản phẩm — mẫu phải chứa đúng
-            một lần %s. Ví dụ: &ldquo;%s | Hoa Tươi Demo&rdquo;.
+            một lần %s. {"{siteName}"} là tên shop (tối đa một lần). Ví dụ: &ldquo;%s | {"{siteName}"}&rdquo;.
           </p>
+          {suggestsSiteName ? (
+            <p className="mt-1 text-sm font-medium text-blue-800">
+              Dùng {"{siteName}"} để tiêu đề tự đổi theo tên shop.
+            </p>
+          ) : null}
         </div>
 
         <div>

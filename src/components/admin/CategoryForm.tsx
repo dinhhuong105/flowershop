@@ -18,6 +18,7 @@ import { useEffect, useRef, useState, useActionState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { slugifyName } from "@/lib/admin/product-validation";
+import SeoFieldsSection from "@/components/admin/SeoFieldsSection";
 import {
   initialAdminCategoryState,
   type AdminCategoryState,
@@ -27,6 +28,8 @@ export type CategoryFormInitial = {
   name: string;
   slug: string;
   sortOrder: string;
+  seoTitle: string;
+  seoDescription: string;
 };
 
 const inputClass =
@@ -38,6 +41,9 @@ export default function CategoryForm({
   initial,
   action,
   originalSlug,
+  siteName = "Hoa Tươi Demo",
+  urlPath = "",
+  fallbackDescription = "",
   onSuccess = "list",
 }: {
   mode: "create" | "edit";
@@ -47,6 +53,12 @@ export default function CategoryForm({
     formData: FormData,
   ) => Promise<AdminCategoryState>;
   originalSlug?: string;
+  /** Tên shop cho xem trước SEO; trang gọi truyền tên thật từ Cài đặt. */
+  siteName?: string;
+  /** Đường dẫn trang để xem trước (rỗng khi tạo mới). */
+  urlPath?: string;
+  /** Mô tả danh mục hiện nay (để xem trước khi seoDescription trống). */
+  fallbackDescription?: string;
   // Sau khi lưu thành công: "back" quay lại trang trước (popup),
   // "list" về /admin/categories (trang trực tiếp). Mặc định "list".
   onSuccess?: "back" | "list";
@@ -63,6 +75,8 @@ export default function CategoryForm({
   const slugRef = useRef<HTMLInputElement | null>(null);
   const slugTouchedRef = useRef(false);
   const [slugValue, setSlugValue] = useState(saved?.slug ?? initial.slug);
+  // Tên hiện tại để xem trước SEO (theo dõi khi gõ — xem SeoFieldsSection).
+  const [nameValue, setNameValue] = useState(saved?.name ?? initial.name);
 
   const err = (field: keyof AdminCategoryState["fieldErrors"]) =>
     state.fieldErrors[field] ?? null;
@@ -78,6 +92,7 @@ export default function CategoryForm({
   }
 
   function handleNameChange(event: React.ChangeEvent<HTMLInputElement>) {
+    setNameValue(event.target.value);
     if (!slugTouchedRef.current && slugRef.current) {
       const generated = slugifyName(event.target.value);
       slugRef.current.value = generated;
@@ -159,6 +174,19 @@ export default function CategoryForm({
           {fieldError("sortOrder")}
         </div>
       </section>
+
+      {/* SEO riêng (Ngày 14 D1): phần gập, không bắt buộc. */}
+      <SeoFieldsSection
+        siteName={siteName}
+        fallbackTitle={nameValue}
+        fallbackDescription={fallbackDescription}
+        fallbackDescriptionNote="Để trống thì dùng mô tả mặc định của danh mục."
+        urlPath={urlPath}
+        initialTitle={saved?.seoTitle ?? initial.seoTitle}
+        initialDescription={saved?.seoDescription ?? initial.seoDescription}
+        titleError={err("seoTitle")}
+        descriptionError={err("seoDescription")}
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <button

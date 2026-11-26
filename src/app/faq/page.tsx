@@ -1,11 +1,21 @@
 import type { Metadata } from "next";
 import Accordion from "@/components/ui/Accordion";
+import { redirectIfReplaced } from "@/lib/legacy-redirect";
 
-export const metadata: Metadata = {
-  title: "Câu hỏi thường gặp",
-  description:
-    "Cách đặt hoa, giao hàng, thanh toán và theo dõi đơn hàng tại Hoa Tươi Demo.",
+type Props = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
+
+// Chuyển vĩnh viễn sang trang tĩnh thay thế khi Henry đã xuất bản
+// (Ngày 14 C2); chưa thay thì hiện trang cũ như thường.
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+  await redirectIfReplaced("/faq", await searchParams);
+  return {
+    title: "Câu hỏi thường gặp",
+    description:
+      "Cách đặt hoa, giao hàng, thanh toán và theo dõi đơn hàng tại Hoa Tươi Demo.",
+  };
+}
 
 // Trang FAQ (Ngày 9, lộ trình gốc). Chỉ ghi điều đã xác nhận được
 // từ cách website đang chạy; chỗ nào chờ Henry (khu vực/phí giao,
@@ -48,7 +58,8 @@ const ITEMS = [
   },
 ];
 
-export default function FaqPage() {
+export default async function FaqPage({ searchParams }: Props) {
+  await redirectIfReplaced("/faq", await searchParams);
   return (
     <div className="shell pb-12 pt-6">
       <h1 className="font-display text-3xl font-semibold text-ink sm:text-4xl">

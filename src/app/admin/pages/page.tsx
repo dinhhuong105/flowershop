@@ -43,17 +43,20 @@ export default async function AdminPagesPage() {
         </p>
       ) : (
         <>
-          {/* Bảng từ 768 px */}
+          {/* Bảng từ 768 px (Ngày 14 B3): không tràn ngang — cột "Chân
+              trang" gộp vào ô Trạng thái dạng nhãn nhỏ; tiêu đề/slug
+              được xuống dòng. Kiểm scrollWidth == clientWidth ở
+              1280/1024/768 px với 10 dòng, slug 60 ký tự, tiêu đề
+              120 ký tự. */}
           <div className="mt-6 hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm md:block">
-            <table className="w-full text-left text-sm">
+            <table className="w-full table-fixed text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                  <th scope="col" className="px-4 py-3 font-semibold">Tiêu đề</th>
-                  <th scope="col" className="px-4 py-3 font-semibold">Đường dẫn (slug)</th>
-                  <th scope="col" className="px-4 py-3 font-semibold">Trạng thái</th>
-                  <th scope="col" className="px-4 py-3 font-semibold">Chân trang</th>
-                  <th scope="col" className="px-4 py-3 font-semibold">Cập nhật</th>
-                  <th scope="col" className="px-4 py-3 font-semibold">
+                  <th scope="col" className="w-[28%] px-4 py-3 font-semibold">Tiêu đề</th>
+                  <th scope="col" className="w-[26%] px-4 py-3 font-semibold">Đường dẫn (slug)</th>
+                  <th scope="col" className="w-[16%] px-4 py-3 font-semibold">Trạng thái</th>
+                  <th scope="col" className="w-[14%] px-4 py-3 font-semibold">Cập nhật</th>
+                  <th scope="col" className="w-[16%] px-4 py-3 font-semibold">
                     <span className="sr-only">Thao tác</span>
                   </th>
                 </tr>
@@ -61,18 +64,24 @@ export default async function AdminPagesPage() {
               <tbody>
                 {pages.map((p) => (
                   <tr key={p.id} data-testid="admin-page-row" data-page-id={p.id} className="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">
-                    <td className="px-4 py-3">
+                    <td className="break-words px-4 py-3">
                       <Link href={`/admin/pages/${p.id}`} className="inline-flex min-h-11 items-center font-bold text-slate-900 hover:text-blue-600 hover:underline">
                         {p.title}
                       </Link>
                     </td>
-                    <td className="px-4 py-3">
-                      <Link href={`/trang/${p.slug}`} className="text-slate-500 hover:text-blue-600 hover:underline">
-                        /trang/{p.slug}
+                    <td className="break-all px-4 py-3">
+                      <Link href={`/${p.slug}`} className="text-slate-500 hover:text-blue-600 hover:underline">
+                        /{p.slug}
                       </Link>
                     </td>
-                    <td className="px-4 py-3">{p.isPublished ? "Đã xuất bản" : "Nháp"}</td>
-                    <td className="px-4 py-3">{p.showInFooter ? "Có" : "Không"}</td>
+                    <td className="px-4 py-3">
+                      {p.isPublished ? "Đã xuất bản" : "Nháp"}
+                      {p.showInFooter ? (
+                        <span className="ml-2 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                          Chân trang
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="px-4 py-3">{formatVnDateTime(p.updatedAt)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -101,7 +110,7 @@ export default async function AdminPagesPage() {
                   {p.title}
                 </Link>
                 <p className="mt-1 text-sm text-slate-500">
-                  /trang/{p.slug} · {p.isPublished ? "Đã xuất bản" : "Nháp"} ·{" "}
+                  /{p.slug} · {p.isPublished ? "Đã xuất bản" : "Nháp"} ·{" "}
                   {p.showInFooter ? "Chân trang" : "Không ở chân trang"} ·{" "}
                   {formatVnDateTime(p.updatedAt)}
                 </p>

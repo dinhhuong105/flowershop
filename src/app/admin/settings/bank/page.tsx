@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/admin/auth";
 import { getSettings } from "@/lib/settings-cache";
+import { countUnpaidBankTransferOrders } from "@/lib/admin/orders";
 import BankSettingsForm from "@/components/admin/BankSettingsForm";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +17,9 @@ export const metadata: Metadata = {
 export default async function AdminSettingsBankPage() {
   await requireAdmin();
   const settings = await getSettings();
+  // Số đơn chuyển khoản chưa thu (Ngày 14 B5): để form hiện cảnh
+  // báo khi đổi thông tin ngân hàng.
+  const unpaidBankTransferCount = await countUnpaidBankTransferOrders();
 
   return (
     <div>
@@ -33,6 +37,7 @@ export default async function AdminSettingsBankPage() {
             transferNoteTemplate: settings.transferNoteTemplate,
             bankEnabled: settings.bankEnabled,
           }}
+          unpaidBankTransferCount={unpaidBankTransferCount}
         />
       </div>
     </div>

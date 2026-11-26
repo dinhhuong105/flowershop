@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/admin/auth";
+import { getSettings } from "@/lib/settings-cache";
 import { getAdminProduct, listAdminCategories } from "@/lib/admin/products";
 import { updateProductAction } from "@/app/actions/admin";
 import ProductForm from "@/components/admin/ProductForm";
@@ -21,9 +22,10 @@ export default async function AdminEditProductPage({
   const { id } = await params;
   const productId = Number(id);
   if (!Number.isInteger(productId) || productId <= 0) notFound();
-  const [product, categories] = await Promise.all([
+  const [product, categories, settings] = await Promise.all([
     getAdminProduct(productId),
     listAdminCategories(),
+    getSettings(),
   ]);
   if (!product) notFound();
   return (
@@ -41,6 +43,8 @@ export default async function AdminEditProductPage({
           onSuccess="list"
           originalSlug={product.slug}
           productId={product.id}
+          siteName={settings.siteName}
+          urlPath={`/${product.categorySlug}/${product.slug}`}
           initial={{
             name: product.name,
             slug: product.slug,
@@ -55,6 +59,8 @@ export default async function AdminEditProductPage({
             inStock: product.inStock,
             isFastDelivery: product.isFastDelivery,
             images: product.images,
+            seoTitle: product.seoTitle,
+            seoDescription: product.seoDescription,
           }}
         />
       </div>

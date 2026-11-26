@@ -27,6 +27,8 @@ import {
 } from "@/lib/settings";
 import { getSettings } from "@/lib/settings-cache";
 import { sendBankChangeNotification, sendTelegramMessage } from "@/lib/telegram";
+import { countUnpaidBankTransferOrders } from "@/lib/admin/orders";
+import { bankSaveSuccessMessage } from "@/lib/admin/bank-warning";
 import { formatVnDateTime } from "@/lib/vn-datetime";
 import type { SettingsFormState } from "@/lib/admin/settings-form-state";
 
@@ -126,20 +128,20 @@ export async function saveBankSettingsAction(
   const saved = await saveSettingsToDb("bank", values, "admin");
   let message = "Đã lưu thông tin ngân hàng.";
   if (saved.length > 0) {
+    // B5 (Ngày 14): N đơn chuyển khoản chưa thu tại thời điểm lưu —
+    // ghi vào thông báo sau khi lưu và tin Telegram báo đổi ngân hàng.
+    const unpaidCount = await countUnpaidBankTransferOrders();
     // B3: báo chủ shop 1 tin Telegram mỗi khi nhóm bank đổi (không
     // kèm số đầy đủ). Telegram lỗi thì KHÔNG chặn lưu — ghi nhận
     // vào nhật ký để Henry thấy trong audit.
-    const notify = await sendBankChangeNotification();
+    const notify = await sendBankChangeNotification(unpaidCount);
     await recordSettingsAudit(
       "bank.notify",
       null,
       notify.ok ? "sent" : `failed: ${notify.error ?? "unknown"}`,
       "admin",
     );
-    if (!notify.ok) {
-      message =
-        "Đã lưu thông tin ngân hàng. Lưu ý: không gửi được thông báo Telegram, đã ghi vào nhật ký.";
-    }
+    message = bankSaveSuccessMessage(unpaidCount, !notify.ok);
   }
   revalidateTag("site-settings");
   revalidatePath("/", "layout");

@@ -10,6 +10,7 @@
 import { siteConfig } from "@/config/site";
 import { db } from "@/lib/db";
 import { isValidEmail, isValidPhone, normalizePhone } from "./checkout-validation";
+import { validateTitleTemplate } from "./title-template";
 
 export type ShopSettings = {
   siteName: string;
@@ -176,11 +177,10 @@ export const DEFAULT_SETTINGS: ShopSettings = {
   transferNoteTemplate: "DH {ORDER_CODE}",
   telegramChatId: "",
   telegramEnabled: defaultTelegramEnabledFromEnv(),
-  // SEO (Ngày 13 C1): mẫu tiêu đề giữ đúng cách đặt hiện nay
-  // ("%s | tên shop"); mô tả mặc định = mô tả hiện nay của shop.
-  // Lưu ý: mẫu tiêu đề lưu tên shop theo chữ lúc mặc định — đổi tên
-  // shop trong Cài đặt chung thì sửa lại mẫu ở trang Cài đặt SEO.
-  titleTemplate: `%s | ${siteConfig.name}`,
+  // SEO (Ngày 13 C1, Ngày 14 B1): mẫu tiêu đề mặc định dùng
+  // {siteName} nên đổi tên shop trong Cài đặt chung thì tiêu đề đổi
+  // theo; dòng DB cũ (nếu có) giữ nguyên mẫu chữ cứng cũ.
+  titleTemplate: `%s | {siteName}`,
   defaultDescription: siteConfig.description,
   defaultOgImage: "",
   metaKeywords: "",
@@ -404,8 +404,9 @@ export function validateTelegramValues(input: {
   return { values: { telegramChatId, telegramEnabled }, errors };
 }
 
-// Kiểm hợp lệ nhóm seo (thuần, C1). titleTemplate bắt buộc, chứa
-// %s đúng một lần, ≤ 80 ký tự. defaultDescription ≤ 160 (được để
+// Kiểm hợp lệ nhóm seo (thuần, C1 + B1 Ngày 14). titleTemplate bắt
+// buộc, chứa %s đúng một lần, {siteName} tối đa một lần, mọi {...}
+// khác bị từ chối, ≤ 80 ký tự. defaultDescription ≤ 160 (được để
 // trống — trống thì mặt shop dùng slogan). defaultOgImage: rỗng
 // hoặc URL ảnh jpg/png/webp (không nhận SVG cho OG). metaKeywords
 // ≤ 200, tùy chọn.
@@ -428,14 +429,8 @@ export function validateSeoValues(input: {
   const metaKeywords = (input.metaKeywords ?? "").trim();
   const allowIndexing = input.allowIndexing ?? true;
   const errors: SettingsFieldErrors = {};
-  const placeholderCount = titleTemplate.split("%s").length - 1;
-  if (titleTemplate === "") {
-    errors.titleTemplate = "Nhập mẫu tiêu đề.";
-  } else if (placeholderCount !== 1) {
-    errors.titleTemplate = "Mẫu tiêu đề phải chứa đúng một lần %s.";
-  } else if (titleTemplate.length > 80) {
-    errors.titleTemplate = "Mẫu tiêu đề tối đa 80 ký tự.";
-  }
+  const templateError = validateTitleTemplate(titleTemplate);
+  if (templateError) errors.titleTemplate = templateError;
   if (defaultDescription.length > 160) {
     errors.defaultDescription = "Mô tả mặc định tối đa 160 ký tự.";
   }

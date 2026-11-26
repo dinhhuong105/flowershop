@@ -4,6 +4,10 @@ import Image from "next/image";
 import { PAGE_SIZE } from "@/config/catalog";
 import { getCategoryPage } from "@/lib/catalog";
 import { hasActiveFilter, parseCatalogParams } from "@/lib/catalog-params";
+import { CATEGORY_DESCRIPTIONS } from "@/lib/category-descriptions";
+import { getPublishedPageBySlug } from "@/lib/admin/pages";
+import { getSettings } from "@/lib/settings-cache";
+import { renderMarkdown } from "@/lib/markdown";
 import Breadcrumb from "@/components/catalog/Breadcrumb";
 import FilterBar from "@/components/catalog/FilterBar";
 import ProductGrid from "@/components/catalog/ProductGrid";
@@ -19,16 +23,22 @@ type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-// Mô tả ngắn cho banner danh mục (dữ liệu mẫu chưa có mô tả danh mục thật).
-const CATEGORY_DESCRIPTIONS: Record<string, string> = {
-  "hoa-tuoi": "Hoa tươi cắt cành mỗi sáng — bó hoa, giỏ hoa và lẵng hoa cho mọi dịp.",
-  "gio-trai-cay": "Giỏ trái cây tươi ngon, chọn lọc kỹ càng — quà tặng thiết thực và tinh tế.",
-  "hop-trai-cay": "Hộp trái cây mix nhiều loại, nhỏ gọn và tiện lợi cho mọi dịp.",
-  "lan-ho-diep": "Lan hồ điệp tuyển chọn — chậu lan sang trọng, quà tặng đẳng cấp.",
-};
-
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { category: slug } = await params;
+  // Trang tĩnh ở slug gốc (Ngày 14, lệnh Henry 26/11: bỏ /trang):
+  // slug trùng trang tĩnh ĐÃ XUẤT BẢN thì trả metadata của trang đó
+  // (không tạo route /[slug] riêng — Next cấm hai đoạn động cùng cấp).
+  // Trang nháp/không có thì đi tiếp sang danh mục như trước.
+  const page = await getPublishedPageBySlug(slug);
+  if (page) {
+    const settings = await getSettings();
+    return {
+      title: page.seoTitle !== "" ? page.seoTitle : page.title,
+      description:
+        page.seoDescription !== "" ? page.seoDescription : settings.defaultDescription,
+      alternates: { canonical: `/${slug}` },
+    };
+  }
   const parsed = parseCatalogParams(await searchParams);
   const data = await getCategoryPage(slug, parsed);
   // notFound() ở đây để HTTP trả đúng 404. LƯU Ý (Ngày 4): Next 15.5.29
@@ -44,18 +54,55 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   const { category } = data;
   const canonical =
     parsed.trang > 1 && !hasActiveFilter(parsed) ? `/${slug}?trang=${parsed.trang}` : `/${slug}`;
+  // SEO riêng (Ngày 14 D2): có seoTitle/seoDescription thì dùng,
+  // không thì như hiện nay. Chỉ thêm openGraph khi có SEO riêng —
+  // không thì <head> phải y hệt baseline (og:title mặc định của
+  // layout, không tự ghi đè).
+  const defaultDescription =
+    CATEGORY_DESCRIPTIONS[slug] ??
+    `Mua ${category.name.toLowerCase()} tươi đẹp, giao tận nơi trong ngày.`;
+  const hasSeo = category.seoTitle !== "" || category.seoDescription !== "";
+  const title = category.seoTitle !== "" ? category.seoTitle : category.name;
+  const description =
+    category.seoDescription !== "" ? category.seoDescription : defaultDescription;
   return {
-    title: category.name,
-    description:
-      CATEGORY_DESCRIPTIONS[slug] ??
-      `Mua ${category.name.toLowerCase()} tươi đẹp, giao tận nơi trong ngày.`,
+    title,
+    description,
     alternates: { canonical },
     ...(hasActiveFilter(parsed) ? { robots: { index: false, follow: true } } : {}),
+    ...(hasSeo
+      ? {
+          openGraph: {
+            title: `${title} | ${(await getSettings()).siteName}`,
+            description,
+            type: "website",
+            locale: "vi_VN",
+          },
+        }
+      : {}),
   };
 }
 
 export default async function CategoryPage({ params, searchParams }: Props) {
   const { category: slug } = await params;
+  // Trang tĩnh ở slug gốc (Ngày 14, lệnh Henry 26/11: bỏ /trang):
+  // kiểm tra trang đã xuất bản TRƯỚC danh mục. Slug trang không
+  // được trùng slug danh mục (findSlugClash chặn lúc lưu) nên hai
+  // nhánh không bao giờ tranh nhau.
+  const page = await getPublishedPageBySlug(slug);
+  if (page) {
+    return (
+      <div className="shell pb-12 pt-6">
+        <h1 className="font-display text-3xl font-semibold text-ink sm:text-4xl">
+          {page.title}
+        </h1>
+        <div
+          className="mt-6 max-w-3xl text-sm leading-relaxed text-ink-soft sm:text-base [&_a]:font-bold [&_a]:text-green-800 [&_a]:underline [&_h2]:mt-8 [&_h2]:font-display [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:text-ink [&_h3]:mt-6 [&_h3]:font-display [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:text-ink [&_h4]:mt-4 [&_h4]:font-semibold [&_h4]:text-ink [&_ol]:mt-3 [&_ol_li]:list-decimal [&_ol_li]:ml-5 [&_p]:mt-3 [&_ul]:mt-3 [&_ul_li]:list-disc [&_ul_li]:ml-5"
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(page.content) }}
+        />
+      </div>
+    );
+  }
   const parsed = parseCatalogParams(await searchParams);
   const data = await getCategoryPage(slug, parsed);
   if (!data) notFound();

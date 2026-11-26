@@ -21,6 +21,11 @@ import { useRouter } from "next/navigation";
 import { slugifyName } from "@/lib/admin/product-validation";
 import { renderMarkdown } from "@/lib/markdown";
 import {
+  LEGACY_PATHS,
+  LEGACY_PATH_LABELS,
+  LEGACY_POLICY_WARNING,
+} from "@/lib/legacy-paths";
+import {
   MAX_PAGE_CONTENT_LENGTH,
   MAX_PAGE_SEO_DESCRIPTION_LENGTH,
   MAX_PAGE_SEO_TITLE_LENGTH,
@@ -39,6 +44,8 @@ export type PageFormInitial = {
   sortOrder: string;
   isPublished: boolean;
   showInFooter: boolean;
+  // Đường dẫn cũ thay thế ("" = không thay trang nào) — Ngày 14 C1.
+  legacyPath: string;
 };
 
 const inputClass =
@@ -77,6 +84,14 @@ export default function PageForm({
   const [slugValue, setSlugValue] = useState(saved?.slug ?? initial.slug);
   const [contentValue, setContentValue] = useState(saved?.content ?? initial.content);
   const [showPreview, setShowPreview] = useState(false);
+  // Ô "Thay thế trang cũ" (Ngày 14 C1): cần giá trị hiện tại để
+  // hiện cảnh báo /policy và gợi ý khi trang còn là nháp.
+  const [legacyPathValue, setLegacyPathValue] = useState(
+    saved?.legacyPath ?? initial.legacyPath,
+  );
+  const [isPublishedValue, setIsPublishedValue] = useState(
+    saved?.isPublished ?? initial.isPublished,
+  );
 
   const err = (field: keyof AdminPageState["fieldErrors"]) =>
     state.fieldErrors[field] ?? null;
@@ -159,11 +174,47 @@ export default function PageForm({
           />
           {fieldError("slug")}
           <p className="mt-1 text-sm text-slate-500">
-            Trang hiện ở địa chỉ /trang/{slugValue || "…"}.
+            Trang hiện ở địa chỉ /{slugValue || "…"}.
           </p>
           {slugChanged ? (
             <p role="status" className="mt-1 text-sm font-medium text-danger">
               Đổi đường dẫn sẽ làm link cũ của trang {originalPublished ? "đã xuất bản" : ""} báo 404.
+            </p>
+          ) : null}
+        </div>
+
+        <div>
+          <label htmlFor="pf-legacyPath" className={labelClass}>
+            Thay thế trang cũ
+          </label>
+          <select
+            id="pf-legacyPath"
+            name="legacyPath"
+            value={legacyPathValue}
+            onChange={(e) => setLegacyPathValue(e.target.value)}
+            aria-invalid={err("legacyPath") ? true : undefined}
+            aria-describedby={err("legacyPath") ? "legacyPath-error" : undefined}
+            className={inputClass}
+          >
+            <option value="">Không thay trang cũ nào</option>
+            {LEGACY_PATHS.map((path) => (
+              <option key={path} value={path}>
+                {LEGACY_PATH_LABELS[path]}
+              </option>
+            ))}
+          </select>
+          {fieldError("legacyPath")}
+          <p className="mt-1 text-sm text-slate-500">
+            Khi trang này được xuất bản, đường dẫn cũ sẽ chuyển vĩnh viễn sang trang mới.
+          </p>
+          {legacyPathValue === "/policy" ? (
+            <p role="status" className="mt-1 text-sm font-medium text-yellow-800">
+              {LEGACY_POLICY_WARNING}
+            </p>
+          ) : null}
+          {legacyPathValue !== "" && !isPublishedValue ? (
+            <p className="mt-1 text-sm text-slate-500">
+              Trang cũ vẫn hiện cho đến khi trang này được xuất bản.
             </p>
           ) : null}
         </div>
@@ -276,6 +327,7 @@ export default function PageForm({
               type="checkbox"
               name="isPublished"
               defaultChecked={saved?.isPublished ?? initial.isPublished}
+              onChange={(e) => setIsPublishedValue(e.target.checked)}
               className="h-5 w-5 accent-blue-600"
             />
             Đã xuất bản (hiện ra shop)

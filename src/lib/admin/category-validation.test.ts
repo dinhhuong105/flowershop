@@ -9,6 +9,8 @@ describe("validateCategoryForm", () => {
       name: "Hoa Khai Trương",
       slug: "",
       sortOrder: "",
+      seoTitle: "",
+      seoDescription: "",
     });
     assert.deepEqual(errors, {});
     assert.equal(values?.slug, "hoa-khai-truong");
@@ -20,6 +22,8 @@ describe("validateCategoryForm", () => {
       name: "AB",
       slug: "",
       sortOrder: "1",
+      seoTitle: "",
+      seoDescription: "",
     });
     assert.equal(values, null);
     assert.equal(errors.name, "Tên danh mục phải từ 3 đến 120 ký tự.");
@@ -30,6 +34,8 @@ describe("validateCategoryForm", () => {
       name: "Hoa Đẹp",
       slug: "Hoa Đẹp!",
       sortOrder: "1",
+      seoTitle: "",
+      seoDescription: "",
     });
     assert.equal(values, null);
     assert.match(errors.slug ?? "", /chữ thường, số và dấu gạch nối/);
@@ -40,6 +46,8 @@ describe("validateCategoryForm", () => {
       name: "Giỏ Hàng",
       slug: "cart",
       sortOrder: "1",
+      seoTitle: "",
+      seoDescription: "",
     });
     assert.equal(values, null);
     assert.equal(
@@ -53,6 +61,8 @@ describe("validateCategoryForm", () => {
       name: "Quản Trị",
       slug: "admin",
       sortOrder: "1",
+      seoTitle: "",
+      seoDescription: "",
     });
     assert.equal(values, null);
   });
@@ -62,6 +72,8 @@ describe("validateCategoryForm", () => {
       name: "Hoa Đẹp",
       slug: "hoa-dep",
       sortOrder: "10000",
+      seoTitle: "",
+      seoDescription: "",
     });
     assert.equal(values, null);
     assert.equal(errors.sortOrder, "Thứ tự sắp xếp phải từ 0 đến 9999.");
@@ -72,7 +84,46 @@ describe("validateCategoryForm", () => {
       name: "Hoa Đẹp",
       slug: "hoa-dep",
       sortOrder: "1.5",
+      seoTitle: "",
+      seoDescription: "",
     });
     assert.equal(errors.sortOrder, "Thứ tự sắp xếp phải là số nguyên.");
+  });
+
+  it("SEO: rỗng → null chuỗi; ≤ 120/160 → nhận; quá dài → lỗi (Ngày 14 D1)", () => {
+    const { values } = validateCategoryForm({
+      name: "Hoa Đẹp",
+      slug: "hoa-dep",
+      sortOrder: "1",
+      seoTitle: "",
+      seoDescription: "",
+    });
+    assert.equal(values?.seoTitle, "");
+    assert.equal(values?.seoDescription, "");
+    const ok = validateCategoryForm({
+      name: "Hoa Đẹp",
+      slug: "hoa-dep",
+      sortOrder: "1",
+      seoTitle: "T".repeat(120),
+      seoDescription: "M".repeat(160),
+    });
+    assert.deepEqual(ok.errors, {});
+    assert.equal(ok.values?.seoTitle.length, 120);
+    const longTitle = validateCategoryForm({
+      name: "Hoa Đẹp",
+      slug: "hoa-dep",
+      sortOrder: "1",
+      seoTitle: "T".repeat(121),
+      seoDescription: "",
+    });
+    assert.equal(longTitle.errors.seoTitle, "Tiêu đề SEO tối đa 120 ký tự.");
+    const longDesc = validateCategoryForm({
+      name: "Hoa Đẹp",
+      slug: "hoa-dep",
+      sortOrder: "1",
+      seoTitle: "",
+      seoDescription: "M".repeat(161),
+    });
+    assert.equal(longDesc.errors.seoDescription, "Mô tả SEO tối đa 160 ký tự.");
   });
 });

@@ -5,8 +5,13 @@ import { getNavCategories } from "@/lib/queries";
 import { getCartCount } from "@/lib/cart";
 import { getSettings } from "@/lib/settings-cache";
 import type { ShopSettings } from "@/lib/settings";
+import {
+  resolveTitleTemplateForNext,
+  validateTitleTemplate,
+} from "@/lib/title-template";
 import { toAbsoluteImageUrl } from "@/lib/storage";
 import { listFooterPages } from "@/lib/admin/pages";
+import { getLegacyReplacements } from "@/lib/admin/pages";
 import TopBar from "@/components/layout/TopBar";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -22,21 +27,23 @@ import "./globals.css";
 export const dynamic = "force-dynamic";
 
 // Tiêu đề/mô tả/favicon lấy từ Cài đặt shop (Ngày 11 B5, Ngày 13
-// C3): đổi tên trong admin thì tiêu đề tab + mô tả + favicon đổi
-// theo. Layout đọc titleTemplate, defaultDescription, defaultOgImage,
-// metaKeywords, allowIndexing từ getSettings(). Mẫu rỗng/không hợp
-// lệ (không chứa đúng một %s) thì dùng lại mẫu mặc định — không bao
-// giờ để tiêu đề trống. Mô tả rỗng thì dùng slogan (siteConfig).
+// C3, Ngày 14 B1): đổi tên trong admin thì tiêu đề tab + mô tả +
+// favicon đổi theo. Layout đọc titleTemplate, defaultDescription,
+// defaultOgImage, metaKeywords, allowIndexing từ getSettings(). Mẫu
+// rỗng/không hợp lệ (theo validateTitleTemplate) thì dùng lại mẫu
+// mặc định — không bao giờ để tiêu đề trống. Mẫu chứa {siteName}
+// được thay bằng tên shop TRƯỚC khi đưa cho Next (Next thay %s
+// toàn cục nên tên shop chứa "%s" được chèn ký tự zero-width để
+// không nhầm với chỗ giữ %s — xem title-template.ts). Mô tả rỗng
+// thì dùng slogan (siteConfig).
 // Sitemap, robots và canonical vẫn lấy từ env (siteConfig.url).
 // JSON-LD Organization (chỉ field đã điền — không bịa đánh giá,
 // tọa độ hay giờ mở cửa có cấu trúc) nằm trong RootLayout bên dưới.
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSettings();
-  const templateValid =
-    settings.titleTemplate !== "" &&
-    settings.titleTemplate.split("%s").length - 1 === 1;
+  const templateValid = validateTitleTemplate(settings.titleTemplate) === null;
   const template = templateValid
-    ? settings.titleTemplate
+    ? resolveTitleTemplateForNext(settings.titleTemplate, settings.siteName)
     : `%s | ${siteConfig.name}`;
   const description =
     settings.defaultDescription !== ""
@@ -109,6 +116,11 @@ export default async function RootLayout({
   // Trang tĩnh cho chân trang (Ngày 13 B4): chỉ trang đã xuất bản +
   // showInFooter; khu vực quản trị không cần.
   const footerPages = isAdminArea ? [] : await listFooterPages();
+  // Đường dẫn cũ đã có trang thay thế (Ngày 14 C3): Footer đổi
+  // link cũ sang trang mới; khu vực quản trị không cần.
+  const legacyReplacements = isAdminArea
+    ? new Map<string, string>()
+    : await getLegacyReplacements();
   return (
     <html lang="vi">
       {/* Gắn class `js` để hiệu ứng reveal không giấu nội dung khi tắt JS. */}
@@ -148,7 +160,11 @@ export default async function RootLayout({
             chính page của mình. */}
         {isAdminArea || !settings ? null : (
           <>
-            <Footer settings={settings} footerPages={footerPages} />
+            <Footer
+              settings={settings}
+              footerPages={footerPages}
+              legacyReplacements={legacyReplacements}
+            />
             <FloatingContact hotline={settings.hotline} zalo={settings.zalo} />
             <BackToTop />
           </>

@@ -38,6 +38,7 @@ export default async function AdminSeoSettingsPage() {
             allowIndexing: settings.allowIndexing,
           }}
           siteUrl={siteUrl}
+          siteName={settings.siteName}
         />
       </div>
     </div>

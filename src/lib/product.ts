@@ -22,6 +22,9 @@ export type ProductDetail = {
   categoryId: number;
   categorySlug: string;
   categoryName: string;
+  // SEO riêng (Ngày 14 D1/D2): rỗng = dùng tên/mô tả như hiện nay.
+  seoTitle: string;
+  seoDescription: string;
 };
 
 const productSelect = {
@@ -39,6 +42,8 @@ const productSelect = {
   sku: true,
   sortOrder: true,
   categoryId: true,
+  seoTitle: true,
+  seoDescription: true,
   category: { select: { slug: true, name: true } },
 } as const;
 
@@ -68,6 +73,8 @@ export const getProduct = cache(
       categoryId: p.categoryId,
       categorySlug: p.category.slug,
       categoryName: p.category.name,
+      seoTitle: p.seoTitle,
+      seoDescription: p.seoDescription,
     };
   },
 );

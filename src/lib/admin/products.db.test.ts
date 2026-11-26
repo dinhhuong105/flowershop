@@ -3,7 +3,7 @@
 //   npm run test:db
 // Chỉ chạy khi DATABASE_URL trỏ localhost; ngược lại file báo lỗi
 // rõ và dừng (không bao giờ chạy lên DB production).
-// Dùng đúng SP 21 (TEST-001, "Bó Hoa Đồng Tiền Thử Nghiệm") rồi
+// Dùng đúng SP TEST-001 ("Bó Hoa Đồng Tiền Thử Nghiệm") rồi
 // trả lại trạng thái ban đầu trong finally, không để DB bẩn.
 
 import { describe, it, before } from "node:test";
@@ -27,7 +27,16 @@ if (dbHost !== "localhost" && dbHost !== "127.0.0.1" && dbHost !== "::1") {
 import { db } from "../db";
 import { setProductActive } from "./products";
 
-const TEST_PRODUCT_ID = 21;
+// Tìm SP test theo SKU (Ngày 14: bỏ id cứng 21 — id tự tăng thay
+// đổi mỗi lần DB được dựng lại, SKU TEST-001 mới là định danh ổn
+// định của "Bó Hoa Đồng Tiền Thử Nghiệm").
+async function findTestProductId(): Promise<number | null> {
+  const row = await db.product.findUnique({
+    where: { sku: "TEST-001" },
+    select: { id: true },
+  });
+  return row ? row.id : null;
+}
 
 async function readActive(id: number): Promise<boolean | null> {
   const row = await db.product.findUnique({
@@ -39,32 +48,36 @@ async function readActive(id: number): Promise<boolean | null> {
 
 describe("admin toggle product active (DB)", () => {
   let initialActive: boolean | null = null;
+  let testProductId = 0;
 
   before(async () => {
-    initialActive = await readActive(TEST_PRODUCT_ID);
+    const found = await findTestProductId();
     assert.notEqual(
-      initialActive,
+      found,
       null,
-      "SP 21 (TEST-001) phải tồn tại — chạy scripts/recreate-test-data.ts trước",
+      "SP TEST-001 phải tồn tại — chạy scripts/recreate-test-data.ts trước",
     );
+    testProductId = found as number;
+    initialActive = await readActive(testProductId);
+    assert.notEqual(initialActive, null);
   });
 
   it("Ẩn rồi Hiện lại: vòng đi-về trả đúng trạng thái ban đầu", async () => {
     try {
-      const hid = await setProductActive(TEST_PRODUCT_ID, false);
-      assert.equal(hid, true, "phải đổi được SP 21");
-      assert.equal(await readActive(TEST_PRODUCT_ID), false, "sau Ẩn phải là false");
+      const hid = await setProductActive(testProductId, false);
+      assert.equal(hid, true, "phải đổi được SP TEST-001");
+      assert.equal(await readActive(testProductId), false, "sau Ẩn phải là false");
 
-      const shown = await setProductActive(TEST_PRODUCT_ID, true);
-      assert.equal(shown, true, "phải đổi lại được SP 21");
-      assert.equal(await readActive(TEST_PRODUCT_ID), true, "sau Hiện lại phải là true");
+      const shown = await setProductActive(testProductId, true);
+      assert.equal(shown, true, "phải đổi lại được SP TEST-001");
+      assert.equal(await readActive(testProductId), true, "sau Hiện lại phải là true");
     } finally {
       if (initialActive !== null) {
-        await setProductActive(TEST_PRODUCT_ID, initialActive);
+        await setProductActive(testProductId, initialActive);
       }
     }
     assert.equal(
-      await readActive(TEST_PRODUCT_ID),
+      await readActive(testProductId),
       initialActive,
       "cuối test phải trả lại trạng thái ban đầu",
     );

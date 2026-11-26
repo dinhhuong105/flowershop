@@ -85,6 +85,8 @@ function formDataToInput(formData: FormData): ProductFormInput {
     images: formData
       .getAll("images")
       .filter((v): v is string => typeof v === "string"),
+    seoTitle: get("seoTitle"),
+    seoDescription: get("seoDescription"),
   };
 }
 
@@ -179,6 +181,8 @@ function categoryFormDataToInput(formData: FormData): CategoryFormInput {
     name: get("name"),
     slug: get("slug"),
     sortOrder: get("sortOrder"),
+    seoTitle: get("seoTitle"),
+    seoDescription: get("seoDescription"),
   };
 }
 
@@ -391,6 +395,7 @@ function pageFormDataToInput(formData: FormData): PageFormInput {
     // Checkbox: chỉ gửi khi được chọn ("on").
     isPublished: formData.get("isPublished") === "on",
     showInFooter: formData.get("showInFooter") === "on",
+    legacyPath: get("legacyPath"),
   };
 }
 

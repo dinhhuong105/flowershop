@@ -9,6 +9,8 @@ import {
   MAX_PRODUCT_NAME_LENGTH,
   MAX_PRODUCT_SLUG_LENGTH,
   MAX_PRODUCT_SORT_ORDER,
+  MAX_SEO_DESCRIPTION_LENGTH,
+  MAX_SEO_TITLE_LENGTH,
   MIN_PRODUCT_SORT_ORDER,
   PRODUCT_SLUG_RE,
   slugifyName,
@@ -19,16 +21,21 @@ export type CategoryFormInput = {
   name: string;
   slug: string;
   sortOrder: string;
+  // SEO riêng (Ngày 14 D1): rỗng = dùng tên/mô tả như hiện nay.
+  seoTitle: string;
+  seoDescription: string;
 };
 
 export type CategoryFormValues = {
   name: string;
   slug: string;
   sortOrder: number;
+  seoTitle: string;
+  seoDescription: string;
 };
 
 export type CategoryFormErrors = Partial<
-  Record<"name" | "slug" | "sortOrder", string>
+  Record<"name" | "slug" | "sortOrder" | "seoTitle" | "seoDescription", string>
 >;
 
 // Đọc một trường số nguyên từ chuỗi: "1.5", "abc", "" → null.
@@ -69,6 +76,16 @@ export function validateCategoryForm(input: CategoryFormInput): {
     errors.sortOrder = "Thứ tự sắp xếp phải từ 0 đến 9999.";
   }
 
+  // SEO riêng (Ngày 14 D1): cho phép rỗng, tối đa 120/160 ký tự.
+  const seoTitle = input.seoTitle.trim();
+  if (seoTitle.length > MAX_SEO_TITLE_LENGTH) {
+    errors.seoTitle = "Tiêu đề SEO tối đa 120 ký tự.";
+  }
+  const seoDescription = input.seoDescription.trim();
+  if (seoDescription.length > MAX_SEO_DESCRIPTION_LENGTH) {
+    errors.seoDescription = "Mô tả SEO tối đa 160 ký tự.";
+  }
+
   if (Object.keys(errors).length > 0) return { errors, values: null };
   return {
     errors,
@@ -76,6 +93,8 @@ export function validateCategoryForm(input: CategoryFormInput): {
       name,
       slug,
       sortOrder: sortOrder as number,
+      seoTitle,
+      seoDescription,
     },
   };
 }

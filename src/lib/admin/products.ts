@@ -114,6 +114,7 @@ export type AdminProductDetail = {
   slug: string;
   sku: string | null;
   categoryId: number;
+  categorySlug: string;
   price: number;
   salePrice: number | null;
   description: string;
@@ -123,10 +124,15 @@ export type AdminProductDetail = {
   isActive: boolean;
   inStock: boolean;
   isFastDelivery: boolean;
+  seoTitle: string;
+  seoDescription: string;
 };
 
 export async function getAdminProduct(id: number): Promise<AdminProductDetail | null> {
-  const p = await db.product.findUnique({ where: { id } });
+  const p = await db.product.findUnique({
+    where: { id },
+    include: { category: { select: { slug: true } } },
+  });
   if (!p) return null;
   return {
     id: p.id,
@@ -134,6 +140,7 @@ export async function getAdminProduct(id: number): Promise<AdminProductDetail | 
     slug: p.slug,
     sku: p.sku,
     categoryId: p.categoryId,
+    categorySlug: p.category.slug,
     price: p.price,
     salePrice: p.salePrice,
     description: p.description,
@@ -143,6 +150,8 @@ export async function getAdminProduct(id: number): Promise<AdminProductDetail | 
     isActive: p.isActive,
     inStock: p.inStock,
     isFastDelivery: p.isFastDelivery,
+    seoTitle: p.seoTitle,
+    seoDescription: p.seoDescription,
   };
 }
 
@@ -203,6 +212,8 @@ export async function createAdminProduct(
       isActive: values.isActive,
       inStock: values.inStock,
       isFastDelivery: values.isFastDelivery,
+      seoTitle: values.seoTitle,
+      seoDescription: values.seoDescription,
     },
     select: { id: true },
   });
@@ -256,6 +267,8 @@ export async function updateAdminProduct(
       isActive: values.isActive,
       inStock: values.inStock,
       isFastDelivery: values.isFastDelivery,
+      seoTitle: values.seoTitle,
+      seoDescription: values.seoDescription,
     },
   });
   return { id };

@@ -5,6 +5,7 @@
 // slugifyName + hằng thứ tự của danh mục/sản phẩm.
 
 import { isReservedSlug } from "@/lib/reserved-slugs";
+import { isLegacyPath } from "@/lib/legacy-paths";
 import {
   MAX_PRODUCT_SORT_ORDER,
   MIN_PRODUCT_SORT_ORDER,
@@ -33,6 +34,8 @@ export type PageFormInput = {
   sortOrder: string;
   isPublished: boolean;
   showInFooter: boolean;
+  // Đường dẫn cũ thay thế ("" = không thay trang nào) — Ngày 14 C1.
+  legacyPath: string;
 };
 
 export type PageFormValues = {
@@ -44,10 +47,15 @@ export type PageFormValues = {
   sortOrder: number;
   isPublished: boolean;
   showInFooter: boolean;
+  // null = không thay trang cũ nào.
+  legacyPath: string | null;
 };
 
 export type PageFormErrors = Partial<
-  Record<"title" | "slug" | "content" | "seoTitle" | "seoDescription" | "sortOrder", string>
+  Record<
+    "title" | "slug" | "content" | "seoTitle" | "seoDescription" | "sortOrder" | "legacyPath",
+    string
+  >
 >;
 
 // Đọc một trường số nguyên từ chuỗi: "1.5", "abc", "" → null.
@@ -103,6 +111,18 @@ export function validatePageForm(input: PageFormInput): {
     errors.sortOrder = "Thứ tự sắp xếp phải từ 0 đến 9999.";
   }
 
+  // Đường dẫn cũ thay thế (Ngày 14 C1): rỗng = không thay; nếu có
+  // phải là một trong bốn đường dẫn cũ của shop.
+  const legacyPathRaw = input.legacyPath.trim();
+  let legacyPath: string | null = null;
+  if (legacyPathRaw !== "") {
+    if (!isLegacyPath(legacyPathRaw)) {
+      errors.legacyPath = "Đường dẫn cũ không hợp lệ.";
+    } else {
+      legacyPath = legacyPathRaw;
+    }
+  }
+
   if (Object.keys(errors).length > 0) return { errors, values: null };
   return {
     errors,
@@ -115,6 +135,7 @@ export function validatePageForm(input: PageFormInput): {
       sortOrder: sortOrder as number,
       isPublished: input.isPublished,
       showInFooter: input.showInFooter,
+      legacyPath,
     },
   };
 }
