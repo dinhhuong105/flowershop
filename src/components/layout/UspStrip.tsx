@@ -1,5 +1,6 @@
 import { siteConfig } from "@/config/site";
-import { isBankConfigured } from "@/lib/bank";
+import { isBankConfiguredFromSettings } from "@/lib/bank";
+import { getSettings } from "@/lib/settings-cache";
 
 function UspIcon({ icon }: { icon: string }) {
   const common = {
@@ -52,10 +53,12 @@ function UspIcon({ icon }: { icon: string }) {
 
 // Dải USP 4 mục (mục 4.3 phụ lục), nội dung từ siteConfig.usp.
 // H-5: câu "…hoặc chuyển khoản" ở mục "Thanh toán an toàn" chỉ hiện
-// khi đã cấu hình BANK_*; chưa cấu hình thì chỉ nhắc thanh toán khi
-// nhận hàng (nhận biết mục thanh toán qua icon "shield").
-export default function UspStrip() {
-  const bankConfigured = isBankConfigured();
+// khi ngân hàng đã cấu hình trong cài đặt (B4); chưa cấu hình thì
+// chỉ nhắc thanh toán khi nhận hàng (nhận biết mục thanh toán qua
+// icon "shield").
+export default async function UspStrip() {
+  const settings = await getSettings();
+  const bankConfigured = isBankConfiguredFromSettings(settings);
   return (
     <section aria-label="Lợi ích khi mua hoa" data-testid="usp-strip" className="border-b border-line bg-cream-100">
       <div className="shell grid grid-cols-1 gap-6 py-6 sm:grid-cols-2 lg:grid-cols-4">

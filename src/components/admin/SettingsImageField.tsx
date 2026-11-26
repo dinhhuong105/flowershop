@@ -66,7 +66,10 @@ export default function SettingsImageField({
           />
         ) : (
           <span
-            className={`${previewClass} flex items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-2 text-center text-xs font-medium text-slate-500`}
+            // A4 (Ngày 12): ô favicon 32 px quá nhỏ làm "Chưa có ảnh"
+            // xuống 3 dòng — nới chiều ngang tối thiểu (80 px) và
+            // không ngắt chữ để vừa 1 dòng.
+            className={`${previewClass} flex min-w-20 items-center justify-center whitespace-nowrap rounded-lg border border-dashed border-slate-300 bg-slate-50 px-2 text-center text-xs font-medium text-slate-500`}
           >
             Chưa có ảnh
           </span>

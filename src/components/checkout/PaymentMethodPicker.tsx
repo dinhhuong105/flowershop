@@ -1,6 +1,6 @@
 // Chọn phương thức thanh toán (mục 5 đặc tả Ngày 5): COD luôn có;
-// "Chuyển khoản" chỉ hiện khi BANK_* đã cấu hình (không có số tài
-// khoản giả). Viền thẻ đổi màu trong 150ms khi chọn.
+// "Chuyển khoản" chỉ hiện khi ngân hàng đã cấu hình trong cài đặt
+// (không có số tài khoản giả). Viền thẻ đổi màu trong 150ms khi chọn.
 
 import { FieldError, RequiredMark } from "./PersonFields";
 

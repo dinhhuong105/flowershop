@@ -8,17 +8,36 @@
 "use server";
 
 import { revalidatePath, revalidateTag } from "next/cache";
-import { requireAdmin } from "@/lib/admin/auth";
+import { headers } from "next/headers";
+import { requireAdmin, clientIpFromHeaders, getAdminConfig } from "@/lib/admin/auth";
+import { verifyAdminPassword } from "@/lib/admin/password";
 import {
+  hashIp,
+  isAdminLoginRateLimited,
+  recordAdminLoginAttempt,
+} from "@/lib/admin/rate-limit";
+import {
+  recordSettingsAudit,
   saveSettingsToDb,
+  validateBankValues,
   validateContactValues,
   validateGeneralValues,
+  validateTelegramValues,
 } from "@/lib/settings";
+import { getSettings } from "@/lib/settings-cache";
+import { sendBankChangeNotification, sendTelegramMessage } from "@/lib/telegram";
+import { formatVnDateTime } from "@/lib/vn-datetime";
 import type { SettingsFormState } from "@/lib/admin/settings-form-state";
 
 function formDataString(formData: FormData, key: string): string {
   const value = formData.get(key);
   return typeof value === "string" ? value : "";
+}
+
+function formDataBoolean(formData: FormData, key: string): boolean {
+  // Checkbox: chỉ gửi khi được chọn ("on"); radio "true"/"false".
+  const value = formData.get(key);
+  return value === "on" || value === "true";
 }
 
 export async function saveGeneralSettingsAction(
@@ -63,4 +82,103 @@ export async function saveContactSettingsAction(
   revalidateTag("site-settings");
   revalidatePath("/", "layout");
   return { ok: true, message: "Đã lưu thông tin liên hệ.", errors: {} };
+}
+
+export async function saveBankSettingsAction(
+  _prevState: SettingsFormState,
+  formData: FormData,
+): Promise<SettingsFormState> {
+  await requireAdmin();
+  // B3: lưu bank đòi nhập lại mật khẩu admin (đúng hàm xác thực của
+  // đăng nhập). Thử sai ghi vào cùng bảng giới hạn đăng nhập
+  // (admin_login_attempts): quá 5 lần sai/15 phút theo IP (hoặc 20
+  // lần toàn hệ thống) thì bị chặn cả đăng nhập — đúng "cơ chế sẵn có".
+  const confirmPassword = formDataString(formData, "confirmPassword");
+  const headersList = await headers();
+  const ipHash = hashIp(clientIpFromHeaders(headersList));
+  if (await isAdminLoginRateLimited(ipHash)) {
+    return {
+      ok: false,
+      message: "Quá nhiều lần thử sai, vui lòng thử lại sau 15 phút.",
+      errors: {},
+    };
+  }
+  const config = getAdminConfig();
+  const passwordOk =
+    config !== null &&
+    confirmPassword !== "" &&
+    (await verifyAdminPassword(confirmPassword, config.passwordHash));
+  if (!passwordOk) {
+    await recordAdminLoginAttempt(ipHash);
+    return { ok: false, message: "Mật khẩu không đúng, chưa lưu thay đổi.", errors: {} };
+  }
+  const { values, errors } = validateBankValues({
+    bankCode: formDataString(formData, "bankCode"),
+    accountNumber: formDataString(formData, "accountNumber"),
+    accountName: formDataString(formData, "accountName"),
+    transferNoteTemplate: formDataString(formData, "transferNoteTemplate"),
+    bankEnabled: formDataBoolean(formData, "bankEnabled"),
+  });
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, message: "Kiểm tra lại các trường tô đỏ.", errors };
+  }
+  const saved = await saveSettingsToDb("bank", values, "admin");
+  let message = "Đã lưu thông tin ngân hàng.";
+  if (saved.length > 0) {
+    // B3: báo chủ shop 1 tin Telegram mỗi khi nhóm bank đổi (không
+    // kèm số đầy đủ). Telegram lỗi thì KHÔNG chặn lưu — ghi nhận
+    // vào nhật ký để Henry thấy trong audit.
+    const notify = await sendBankChangeNotification();
+    await recordSettingsAudit(
+      "bank.notify",
+      null,
+      notify.ok ? "sent" : `failed: ${notify.error ?? "unknown"}`,
+      "admin",
+    );
+    if (!notify.ok) {
+      message =
+        "Đã lưu thông tin ngân hàng. Lưu ý: không gửi được thông báo Telegram, đã ghi vào nhật ký.";
+    }
+  }
+  revalidateTag("site-settings");
+  revalidatePath("/", "layout");
+  return { ok: true, message, errors: {} };
+}
+
+export async function saveTelegramSettingsAction(
+  _prevState: SettingsFormState,
+  formData: FormData,
+): Promise<SettingsFormState> {
+  await requireAdmin();
+  const { values, errors } = validateTelegramValues({
+    telegramChatId: formDataString(formData, "telegramChatId"),
+    telegramEnabled: formDataBoolean(formData, "telegramEnabled"),
+  });
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, message: "Kiểm tra lại các trường tô đỏ.", errors };
+  }
+  await saveSettingsToDb("telegram", values, "admin");
+  revalidateTag("site-settings");
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Đã lưu cài đặt Telegram.", errors: {} };
+}
+
+// Trạng thái nút "Gửi thử" (D2): form riêng, không dùng
+// SettingsFormState (không có lỗi từng trường).
+export type TelegramTestState = { ok: boolean; message: string };
+
+export async function sendTelegramTestAction(): Promise<TelegramTestState> {
+  await requireAdmin();
+  const settings = await getSettings();
+  const chatId = settings.telegramChatId.trim();
+  if (chatId === "") {
+    return { ok: false, message: "Chưa nhập chat id — lưu chat id trước rồi bấm Gửi thử." };
+  }
+  const result = await sendTelegramMessage(
+    `[TEST] Tin thử từ shop ${settings.siteName} — ${formatVnDateTime(new Date())}.`,
+  );
+  if (result.ok) {
+    return { ok: true, message: "Đã gửi tin thử, kiểm tra Telegram." };
+  }
+  return { ok: false, message: result.error ?? "Không gửi được tin Telegram." };
 }

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import {
   buildTelegramMessage,
+  sendBankChangeNotification,
   sendTelegramForOrder,
   MAX_TELEGRAM_MESSAGE_LENGTH,
   type OrderWithItems,
@@ -193,5 +194,116 @@ describe("buildTelegramMessage: cắt ở 4000 ký tự (H-4c)", () => {
     assert.ok(msg.includes("Bó Hồng Đỏ Tình Yêu × 2"));
     assert.ok(msg.includes("Tạm tính:"));
     assert.ok(!msg.includes("… và còn"));
+  });
+});
+
+describe("sendBankChangeNotification với mock Telegram (Ngày 12 B3)", () => {
+  it("mock trả 200 → ok, tin nhắn chỉ báo giờ đổi, không kèm số tài khoản", async () => {
+    const port = 18082;
+    const logPath = "/tmp/mock-telegram-b3-test.jsonl";
+    rmSync(logPath, { force: true });
+    const mockPath = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      "../../scripts/mock-telegram.mjs",
+    );
+    const child = spawn(process.execPath, [mockPath], {
+      env: {
+        ...process.env,
+        MOCK_TELEGRAM_PORT: String(port),
+        MOCK_TELEGRAM_MODE: "ok",
+        MOCK_TELEGRAM_LOG: logPath,
+      },
+      stdio: "ignore",
+    });
+    try {
+      const base = `http://127.0.0.1:${port}`;
+      let up = false;
+      for (let i = 0; i < 50 && !up; i++) {
+        try {
+          const res = await fetch(base, { signal: AbortSignal.timeout(500) });
+          up = res.ok;
+        } catch {
+          await new Promise((r) => setTimeout(r, 100));
+        }
+      }
+      assert.ok(up, "mock Telegram không khởi động được");
+      const prevToken = process.env.TELEGRAM_BOT_TOKEN;
+      const prevChatId = process.env.TELEGRAM_CHAT_ID;
+      const prevBase = process.env.TELEGRAM_API_BASE;
+      process.env.TELEGRAM_BOT_TOKEN = "test-token-b3";
+      process.env.TELEGRAM_CHAT_ID = "123456";
+      process.env.TELEGRAM_API_BASE = base;
+      try {
+        const result = await sendBankChangeNotification();
+        assert.equal(result.ok, true);
+      } finally {
+        if (prevToken === undefined) delete process.env.TELEGRAM_BOT_TOKEN;
+        else process.env.TELEGRAM_BOT_TOKEN = prevToken;
+        if (prevChatId === undefined) delete process.env.TELEGRAM_CHAT_ID;
+        else process.env.TELEGRAM_CHAT_ID = prevChatId;
+        if (prevBase === undefined) delete process.env.TELEGRAM_API_BASE;
+        else process.env.TELEGRAM_API_BASE = prevBase;
+      }
+      const logged = JSON.parse(readFileSync(logPath, "utf-8").trim().split("\n").pop()!);
+      const text = (logged.body as { text: string }).text;
+      assert.ok(text.startsWith("Thông tin ngân hàng vừa được thay đổi lúc "));
+      // Không kèm số tài khoản, BIN hay tên chủ TK nào.
+      assert.equal(text.includes("1234567890"), false);
+      assert.equal(text.includes("970415"), false);
+    } finally {
+      child.kill();
+    }
+  });
+
+  it("mock trả 500 → ok false, có error, không throw", async () => {
+    const port = 18083;
+    const logPath = "/tmp/mock-telegram-b3-err-test.jsonl";
+    rmSync(logPath, { force: true });
+    const mockPath = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      "../../scripts/mock-telegram.mjs",
+    );
+    const child = spawn(process.execPath, [mockPath], {
+      env: {
+        ...process.env,
+        MOCK_TELEGRAM_PORT: String(port),
+        MOCK_TELEGRAM_MODE: "error500",
+        MOCK_TELEGRAM_LOG: logPath,
+      },
+      stdio: "ignore",
+    });
+    try {
+      const base = `http://127.0.0.1:${port}`;
+      let up = false;
+      for (let i = 0; i < 50 && !up; i++) {
+        try {
+          const res = await fetch(base, { signal: AbortSignal.timeout(500) });
+          up = res.ok;
+        } catch {
+          await new Promise((r) => setTimeout(r, 100));
+        }
+      }
+      assert.ok(up, "mock Telegram không khởi động được");
+      const prevToken = process.env.TELEGRAM_BOT_TOKEN;
+      const prevChatId = process.env.TELEGRAM_CHAT_ID;
+      const prevBase = process.env.TELEGRAM_API_BASE;
+      process.env.TELEGRAM_BOT_TOKEN = "test-token-b3";
+      process.env.TELEGRAM_CHAT_ID = "123456";
+      process.env.TELEGRAM_API_BASE = base;
+      try {
+        const result = await sendBankChangeNotification();
+        assert.equal(result.ok, false);
+        assert.equal(typeof result.error, "string");
+      } finally {
+        if (prevToken === undefined) delete process.env.TELEGRAM_BOT_TOKEN;
+        else process.env.TELEGRAM_BOT_TOKEN = prevToken;
+        if (prevChatId === undefined) delete process.env.TELEGRAM_CHAT_ID;
+        else process.env.TELEGRAM_CHAT_ID = prevChatId;
+        if (prevBase === undefined) delete process.env.TELEGRAM_API_BASE;
+        else process.env.TELEGRAM_API_BASE = prevBase;
+      }
+    } finally {
+      child.kill();
+    }
   });
 });

@@ -17,10 +17,13 @@ export type VietQrInput = {
 };
 
 // CRC16-CCITT-FALSE: đa thức 0x1021, giá trị đầu 0xFFFF, tính trên
-// bytes UTF-8. Test vector: CRC16("123456789") = "29B1".
+// bytes UTF-8 (dùng TextEncoder thay Buffer để hàm chạy được cả ở
+// client — trang Ngân hàng & QR xem trước QR ngay trong trình duyệt
+// từ dữ liệu đang nhập, Ngày 12 B2). Test vector:
+// CRC16("123456789") = "29B1".
 export function crc16CcittFalse(input: string): string {
   let crc = 0xffff;
-  for (const byte of Buffer.from(input, "utf8")) {
+  for (const byte of new TextEncoder().encode(input)) {
     crc ^= byte << 8;
     for (let bit = 0; bit < 8; bit++) {
       crc = crc & 0x8000 ? ((crc << 1) ^ 0x1021) & 0xffff : (crc << 1) & 0xffff;

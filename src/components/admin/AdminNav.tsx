@@ -169,20 +169,23 @@ const ITEMS: NavItem[] = [
   { label: "Tin nhắn", section: "sales", icon: ICON_MESSAGE, soon: true },
   { label: "Tài khoản quản trị", section: "users", icon: ICON_USER, soon: true },
   { label: "Vai trò & phân quyền", section: "users", icon: ICON_SHIELD, soon: true },
-  { label: "Khu vực & phí giao hàng", section: "config", icon: ICON_PIN, soon: true },
-  { label: "Ngân hàng & QR", section: "config", icon: ICON_BANKNOTE, soon: true },
-  { label: "Telegram", section: "config", icon: ICON_SEND, soon: true },
+  { label: "Khu vực & phí giao hàng", section: "config", icon: ICON_PIN, href: "/admin/shipping-zones", match: (p) => p === "/admin/shipping-zones" || p.startsWith("/admin/shipping-zones/") },
+  { label: "Ngân hàng & QR", section: "config", icon: ICON_BANKNOTE, href: "/admin/settings/bank", match: (p) => p === "/admin/settings/bank" },
+  { label: "Telegram", section: "config", icon: ICON_SEND, href: "/admin/settings/telegram", match: (p) => p === "/admin/settings/telegram" },
   {
     label: "Cài đặt shop",
     section: "config",
     icon: ICON_SETTINGS,
-    match: (p) => p.startsWith("/admin/settings/"),
+    // Chỉ sáng nhóm khi đang ở một mục con của nó (Chung/Liên hệ);
+    // Ngân hàng & QR và Telegram là mục riêng nên không tính.
+    match: (p) => p === "/admin/settings/general" || p === "/admin/settings/contact",
     children: [
       { label: "Chung", href: "/admin/settings/general", match: (p) => p === "/admin/settings/general" },
       { label: "Liên hệ", href: "/admin/settings/contact", match: (p) => p === "/admin/settings/contact" },
     ],
   },
   { label: "Nhật ký hoạt động", section: "config", icon: ICON_CLOCK, soon: true },
+  { label: "Cài đặt SEO", section: "config", icon: ICON_FILE, soon: true },
   { label: "Xem shop ↗", section: "shop", icon: ICON_EXTERNAL, href: "/", match: () => false },
 ];
 

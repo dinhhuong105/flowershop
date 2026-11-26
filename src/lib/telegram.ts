@@ -8,6 +8,8 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { deliveryConfig } from "@/config/delivery";
 import { formatVND } from "@/lib/format";
+import { readSettingsFromDb } from "./settings";
+import { formatVnDateTime } from "./vn-datetime";
 
 export type OrderWithItems = Prisma.OrderGetPayload<{ include: { items: true } }>;
 
@@ -130,32 +132,83 @@ export async function sendOrderNotification(orderId: number): Promise<boolean> {
 // điều kiện (notifiedAt IS NULL) để không gửi trùng khi bấm đúp.
 // Trả false khi chưa cấu hình hoặc Telegram lỗi; không bao giờ throw.
 export async function sendTelegramForOrder(order: OrderWithItems): Promise<boolean> {
-  const token = (process.env.TELEGRAM_BOT_TOKEN ?? "").trim();
-  const chatId = (process.env.TELEGRAM_CHAT_ID ?? "").trim();
+  const result = await sendTelegramMessage(buildTelegramMessage(order));
+  return result.ok;
+}
+
+// ---- Cấu hình Telegram từ Ngày 12 (D1/D3) ----
+// Token bot CHỈ ở biến môi trường (Henry đặt trên Vercel), không bao
+// giờ lưu vào DB, không hiện ra giao diện/log. Chat id lưu trong
+// cài đặt (nhóm telegram); chưa có thì fallback về env
+// TELEGRAM_CHAT_ID (để không mất thông báo khi chuyển).
+export function getTelegramToken(): string {
+  return (process.env.TELEGRAM_BOT_TOKEN ?? "").trim();
+}
+
+export async function getTelegramChatId(): Promise<string> {
+  try {
+    const settings = await readSettingsFromDb();
+    if (settings.telegramChatId && settings.telegramChatId.trim() !== "") {
+      return settings.telegramChatId.trim();
+    }
+  } catch {
+    // DB lỗi thì rơi về env (thông báo đơn vẫn có cơ hội gửi).
+  }
+  return (process.env.TELEGRAM_CHAT_ID ?? "").trim();
+}
+
+export async function isTelegramConfigured(): Promise<boolean> {
+  return getTelegramToken() !== "" && (await getTelegramChatId()) !== "";
+}
+
+// Gửi một tin nhắn văn bản thuần qua Telegram (D2 gửi thử, B3 báo
+// đổi ngân hàng). Trả { ok, error? } — error đã làm sạch (chỉ mã
+// HTTP hoặc tên lỗi), KHÔNG BAO GIỜ chứa token hay URL. Không throw.
+export async function sendTelegramMessage(
+  text: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const token = getTelegramToken();
+  const chatId = await getTelegramChatId();
   if (!token || !chatId) {
-    console.log("[telegram] Chưa cấu hình TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID, bỏ qua báo đơn.");
-    return false;
+    return { ok: false, error: "Chưa cấu hình token bot hoặc chat id Telegram." };
   }
   const base = (process.env.TELEGRAM_API_BASE ?? "https://api.telegram.org").replace(/\/$/, "");
   try {
     const res = await fetch(`${base}/bot${token}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: buildTelegramMessage(order),
-        parse_mode: "HTML",
-      }),
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) {
-      console.error(`[telegram] sendMessage lỗi HTTP ${res.status} cho đơn ${order.code}.`);
-      return false;
+      // Đọc mô tả lỗi của Telegram (không chứa token) để hiện cho
+      // admin; lỗi đọc body thì chỉ báo mã HTTP.
+      let detail = `HTTP ${res.status}`;
+      try {
+        const data = (await res.json()) as { description?: unknown };
+        if (typeof data.description === "string" && data.description !== "") {
+          detail = data.description;
+        }
+      } catch {
+        // Giữ mã HTTP.
+      }
+      console.error(`[telegram] sendMessage lỗi ${detail}.`);
+      return { ok: false, error: `Telegram trả lỗi: ${detail}` };
     }
-    return true;
+    return { ok: true };
   } catch (error) {
     // Chỉ log tên lỗi — message/URL có thể chứa token.
-    console.error(`[telegram] Gửi báo đơn ${order.code} lỗi: ${error instanceof Error ? error.name : "unknown"}.`);
-    return false;
+    console.error(
+      `[telegram] Gửi tin lỗi: ${error instanceof Error ? error.name : "unknown"}.`,
+    );
+    return { ok: false, error: "Không gửi được tin Telegram, vui lòng thử lại." };
   }
+}
+
+// Báo chủ shop khi nhóm bank đổi (B3): chỉ báo giờ đổi, KHÔNG kèm
+// số tài khoản hay số đầy đủ nào.
+export async function sendBankChangeNotification(): Promise<{ ok: boolean; error?: string }> {
+  return sendTelegramMessage(
+    `Thông tin ngân hàng vừa được thay đổi lúc ${formatVnDateTime(new Date())}.`,
+  );
 }

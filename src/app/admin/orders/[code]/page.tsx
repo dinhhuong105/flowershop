@@ -3,7 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/admin/auth";
 import { getAdminOrder, nextOrderStatuses } from "@/lib/admin/orders";
-import { transferContent } from "@/lib/bank";
+import { getTransferContent } from "@/lib/bank";
+import { getSettings } from "@/lib/settings-cache";
+import { isTelegramConfigured } from "@/lib/telegram";
 import { formatVND } from "@/lib/format";
 import OrderStatusBadge, { orderStatusLabel } from "@/components/order/OrderStatusBadge";
 import OrderDetailActions from "@/components/admin/OrderDetailActions";
@@ -81,9 +83,10 @@ export default async function AdminOrderDetailPage({
   const { code } = await params;
   const order = await getAdminOrder(code);
   if (!order) notFound();
-  const telegramConfigured =
-    (process.env.TELEGRAM_BOT_TOKEN ?? "").trim() !== "" &&
-    (process.env.TELEGRAM_CHAT_ID ?? "").trim() !== "";
+  // D3: nút "Gửi lại Telegram" hiện khi đã cấu hình bot + chat id
+  // (chat id đọc từ cài đặt, fallback về env nếu cài đặt trống).
+  const telegramConfigured = await isTelegramConfigured();
+  const settings = await getSettings();
   const nextSteps = nextOrderStatuses(order.status).map((to) => ({
     to,
     label: NEXT_ACTION_LABEL[to] ?? orderStatusLabel(to),
@@ -248,7 +251,7 @@ export default async function AdminOrderDetailPage({
             </div>
             <div className="flex items-center justify-between gap-3">
               <dt className="text-slate-500">Nội dung chuyển khoản</dt>
-              <dd className="font-bold text-slate-900">{transferContent(order.code)}</dd>
+              <dd className="font-bold text-slate-900">{getTransferContent(settings, order.code)}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
               <dt className="text-slate-500">Thông báo Telegram</dt>

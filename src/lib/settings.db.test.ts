@@ -48,7 +48,8 @@ describe("settings (DB)", () => {
   });
 
   after(async () => {
-    // Trả DB về trạng thái seed: 12 khóa mặc định.
+    // Trả DB về trạng thái seed: 19 khóa mặc định (12 cũ + 5 bank +
+    // 2 telegram, Ngày 12).
     await cleanupSettings();
     await seedDefaultSettings();
   });
@@ -114,14 +115,79 @@ describe("settings (DB)", () => {
     assert.equal(merged.openHours, "");
   });
 
+  it("lưu nhóm bank → đọc lại đúng; STK trong nhật ký chỉ giữ 4 số cuối; boolean lưu dạng chuỗi", async () => {
+    const saved = await saveSettingsToDb(
+      "bank",
+      {
+        bankCode: "970415",
+        accountNumber: "1234567890",
+        accountName: "NGUYEN VAN A",
+        transferNoteTemplate: "DH {ORDER_CODE}",
+        bankEnabled: true,
+      },
+      "admin-test",
+    );
+    // Mẫu "DH {ORDER_CODE}" trùng mặc định nên không ghi; 4 khóa
+    // còn lại đổi (mặc định rỗng/tắt).
+    assert.deepEqual(saved, [
+      "bank.bankCode",
+      "bank.accountNumber",
+      "bank.accountName",
+      "bank.enabled",
+    ]);
+    const merged = mergeSettings(await readSettingsFromDb());
+    assert.equal(merged.bankCode, "970415");
+    assert.equal(merged.accountNumber, "1234567890");
+    assert.equal(merged.bankEnabled, true);
+    const audit = await db.settingsAudit.findMany({
+      where: { key: "bank.accountNumber" },
+      orderBy: { id: "asc" },
+    });
+    assert.equal(audit.length, 1);
+    assert.equal(audit[0]?.oldValue, null);
+    assert.equal(audit[0]?.newValue, "****7890");
+    // Lưu lại cùng giá trị → không ghi gì thêm, không thêm nhật ký.
+    const savedAgain = await saveSettingsToDb(
+      "bank",
+      {
+        bankCode: "970415",
+        accountNumber: "1234567890",
+        accountName: "NGUYEN VAN A",
+        transferNoteTemplate: "DH {ORDER_CODE}",
+        bankEnabled: true,
+      },
+      "admin-test",
+    );
+    assert.deepEqual(savedAgain, []);
+    assert.equal(
+      await db.settingsAudit.count({ where: { key: "bank.accountNumber" } }),
+      1,
+    );
+    // Tắt chuyển khoản → đọc lại false (boolean lưu "false").
+    await saveSettingsToDb("bank", { bankEnabled: false }, "admin-test");
+    assert.equal(mergeSettings(await readSettingsFromDb()).bankEnabled, false);
+  });
+
+  it("lưu nhóm telegram → đọc lại đúng (chat id + bật/tắt)", async () => {
+    const saved = await saveSettingsToDb(
+      "telegram",
+      { telegramChatId: "-1001234567890", telegramEnabled: true },
+      "admin-test",
+    );
+    assert.deepEqual(saved, ["telegram.chatId", "telegram.enabled"]);
+    const merged = mergeSettings(await readSettingsFromDb());
+    assert.equal(merged.telegramChatId, "-1001234567890");
+    assert.equal(merged.telegramEnabled, true);
+  });
+
   it("seed không ghi đè dữ liệu đã nhập", async () => {
     // Bảng đã có dữ liệu (siteName test ở trên) → seed trả 0.
     assert.equal(await seedDefaultSettings(), 0);
     const partial = await readSettingsFromDb();
     assert.equal(partial.siteName, "Tên Shop Test");
-    // Xóa hết rồi seed → tạo đủ 12 khóa mặc định.
+    // Xóa hết rồi seed → tạo đủ 19 khóa mặc định.
     await cleanupSettings();
-    assert.equal(await seedDefaultSettings(), 12);
+    assert.equal(await seedDefaultSettings(), 19);
     assert.deepEqual(mergeSettings(await readSettingsFromDb()), DEFAULT_SETTINGS);
     // Seed lần nữa → 0 (đã có dữ liệu).
     assert.equal(await seedDefaultSettings(), 0);

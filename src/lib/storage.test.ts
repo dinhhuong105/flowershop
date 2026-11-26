@@ -11,7 +11,11 @@ import {
   createBlobAdapter,
   createDiskAdapter,
   diskFileNameFromUrl,
+  getStorageAdapter,
+  getStorageStatus,
+  resolveStorageAdapterKind,
   resolveStorageKind,
+  StorageWriteError,
   toAbsoluteImageUrl,
   type BlobClient,
 } from "./storage";
@@ -131,5 +135,52 @@ describe("disk adapter (thư mục tạm)", () => {
     assert.equal(existsSync(join(dir, url.slice("/uploads/".length))), false);
     // Xóa lần nữa → false, không ném lỗi.
     assert.equal(await adapter.remove(url), false);
+  });
+});
+
+describe("resolveStorageAdapterKind + getStorageAdapter (Ngày 12 A2)", () => {
+  const OLD_VERCEL = process.env.VERCEL;
+  const OLD_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
+  after(() => {
+    if (OLD_VERCEL === undefined) delete process.env.VERCEL;
+    else process.env.VERCEL = OLD_VERCEL;
+    if (OLD_TOKEN === undefined) delete process.env.BLOB_READ_WRITE_TOKEN;
+    else process.env.BLOB_READ_WRITE_TOKEN = OLD_TOKEN;
+  });
+
+  it("có token → blob dù ở đâu; không token + không Vercel → disk", () => {
+    assert.equal(resolveStorageAdapterKind({ vercel: true, token: "vercel_blob_rw_x" }), "blob");
+    assert.equal(resolveStorageAdapterKind({ vercel: false, token: "vercel_blob_rw_x" }), "blob");
+    assert.equal(resolveStorageAdapterKind({ vercel: false, token: undefined }), "disk");
+    assert.equal(resolveStorageAdapterKind({ vercel: false, token: "   " }), "disk");
+  });
+  it("không token + đang ở Vercel → unconfigured (không ghi disk)", () => {
+    assert.equal(resolveStorageAdapterKind({ vercel: true, token: undefined }), "unconfigured");
+    assert.equal(resolveStorageAdapterKind({ vercel: true, token: "   " }), "unconfigured");
+  });
+  it("getStorageAdapter: Vercel + không token → ném lỗi 'Chưa cấu hình nơi lưu ảnh (Blob)'", () => {
+    process.env.VERCEL = "1";
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    assert.throws(
+      () => getStorageAdapter(),
+      (e: unknown) =>
+        e instanceof StorageWriteError &&
+        e.message === "Chưa cấu hình nơi lưu ảnh (Blob)",
+    );
+  });
+  it("getStorageAdapter: local + không token → disk; Vercel + token → blob", () => {
+    delete process.env.VERCEL;
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    const disk = getStorageAdapter();
+    assert.equal(disk.kind, "disk");
+    process.env.VERCEL = "1";
+    process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_x";
+    const blob = getStorageAdapter();
+    assert.equal(blob.kind, "blob");
+  });
+  it("getStorageStatus: local + không token → disk, tokenPresent false", () => {
+    delete process.env.VERCEL;
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    assert.deepEqual(getStorageStatus(), { kind: "disk", tokenPresent: false });
   });
 });

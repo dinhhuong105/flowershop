@@ -27,7 +27,8 @@ import {
   RateLimitError,
   UnavailableProductsError,
 } from "@/lib/order";
-import { isBankConfigured } from "@/lib/bank";
+import { isBankConfiguredFromSettings } from "@/lib/bank";
+import { getSettings } from "@/lib/settings-cache";
 import { sendOrderNotification } from "@/lib/telegram";
 
 export type { CheckoutState } from "@/lib/checkout-state";
@@ -100,8 +101,13 @@ export async function placeOrder(
   if (values.paymentMethod !== "COD" && values.paymentMethod !== "BANK_TRANSFER") {
     return fail(values, { paymentMethod: "Phương thức thanh toán không hợp lệ." });
   }
-  if (values.paymentMethod === "BANK_TRANSFER" && !isBankConfigured()) {
-    return fail(values, { paymentMethod: "Chuyển khoản hiện chưa khả dụng, vui lòng chọn thanh toán khi nhận hàng." });
+  if (values.paymentMethod === "BANK_TRANSFER") {
+    // B4: "Chuyển khoản" chỉ khả dụng khi ngân hàng đã cấu hình
+    // trong cài đặt (nhóm bank, enabled = true).
+    const settings = await getSettings();
+    if (!isBankConfiguredFromSettings(settings)) {
+      return fail(values, { paymentMethod: "Chuyển khoản hiện chưa khả dụng, vui lòng chọn thanh toán khi nhận hàng." });
+    }
   }
 
   const receiver = effectiveReceiver(values);

@@ -27,3 +27,16 @@ export function undoToggleFormData(
   formData.set("isActive", String(wasActive));
   return formData;
 }
+
+/** Thông báo sau khi bấm Bật/Tắt khu vực (Ngày 12 C2): wasActive = trạng thái TRƯỚC khi bấm. */
+export function toggleZoneToastMessage(wasActive: boolean): string {
+  return wasActive ? "Đã tắt khu vực" : "Đã bật lại khu vực";
+}
+
+/** FormData để hoàn tác Bật/Tắt khu vực: đặt lại đúng trạng thái trước khi bấm. */
+export function undoToggleZoneFormData(zoneId: number, wasActive: boolean): FormData {
+  const formData = new FormData();
+  formData.set("zoneId", String(zoneId));
+  formData.set("isActive", String(wasActive));
+  return formData;
+}

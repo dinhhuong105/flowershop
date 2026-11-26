@@ -178,12 +178,48 @@ export function resolveStorageKind(token: string | undefined): StorageKind {
   return token !== undefined && token.trim() !== "" ? "blob" : "disk";
 }
 
+// Chọn nơi lưu ảnh theo môi trường + token (thuần, Ngày 12 A2):
+// - có token → Blob (dù ở đâu).
+// - không token + KHÔNG phải Vercel (local/VPS, ổ đĩa bền) → disk.
+// - không token + ĐANG ở Vercel (VERCEL có giá trị, hệ thống tệp
+//   chỉ đọc ngoài /tmp) → "unconfigured": KHÔNG được ghi disk,
+//   phải báo lỗi rõ "Chưa cấu hình nơi lưu ảnh (Blob)".
+export type StorageResolution = "blob" | "disk" | "unconfigured";
+
+export function resolveStorageAdapterKind(opts: {
+  vercel: boolean;
+  token: string | undefined;
+}): StorageResolution {
+  if (resolveStorageKind(opts.token) === "blob") return "blob";
+  return opts.vercel ? "unconfigured" : "disk";
+}
+
 export function getStorageAdapter(blobClient?: BlobClient): StorageAdapter {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
-  if (resolveStorageKind(token) === "blob") {
+  const kind = resolveStorageAdapterKind({
+    vercel: (process.env.VERCEL ?? "").trim() !== "",
+    token,
+  });
+  if (kind === "unconfigured") {
+    throw new StorageWriteError("Chưa cấu hình nơi lưu ảnh (Blob)");
+  }
+  if (kind === "blob") {
     return createBlobAdapter(blobClient, token);
   }
   return createDiskAdapter();
+}
+
+// Trạng thái nơi lưu ảnh cho trang Cài đặt Chung (A2): hiện cảnh
+// báo vàng khi đang ở Vercel mà chưa có token Blob.
+export function getStorageStatus(): { kind: StorageResolution; tokenPresent: boolean } {
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  return {
+    kind: resolveStorageAdapterKind({
+      vercel: (process.env.VERCEL ?? "").trim() !== "",
+      token,
+    }),
+    tokenPresent: resolveStorageKind(token) === "blob",
+  };
 }
 
 // Lưu ảnh qua adapter đang chọn, trả URL TUYỆT ĐỐI (quy tắc Henry).

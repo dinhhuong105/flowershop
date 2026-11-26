@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { siteConfig, telHref, zaloHref } from "@/config/site";
-import { isBankConfigured } from "@/lib/bank";
+import { isBankConfiguredFromSettings } from "@/lib/bank";
 import type { ShopSettings } from "@/lib/settings";
 
 // Footer (mục 4.3 phụ lục): nền green-900, 5 cột. Cột 2–4 ("Về chúng
@@ -131,9 +131,10 @@ export default function Footer({ settings }: { settings: ShopSettings }) {
             <span className="rounded-[2px] border border-white/30 px-2 py-0.5 text-xs font-semibold text-white">
               COD
             </span>
-            {/* H-5: huy hiệu "Chuyển khoản" chỉ hiện khi đã cấu hình BANK_*;
-                chưa cấu hình thì không nhắc tới chuyển khoản ở đâu. */}
-            {isBankConfigured() ? (
+            {/* H-5: huy hiệu "Chuyển khoản" chỉ hiện khi ngân hàng đã
+                cấu hình trong cài đặt (B4); chưa cấu hình thì không
+                nhắc tới chuyển khoản ở đâu. */}
+            {isBankConfiguredFromSettings(settings) ? (
               <span className="rounded-[2px] border border-white/30 px-2 py-0.5 text-xs font-semibold text-white">
                 Chuyển khoản
               </span>

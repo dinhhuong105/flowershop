@@ -35,6 +35,19 @@ import {
   type ProductFormInput,
 } from "@/lib/admin/product-validation";
 import type { AdminProductState } from "@/lib/admin/product-form-state";
+import {
+  createAdminZone,
+  deleteAdminZone,
+  getAdminZone,
+  setAdminZoneActive,
+  updateAdminZone,
+} from "@/lib/admin/zones";
+import {
+  validateZoneForm,
+  type ZoneFormErrors,
+  type ZoneFormInput,
+} from "@/lib/admin/zone-validation";
+import type { AdminZoneState } from "@/lib/admin/zone-form-state";
 
 // Chỉ đọc các trường cho phép — mọi trường thừa (id, createdAt...)
 // trong FormData đều bị bỏ qua.
@@ -234,5 +247,116 @@ export async function deleteCategoryAction(
   }
   revalidatePath("/", "layout");
   revalidatePath("/admin/categories");
+  return { ok: true, error: null };
+}
+
+// ---- Khu vực & phí giao hàng (Ngày 12 C1/C2 — theo mẫu Danh mục) ----
+
+function zoneFormDataToInput(formData: FormData): ZoneFormInput {
+  const get = (name: string): string => {
+    const v = formData.get(name);
+    return typeof v === "string" ? v : "";
+  };
+  return {
+    name: get("name"),
+    fee: get("fee"),
+    sortOrder: get("sortOrder"),
+    // Checkbox "Đang bật": chỉ gửi khi được chọn ("on").
+    isActive: formData.get("isActive") === "on" ? "on" : "false",
+  };
+}
+
+function zoneFail(
+  fieldErrors: ZoneFormErrors,
+  input: ZoneFormInput,
+  formError: string | null = null,
+): AdminZoneState {
+  return { ok: false, fieldErrors, formError, values: input };
+}
+
+export async function createZoneAction(
+  prevState: AdminZoneState,
+  formData: FormData,
+): Promise<AdminZoneState> {
+  await requireAdmin();
+  const input = zoneFormDataToInput(formData);
+  const { errors, values } = validateZoneForm(input);
+  if (!values) return zoneFail(errors, input);
+  const result = await createAdminZone(values);
+  if ("conflict" in result) {
+    const fieldErrors: ZoneFormErrors = {
+      [result.conflict.field]: result.conflict.message,
+    };
+    return zoneFail(fieldErrors, input);
+  }
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/shipping-zones");
+  return { ok: true, fieldErrors: {}, formError: null, values: null };
+}
+
+export async function updateZoneAction(
+  id: number,
+  prevState: AdminZoneState,
+  formData: FormData,
+): Promise<AdminZoneState> {
+  await requireAdmin();
+  const input = zoneFormDataToInput(formData);
+  const existing = await getAdminZone(id);
+  if (!existing) {
+    return zoneFail({}, input, "Không tìm thấy khu vực.");
+  }
+  const { errors, values } = validateZoneForm(input);
+  if (!values) return zoneFail(errors, input);
+  const result = await updateAdminZone(id, values);
+  if (result === null) {
+    return zoneFail({}, input, "Không tìm thấy khu vực.");
+  }
+  if ("conflict" in result) {
+    const fieldErrors: ZoneFormErrors = {
+      [result.conflict.field]: result.conflict.message,
+    };
+    return zoneFail(fieldErrors, input);
+  }
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/shipping-zones");
+  return { ok: true, fieldErrors: {}, formError: null, values: null };
+}
+
+export type ToggleZoneState = { ok: boolean; error: string | null };
+
+// Bật/tắt khu vực (đổi isActive). Không có xóa cứng. Dùng cho nút
+// icon + toast Hoàn tác (theo mẫu ToggleActiveButton của sản phẩm).
+export async function toggleZoneAction(
+  prevState: ToggleZoneState,
+  formData: FormData,
+): Promise<ToggleZoneState> {
+  await requireAdmin();
+  const id = Number(formData.get("zoneId"));
+  const nextActive = formData.get("isActive") === "true";
+  if (!Number.isInteger(id) || id <= 0) {
+    return { ok: false, error: "Không tìm thấy khu vực." };
+  }
+  const changed = await setAdminZoneActive(id, nextActive);
+  if (!changed) return { ok: false, error: "Không tìm thấy khu vực." };
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/shipping-zones");
+  return { ok: true, error: null };
+}
+
+export type DeleteZoneState = { ok: boolean; error: string | null };
+
+// Xóa khu vực — chỉ khi chưa có đơn. Máy chủ kiểm lại số đơn
+// trong deleteAdminZone (không tin con số từ giao diện).
+export async function deleteZoneAction(id: number): Promise<DeleteZoneState> {
+  await requireAdmin();
+  const result = await deleteAdminZone(id);
+  if (result === "not-found") {
+    return { ok: false, error: "Không tìm thấy khu vực." };
+  }
+  if (result === "has-orders") {
+    return { ok: false, error: "Khu vực đã có đơn, không xóa được." };
+  }
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/shipping-zones");
   return { ok: true, error: null };
 }

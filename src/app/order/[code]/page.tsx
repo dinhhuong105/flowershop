@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { getBankInfo, transferContent } from "@/lib/bank";
+import { getBankInfoFromSettings, getTransferContent } from "@/lib/bank";
+import { getSettings } from "@/lib/settings-cache";
 import Steps from "@/components/checkout/Steps";
 import OrderStatusBadge from "@/components/order/OrderStatusBadge";
 import CopyButton from "@/components/order/CopyButton";
@@ -31,7 +32,12 @@ export default async function OrderPage({ params }: { params: Promise<{ code: st
   });
   if (!order) notFound();
 
-  const bank = getBankInfo();
+  // B4: QR + nội dung chuyển khoản dựng từ cài đặt ngân hàng (nhóm
+  // bank). Lưu ý: đơn KHÔNG lưu sẵn thông tin ngân hàng (không có
+  // cột bank trên orders) nên đổi STK trong admin sẽ đổi QR hiển thị
+  // trên đơn cũ — xem "Độ lệch" báo cáo Ngày 12.
+  const settings = await getSettings();
+  const bank = getBankInfoFromSettings(settings);
   const showBankBox =
     order.paymentMethod === "BANK_TRANSFER" && order.paymentStatus === "UNPAID" && bank !== null;
 
@@ -93,7 +99,7 @@ export default async function OrderPage({ params }: { params: Promise<{ code: st
             <BankTransferBox
               bank={bank}
               amount={order.total}
-              content={transferContent(order.code)}
+              content={getTransferContent(settings, order.code)}
             />
           ) : null}
 

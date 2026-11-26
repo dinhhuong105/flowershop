@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Kiểm production sau mỗi lần deploy (Ngày 10 D10-5; Ngày 11 C5
 # thêm 2 mục: trang chủ hiện tên shop từ Cài đặt, trang Cài đặt
-# chung khi chưa đăng nhập chuyển về /login) — thay cho chuỗi curl
-# gõ tay (D9-1). Chỉ dùng GET, không đăng nhập, không ghi dữ liệu.
-# Thoát 0 khi mọi mục PASS, khác 0 khi có mục FAIL.
+# chung khi chưa đăng nhập chuyển về /login; Ngày 12 E2 thêm 3 mục:
+# Ngân hàng & QR, Khu vực & phí, Telegram khi chưa đăng nhập) — thay
+# cho chuỗi curl gõ tay (D9-1). Chỉ dùng GET, không đăng nhập, không
+# ghi dữ liệu. Thoát 0 khi mọi mục PASS, khác 0 khi có mục FAIL.
 #
 #   ./scripts/smoke-live.sh https://flowershop-steel.vercel.app/
 #   ./scripts/smoke-live.sh http://localhost:3000   (kiểm bản local)
@@ -78,6 +79,9 @@ check "Đơn không tồn tại" "/order/KHONGTONTAI" "404"
 check "Admin (chưa đăng nhập)" "/admin" "307" "location-login"
 check "Danh sách đơn (chưa đăng nhập)" "/admin/orders" "307" "location-login"
 check "Cài đặt chung (chưa đăng nhập)" "/admin/settings/general" "307" "location-login"
+check "Ngân hàng & QR (chưa đăng nhập)" "/admin/settings/bank" "307" "location-login"
+check "Khu vực & phí (chưa đăng nhập)" "/admin/shipping-zones" "307" "location-login"
+check "Telegram (chưa đăng nhập)" "/admin/settings/telegram" "307" "location-login"
 
 echo
 echo "PASS: $PASS  FAIL: $FAIL  (base: $BASE)"
