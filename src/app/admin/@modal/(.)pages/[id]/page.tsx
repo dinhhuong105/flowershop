@@ -40,6 +40,8 @@ export default async function AdminEditPageModal({
           isPublished: page.isPublished,
           showInFooter: page.showInFooter,
             legacyPath: page.legacyPath ?? "",
+            // Không tick sẵn (Ngày 15 B2): xem trang trực tiếp.
+            confirmReplace: false,
         }}
       />
     </ProductModal>

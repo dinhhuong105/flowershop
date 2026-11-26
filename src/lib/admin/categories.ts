@@ -74,6 +74,22 @@ export async function getAdminCategory(id: number): Promise<AdminCategoryDetail 
 // chỗ, không ném lỗi 500.
 export type CategorySaveConflict = { field: "slug"; message: string };
 
+// Slug danh mục không được trùng slug bất kỳ trang tĩnh nào
+// (Ngày 15 B1 — chiều ngược lại: trang tĩnh đã chặn chiều kia từ
+// Ngày 14, xem findSlugClash trong pages.ts). Nháp hay đã xuất bản
+// đều chặn — vì dữ liệu cũ trùng thì route gốc ưu tiên trang tĩnh
+// (xem README "Trang tĩnh và danh mục — quy tắc ưu tiên slug").
+async function findPageSlugClash(slug: string): Promise<CategorySaveConflict | null> {
+  const pageClash = await db.page.findFirst({
+    where: { slug },
+    select: { id: true },
+  });
+  if (pageClash) {
+    return { field: "slug", message: "Đường dẫn này đã dùng cho một trang tĩnh." };
+  }
+  return null;
+}
+
 export async function createAdminCategory(
   values: CategoryFormValues,
 ): Promise<{ id: number } | { conflict: CategorySaveConflict }> {
@@ -89,6 +105,8 @@ export async function createAdminCategory(
       },
     };
   }
+  const pageClash = await findPageSlugClash(values.slug);
+  if (pageClash) return { conflict: pageClash };
   const created = await db.category.create({
     data: {
       name: values.name,
@@ -123,6 +141,8 @@ export async function updateAdminCategory(
       },
     };
   }
+  const pageClash = await findPageSlugClash(values.slug);
+  if (pageClash) return { conflict: pageClash };
   await db.category.update({
     where: { id },
     data: {

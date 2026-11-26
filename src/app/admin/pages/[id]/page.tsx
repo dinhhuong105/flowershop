@@ -46,6 +46,9 @@ export default async function AdminEditPagePage({
             isPublished: page.isPublished,
             showInFooter: page.showInFooter,
             legacyPath: page.legacyPath ?? "",
+            // Không tick sẵn: sửa trang thay /contact, /faq, /policy
+            // thì tick lại "Tôi hiểu" mỗi lần lưu (Ngày 15 B2).
+            confirmReplace: false,
           }}
         />
       </div>

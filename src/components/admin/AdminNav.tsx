@@ -179,7 +179,10 @@ const ITEMS: NavItem[] = [
       { label: "Telegram", href: "/admin/settings/telegram", match: (p) => p === "/admin/settings/telegram" },
     ],
   },
-  { label: "Nhật ký hoạt động", section: "config", icon: ICON_CLOCK, soon: true },
+  // Nhật ký hoạt động (Ngày 15 C1): mục thật, đứng riêng dưới nhóm
+  // Cài đặt. Còn 6 mục "Sắp có": Bài viết, Yêu cầu liên hệ, Khách
+  // hàng, Tin nhắn, Tài khoản quản trị, Vai trò & phân quyền.
+  { label: "Nhật ký hoạt động", section: "config", icon: ICON_CLOCK, href: "/admin/activity", match: (p) => p === "/admin/activity" },
   { label: "Xem shop ↗", section: "shop", icon: ICON_EXTERNAL, href: "/", match: () => false },
 ];
 

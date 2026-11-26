@@ -5,7 +5,7 @@ import { PAGE_SIZE } from "@/config/catalog";
 import { getCategoryPage } from "@/lib/catalog";
 import { hasActiveFilter, parseCatalogParams } from "@/lib/catalog-params";
 import { CATEGORY_DESCRIPTIONS } from "@/lib/category-descriptions";
-import { getPublishedPageBySlug } from "@/lib/admin/pages";
+import { getPublishedPageBySlugCached } from "@/lib/admin/pages";
 import { getSettings } from "@/lib/settings-cache";
 import { renderMarkdown } from "@/lib/markdown";
 import Breadcrumb from "@/components/catalog/Breadcrumb";
@@ -29,7 +29,14 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   // slug trùng trang tĩnh ĐÃ XUẤT BẢN thì trả metadata của trang đó
   // (không tạo route /[slug] riêng — Next cấm hai đoạn động cùng cấp).
   // Trang nháp/không có thì đi tiếp sang danh mục như trước.
-  const page = await getPublishedPageBySlug(slug);
+  // QUY TẮC ƯU TIÊN (Ngày 15 B1): nếu dữ liệu cũ vẫn trùng slug,
+  // trang tĩnh ĐÃ XUẤT BẢN thắng danh mục ở route gốc — tra trang
+  // trước, có thì dùng trang, không thì mới tra danh mục. Hai chiều
+  // đều bị chặn lúc lưu nên va chạm mới không tạo ra được (xem
+  // README "Trang tĩnh và danh mục — quy tắc ưu tiên slug").
+  // Tra dùng chung qua getPublishedPageBySlugCached (Ngày 15 B3):
+  // metadata + render gộp thành một query trong cùng request.
+  const page = await getPublishedPageBySlugCached(slug);
   if (page) {
     const settings = await getSettings();
     return {
@@ -88,8 +95,10 @@ export default async function CategoryPage({ params, searchParams }: Props) {
   // Trang tĩnh ở slug gốc (Ngày 14, lệnh Henry 26/11: bỏ /trang):
   // kiểm tra trang đã xuất bản TRƯỚC danh mục. Slug trang không
   // được trùng slug danh mục (findSlugClash chặn lúc lưu) nên hai
-  // nhánh không bao giờ tranh nhau.
-  const page = await getPublishedPageBySlug(slug);
+  // nhánh không bao giờ tranh nhau — dữ liệu cũ trùng thì trang
+  // tĩnh thắng (quy tắc ưu tiên, xem generateMetadata ở trên).
+  // Dùng hàm tra đã cache theo request (Ngày 15 B3).
+  const page = await getPublishedPageBySlugCached(slug);
   if (page) {
     return (
       <div className="shell pb-12 pt-6">

@@ -21,3 +21,21 @@ export function formatVnDateTime(now: Date): string {
   }).format(now);
   return `${time}, ${date}`;
 }
+
+// Giờ cho nhật ký hoạt động (Ngày 15 C1): dạng "dd/MM/yyyy HH:mm"
+// (ngày trước, giờ sau — khác formatVnDateTime ở trên).
+export function formatVnActivityTime(now: Date): string {
+  const date = new Intl.DateTimeFormat("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(now);
+  const time = new Intl.DateTimeFormat("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(now);
+  return `${date} ${time}`;
+}

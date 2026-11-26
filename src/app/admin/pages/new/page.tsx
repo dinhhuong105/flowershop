@@ -33,6 +33,7 @@ export default async function AdminNewPagePage() {
             isPublished: false,
             showInFooter: false,
             legacyPath: "",
+            confirmReplace: false,
           }}
         />
       </div>

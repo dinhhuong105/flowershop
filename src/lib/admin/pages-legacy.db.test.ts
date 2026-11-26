@@ -31,7 +31,7 @@ import {
 const SLUG_A = "trang-thay-about-test";
 const SLUG_B = "trang-thay-faq-test";
 
-function values(slug: string, legacyPath: string | null, isPublished = true) {
+function values(slug: string, legacyPath: string | null, isPublished = true, confirmReplace = true) {
   return {
     title: `Trang thay thế ${slug}`,
     slug,
@@ -42,6 +42,7 @@ function values(slug: string, legacyPath: string | null, isPublished = true) {
     isPublished,
     showInFooter: false,
     legacyPath,
+    confirmReplace,
   };
 }
 
@@ -102,5 +103,54 @@ describe("legacyPath (Ngày 14 C1/C4)", () => {
     assert.equal(await getPublishedPageByLegacyPath("/faq"), null);
     const replacements = await getLegacyReplacements();
     assert.equal(replacements.has("/faq"), false);
+  });
+});
+
+// Xác nhận "Tôi hiểu" khi thay trang cũ (Ngày 15 B2) — kiểm ở
+// MÁY CHỦ (create/updateAdminPage), không chỉ giao diện.
+const SLUG_C = "trang-xac-nhan-contact-test";
+const SLUG_D = "trang-xac-nhan-about-test";
+
+describe("xác nhận thay trang cũ (Ngày 15 B2)", () => {
+  let idC = 0;
+
+  before(async () => {
+    await db.page.deleteMany({ where: { slug: { in: [SLUG_C, SLUG_D] } } });
+    await db.settingsAudit.deleteMany({
+      where: { key: { in: [`page:${SLUG_C}`, `page:${SLUG_D}`] } },
+    });
+  });
+
+  after(async () => {
+    await db.page.deleteMany({ where: { slug: { in: [SLUG_C, SLUG_D] } } });
+    await db.settingsAudit.deleteMany({
+      where: { key: { in: [`page:${SLUG_C}`, `page:${SLUG_D}`] } },
+    });
+  });
+
+  it("tạo trang thay /contact không tick → từ chối, lỗi đúng ô confirmReplace", async () => {
+    const result = await createAdminPage(values(SLUG_C, "/contact", true, false));
+    assert.ok("conflict" in result, "phải trả conflict");
+    assert.equal(result.conflict.field, "confirmReplace");
+    assert.match(result.conflict.message, /Tôi hiểu/);
+  });
+
+  it("tạo trang thay /contact có tick → lưu được", async () => {
+    const created = await createAdminPage(values(SLUG_C, "/contact", true, true));
+    assert.ok(!("conflict" in created), "có tick thì phải lưu được");
+    idC = (created as { id: number }).id;
+  });
+
+  it("sửa trang: đổi sang /policy không tick → từ chối; có tick → lưu được", async () => {
+    const refused = await updateAdminPage(idC, values(SLUG_C, "/policy", true, false));
+    assert.ok(refused !== null && "conflict" in refused);
+    assert.equal(refused.conflict.field, "confirmReplace");
+    const saved = await updateAdminPage(idC, values(SLUG_C, "/policy", true, true));
+    assert.ok(saved !== null && !("conflict" in saved));
+  });
+
+  it("thay /about không cần tick → lưu được", async () => {
+    const created = await createAdminPage(values(SLUG_D, "/about", true, false));
+    assert.ok(!("conflict" in created), "/about không cần xác nhận");
   });
 });

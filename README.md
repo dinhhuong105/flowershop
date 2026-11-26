@@ -74,6 +74,29 @@ Tham số của trang danh mục (kết hợp được, giá trị sai bị bỏ
 | `sx` | `gia-tang`, `gia-giam` | Sắp xếp theo giá hiện tại |
 | `trang` | số nguyên dương | Trang hiện tại (8 sản phẩm/trang) |
 
+### Trang tĩnh và danh mục — quy tắc ưu tiên slug (Ngày 14–15)
+
+Trang tĩnh sống ở slug gốc (`/gioi-thieu`, …) nên danh mục và trang
+tĩnh dùng chung một không gian đường dẫn. Hai chiều đều bị chặn lúc
+lưu:
+
+- Tạo/sửa **trang tĩnh** có slug trùng slug danh mục → từ chối, báo
+  lỗi đúng ô slug (kiểm trong `findSlugClash`, `src/lib/admin/pages.ts`).
+- Tạo/sửa **danh mục** có slug trùng slug bất kỳ trang tĩnh nào
+  (nháp hay đã xuất bản) → từ chối, báo lỗi đúng ô slug (kiểm trong
+  `findPageSlugClash`, `src/lib/admin/categories.ts`).
+- **Xuất bản** trang (nút mắt ở bảng trang tĩnh) mà slug trùng slug
+  danh mục → từ chối (`setAdminPagePublished` trả `slug-clash`).
+- Slug trùng đường dẫn cố định (`RESERVED_SLUGS`: `trang`, `admin`,
+  `cart`, `checkout`, `search`, …) bị chặn ở cả hai bên.
+
+Nếu dữ liệu cũ vẫn trùng (tạo trước khi có các chặn này), **trang
+tĩnh ĐÃ XUẤT BẢN thắng danh mục ở route gốc**: `[category]/page.tsx`
+tra trang tĩnh trước (qua `getPublishedPageBySlugCached`, một query
+duy nhất cho cả metadata lẫn render — Ngày 15 B3), có thì render
+trang tĩnh, không thì mới render danh mục. Kiểm tra dữ liệu trùng
+(chỉ đọc): `npx tsx scripts/check-slug-collisions.ts` (dự kiến 0 cặp).
+
 ## Giỏ hàng (Ngày 4)
 
 Giỏ hàng lưu trong cơ sở dữ liệu, nhận diện bằng cookie `cart_token`

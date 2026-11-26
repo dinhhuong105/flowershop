@@ -23,7 +23,7 @@ import { renderMarkdown } from "@/lib/markdown";
 import {
   LEGACY_PATHS,
   LEGACY_PATH_LABELS,
-  LEGACY_POLICY_WARNING,
+  legacyReplaceWarning,
 } from "@/lib/legacy-paths";
 import {
   MAX_PAGE_CONTENT_LENGTH,
@@ -46,6 +46,8 @@ export type PageFormInitial = {
   showInFooter: boolean;
   // Đường dẫn cũ thay thế ("" = không thay trang nào) — Ngày 14 C1.
   legacyPath: string;
+  // Tick "Tôi hiểu" khi thay /contact, /faq, /policy — Ngày 15 B2.
+  confirmReplace: boolean;
 };
 
 const inputClass =
@@ -91,6 +93,11 @@ export default function PageForm({
   );
   const [isPublishedValue, setIsPublishedValue] = useState(
     saved?.isPublished ?? initial.isPublished,
+  );
+  // Tick "Tôi hiểu" khi thay /contact, /faq, /policy (Ngày 15 B2):
+  // checkbox có kiểm soát để hộp vàng + lỗi hiện/ẩn theo lựa chọn.
+  const [confirmReplaceValue, setConfirmReplaceValue] = useState(
+    saved?.confirmReplace ?? initial.confirmReplace,
   );
 
   const err = (field: keyof AdminPageState["fieldErrors"]) =>
@@ -207,11 +214,28 @@ export default function PageForm({
           <p className="mt-1 text-sm text-slate-500">
             Khi trang này được xuất bản, đường dẫn cũ sẽ chuyển vĩnh viễn sang trang mới.
           </p>
-          {legacyPathValue === "/policy" ? (
-            <p role="status" className="mt-1 text-sm font-medium text-yellow-800">
-              {LEGACY_POLICY_WARNING}
-            </p>
+          {legacyPathValue !== "" &&
+          legacyReplaceWarning(legacyPathValue as (typeof LEGACY_PATHS)[number]) ? (
+            <div
+              role="status"
+              className="mt-2 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3"
+            >
+              <p className="text-sm font-medium text-yellow-800">
+                {legacyReplaceWarning(legacyPathValue as (typeof LEGACY_PATHS)[number])}
+              </p>
+              <label className="mt-2 flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-yellow-900">
+                <input
+                  type="checkbox"
+                  name="confirmReplace"
+                  checked={confirmReplaceValue}
+                  onChange={(e) => setConfirmReplaceValue(e.target.checked)}
+                  className="h-5 w-5 accent-yellow-600"
+                />
+                Tôi hiểu
+              </label>
+            </div>
           ) : null}
+          {fieldError("confirmReplace")}
           {legacyPathValue !== "" && !isPublishedValue ? (
             <p className="mt-1 text-sm text-slate-500">
               Trang cũ vẫn hiện cho đến khi trang này được xuất bản.

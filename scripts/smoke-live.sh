@@ -137,6 +137,7 @@ check "Trang tĩnh nháp (giới thiệu)" "/gioi-thieu" "404"
 check "Tiền tố /trang/ đã bỏ" "/trang/gioi-thieu" "404"
 check "Trang tĩnh (chưa đăng nhập)" "/admin/pages" "307" "location-login"
 check "Cài đặt SEO (chưa đăng nhập)" "/admin/settings/seo" "307" "location-login"
+check "Nhật ký hoạt động (chưa đăng nhập)" "/admin/activity" "307" "location-login"
 check_sitemap_pages "Sitemap (số trang đã xuất bản)"
 
 

@@ -396,6 +396,8 @@ function pageFormDataToInput(formData: FormData): PageFormInput {
     isPublished: formData.get("isPublished") === "on",
     showInFooter: formData.get("showInFooter") === "on",
     legacyPath: get("legacyPath"),
+    // Tick "Tôi hiểu" khi thay /contact, /faq, /policy (Ngày 15 B2).
+    confirmReplace: formData.get("confirmReplace") === "on",
   };
 }
 
@@ -470,8 +472,14 @@ export async function togglePageAction(
   if (!Number.isInteger(id) || id <= 0) {
     return { ok: false, error: "Không tìm thấy trang." };
   }
-  const changed = await setAdminPagePublished(id, nextPublished);
-  if (!changed) return { ok: false, error: "Không tìm thấy trang." };
+  const result = await setAdminPagePublished(id, nextPublished);
+  if (!result.ok && result.reason === "slug-clash") {
+    return {
+      ok: false,
+      error: "Đường dẫn này đã dùng cho một danh mục, không xuất bản được.",
+    };
+  }
+  if (!result.ok) return { ok: false, error: "Không tìm thấy trang." };
   revalidatePath("/", "layout");
   revalidatePath("/admin/pages");
   return { ok: true, error: null };

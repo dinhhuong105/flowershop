@@ -255,6 +255,7 @@ model SettingsAudit {
   createdAt DateTime @default(now())
 
   @@index([key, createdAt])
+  @@index([createdAt])
   @@map("settings_audit")
 }
 

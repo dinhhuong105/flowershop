@@ -14,6 +14,7 @@ function input(overrides: Partial<PageFormInput> = {}): PageFormInput {
     isPublished: false,
     showInFooter: false,
     legacyPath: "",
+    confirmReplace: false,
     ...overrides,
   };
 }
@@ -36,7 +37,17 @@ describe("validatePageForm", () => {
     assert.ok(validatePageForm(input({ slug: "-bat-dau-gach" })).errors.slug);
   });
   it("slug trùng đường dẫn cố định → lỗi (faq, policy, trang...)", () => {
-    for (const slug of ["faq", "about", "contact", "policy", "trang", "cart", "admin"]) {
+    for (const slug of [
+      "faq",
+      "about",
+      "contact",
+      "policy",
+      "trang",
+      "cart",
+      "checkout",
+      "search",
+      "admin",
+    ]) {
       assert.ok(
         validatePageForm(input({ slug })).errors.slug,
         `slug ${slug} phải bị từ chối`,
@@ -62,10 +73,35 @@ describe("validatePageForm", () => {
   });
   it("legacyPath: rỗng → null; bốn đường dẫn cũ → nhận; khác → lỗi (Ngày 14 C1)", () => {
     assert.equal(validatePageForm(input()).values?.legacyPath, null);
-    for (const p of ["/about", "/policy", "/faq", "/contact"]) {
-      assert.equal(validatePageForm(input({ legacyPath: p })).values?.legacyPath, p);
+    // /about không cần xác nhận; ba đường còn lại cần tick "Tôi hiểu" (Ngày 15 B2).
+    assert.equal(validatePageForm(input({ legacyPath: "/about" })).values?.legacyPath, "/about");
+    for (const p of ["/policy", "/faq", "/contact"]) {
+      assert.equal(
+        validatePageForm(input({ legacyPath: p, confirmReplace: true })).values?.legacyPath,
+        p,
+      );
     }
     assert.ok(validatePageForm(input({ legacyPath: "/gioi-thieu" })).errors.legacyPath);
     assert.ok(validatePageForm(input({ legacyPath: "about" })).errors.legacyPath);
+  });
+  it("thay /contact, /faq, /policy không tick 'Tôi hiểu' → lỗi confirmReplace; tick → nhận (Ngày 15 B2)", () => {
+    for (const p of ["/contact", "/faq", "/policy"]) {
+      assert.ok(
+        validatePageForm(input({ legacyPath: p })).errors.confirmReplace,
+        `thay ${p} phải bắt tick xác nhận`,
+      );
+      assert.equal(
+        validatePageForm(input({ legacyPath: p, confirmReplace: true })).errors.confirmReplace,
+        undefined,
+      );
+      assert.equal(
+        validatePageForm(input({ legacyPath: p, confirmReplace: true })).values?.legacyPath,
+        p,
+      );
+    }
+  });
+  it("thay /about không cần tick 'Tôi hiểu' (Ngày 15 B2)", () => {
+    assert.equal(validatePageForm(input({ legacyPath: "/about" })).errors.confirmReplace, undefined);
+    assert.equal(validatePageForm(input({ legacyPath: "/about" })).values?.legacyPath, "/about");
   });
 });

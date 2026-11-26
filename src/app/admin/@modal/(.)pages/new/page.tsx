@@ -29,6 +29,7 @@ export default async function AdminNewPageModal() {
           isPublished: false,
           showInFooter: false,
             legacyPath: "",
+            confirmReplace: false,
         }}
       />
     </ProductModal>

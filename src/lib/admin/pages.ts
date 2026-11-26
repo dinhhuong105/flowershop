@@ -4,8 +4,10 @@
 // Tạo/sửa/xóa/xuất bản đều ghi settings_audit (khóa "page:<slug>",
 // ai + lúc nào) trong cùng transaction với thay đổi.
 
+import { cache } from "react";
 import { db } from "../db";
 import { isReservedSlug } from "@/lib/reserved-slugs";
+import { needsReplaceConfirm } from "@/lib/legacy-paths";
 import type { PageFormValues } from "./page-validation";
 
 export type AdminPageRow = {
@@ -84,6 +86,16 @@ export async function getPublishedPageBySlug(slug: string): Promise<PublishedPag
     },
   });
 }
+
+// Tra trang đã xuất bản theo slug, dùng chung MỘT truy vấn trong
+// cùng request (Ngày 15 B3): generateMetadata + render của route
+// [category] đều gọi hàm này; React.cache() gộp hai lần tra thành
+// một query duy nhất. Hàm gốc không cache vẫn giữ cho các nơi
+// khác (trang cũ, sitemap, chân trang) và test.
+export const getPublishedPageBySlugCached = cache(
+  async (slug: string): Promise<PublishedPage | null> =>
+    getPublishedPageBySlug(slug),
+);
 
 // Trang đã xuất bản thay thế một đường dẫn cũ (Ngày 14 C1/C2):
 // nháp/không tồn tại/không thay đường dẫn này → null.
@@ -176,9 +188,28 @@ export async function seedDefaultPages(): Promise<number> {
   return seeds.length;
 }
 export type PageSaveConflict = {
-  field: "slug" | "legacyPath";
+  field: "slug" | "legacyPath" | "confirmReplace";
   message: string;
 };
+
+// Thay một trong ba đường dẫn cũ (/contact, /faq, /policy) mà
+// không tick "Tôi hiểu" → từ chối ở MÁY CHỦ (Ngày 15 B2), kể cả
+// khi gọi thẳng create/updateAdminPage mà không qua biểu mẫu.
+// /about không cần xác nhận. Lưu ý: mỗi lần lưu với một trong ba
+// đường dẫn đều phải tick lại, kể cả sửa trang đã thay trước đó.
+function replaceConfirmConflict(values: PageFormValues): PageSaveConflict | null {
+  if (
+    values.legacyPath !== null &&
+    needsReplaceConfirm(values.legacyPath) &&
+    !values.confirmReplace
+  ) {
+    return {
+      field: "confirmReplace",
+      message: "Tick “Tôi hiểu” để xác nhận thay trang cũ này.",
+    };
+  }
+  return null;
+}
 
 // Slug không được trùng trang khác, không trùng slug danh mục
 // (B1), không trùng đường dẫn cố định (phòng thủ thêm — form đã
@@ -236,6 +267,8 @@ async function findLegacyPathClash(
 export async function createAdminPage(
   values: PageFormValues,
 ): Promise<{ id: number } | { conflict: PageSaveConflict }> {
+  const confirmConflict = replaceConfirmConflict(values);
+  if (confirmConflict) return { conflict: confirmConflict };
   const clash = await findSlugClash(values.slug);
   if (clash) return { conflict: clash };
   const legacyClash = await findLegacyPathClash(values.legacyPath);
@@ -272,6 +305,8 @@ export async function updateAdminPage(
     select: { id: true, title: true, slug: true, legacyPath: true },
   });
   if (!existing) return null;
+  const confirmConflict = replaceConfirmConflict(values);
+  if (confirmConflict) return { conflict: confirmConflict };
   const clash = await findSlugClash(values.slug, id);
   if (clash) return { conflict: clash };
   const legacyClash = await findLegacyPathClash(values.legacyPath, id);
@@ -320,14 +355,32 @@ export async function updateAdminPage(
 }
 
 // Bật/tắt xuất bản không cần xác nhận (B3): đảo trạng thái, ghi
-// nhật ký. Trả false khi trang không tồn tại.
-export async function setAdminPagePublished(id: number, isPublished: boolean): Promise<boolean> {
+// nhật ký. Xuất bản trang có slug trùng danh mục thì TỪ CHỐI
+// (Ngày 15 B1): route gốc ưu tiên trang tĩnh nên danh mục sẽ biến
+// mất khỏi shop; lỗi này chỉ gặp với dữ liệu cũ (tạo/sửa trang đã
+// chặn trùng danh mục từ Ngày 14). Trả false khi trang không tồn
+// tại; trả slug-clash khi bị chặn vì trùng danh mục.
+export type SetPagePublishedResult =
+  | { ok: true }
+  | { ok: false; reason: "not-found" | "slug-clash" };
+
+export async function setAdminPagePublished(
+  id: number,
+  isPublished: boolean,
+): Promise<SetPagePublishedResult> {
   const existing = await db.page.findUnique({
     where: { id },
     select: { id: true, slug: true, isPublished: true },
   });
-  if (!existing) return false;
-  if (existing.isPublished === isPublished) return true;
+  if (!existing) return { ok: false, reason: "not-found" };
+  if (existing.isPublished === isPublished) return { ok: true };
+  if (isPublished) {
+    const categoryClash = await db.category.findUnique({
+      where: { slug: existing.slug },
+      select: { id: true },
+    });
+    if (categoryClash) return { ok: false, reason: "slug-clash" };
+  }
   await db.$transaction(async (tx) => {
     await tx.page.update({ where: { id }, data: { isPublished } });
     await tx.settingsAudit.create({
@@ -339,7 +392,7 @@ export async function setAdminPagePublished(id: number, isPublished: boolean): P
       },
     });
   });
-  return true;
+  return { ok: true };
 }
 
 export type DeletePageResult = { ok: true } | { ok: false; reason: "not-found" };

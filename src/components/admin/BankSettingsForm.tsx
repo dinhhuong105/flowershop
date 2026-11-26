@@ -90,6 +90,15 @@ export default function BankSettingsForm({
     accountName.toUpperCase() !== initial.accountName.toUpperCase() ||
     transferNoteTemplate !== initial.transferNoteTemplate ||
     bankEnabled !== initial.bankEnabled;
+  // Chỉ tắt "Bật thanh toán chuyển khoản", không đổi gì khác
+  // (Ngày 15 B4): câu cảnh báo khác — QR biến mất, không phải QR mới.
+  const onlyDisabled =
+    initial.bankEnabled &&
+    !bankEnabled &&
+    bankCode === initial.bankCode &&
+    accountNumber === initial.accountNumber &&
+    accountName.toUpperCase() === initial.accountName.toUpperCase() &&
+    transferNoteTemplate === initial.transferNoteTemplate;
   const showBankWarning = hasChanges && unpaidBankTransferCount > 0;
 
   // Gửi trực tiếp qua dispatch (không native submit): tránh React
@@ -289,7 +298,7 @@ export default function BankSettingsForm({
           role="status"
           className="rounded-lg border border-yellow-600/40 bg-yellow-50 px-4 py-3 text-sm font-medium text-yellow-800"
         >
-          {bankChangeWarningText(unpaidBankTransferCount)}{" "}
+          {bankChangeWarningText(unpaidBankTransferCount, onlyDisabled)}{" "}
           <Link
             href="/admin/orders?tab=all&payment=UNPAID&method=BANK_TRANSFER&exclude=CANCELLED"
             className="font-bold underline hover:text-yellow-900"

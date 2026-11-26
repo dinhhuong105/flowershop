@@ -141,7 +141,11 @@ export async function saveBankSettingsAction(
       notify.ok ? "sent" : `failed: ${notify.error ?? "unknown"}`,
       "admin",
     );
-    message = bankSaveSuccessMessage(unpaidCount, !notify.ok);
+    // B4 (Ngày 15): chỉ tắt "Bật thanh toán chuyển khoản" thì câu
+    // cảnh báo khác (QR biến mất, không phải QR mới).
+    const onlyDisabled =
+      saved.length === 1 && saved[0] === "bank.enabled" && values.bankEnabled === false;
+    message = bankSaveSuccessMessage(unpaidCount, !notify.ok, onlyDisabled);
   }
   revalidateTag("site-settings");
   revalidatePath("/", "layout");

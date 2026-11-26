@@ -67,6 +67,20 @@ describe("validateCategoryForm", () => {
     assert.equal(values, null);
   });
 
+  it("slug trùng đường dẫn cố định → lỗi slug (trang, checkout, search — Ngày 15 B1)", () => {
+    for (const slug of ["trang", "checkout", "search"]) {
+      const { values, errors } = validateCategoryForm({
+        name: "Danh Mục Thử",
+        slug,
+        sortOrder: "1",
+        seoTitle: "",
+        seoDescription: "",
+      });
+      assert.equal(values, null, `slug ${slug} phải bị từ chối`);
+      assert.ok(errors.slug, `slug ${slug} phải có lỗi slug`);
+    }
+  });
+
   it("thứ tự ngoài khoảng → lỗi sortOrder", () => {
     const { errors, values } = validateCategoryForm({
       name: "Hoa Đẹp",

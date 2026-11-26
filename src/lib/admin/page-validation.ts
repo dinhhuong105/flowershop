@@ -5,7 +5,7 @@
 // slugifyName + hằng thứ tự của danh mục/sản phẩm.
 
 import { isReservedSlug } from "@/lib/reserved-slugs";
-import { isLegacyPath } from "@/lib/legacy-paths";
+import { isLegacyPath, needsReplaceConfirm } from "@/lib/legacy-paths";
 import {
   MAX_PRODUCT_SORT_ORDER,
   MIN_PRODUCT_SORT_ORDER,
@@ -36,6 +36,9 @@ export type PageFormInput = {
   showInFooter: boolean;
   // Đường dẫn cũ thay thế ("" = không thay trang nào) — Ngày 14 C1.
   legacyPath: string;
+  // Tick "Tôi hiểu" khi thay /contact, /faq hoặc /policy — Ngày 15 B2.
+  // Không lưu vào DB; chỉ để kiểm tra lúc lưu.
+  confirmReplace: boolean;
 };
 
 export type PageFormValues = {
@@ -49,11 +52,21 @@ export type PageFormValues = {
   showInFooter: boolean;
   // null = không thay trang cũ nào.
   legacyPath: string | null;
+  // Tick "Tôi hiểu" khi thay /contact, /faq hoặc /policy — Ngày 15 B2.
+  // Không lưu vào DB; chỉ để create/updateAdminPage kiểm tra ở máy chủ.
+  confirmReplace: boolean;
 };
 
 export type PageFormErrors = Partial<
   Record<
-    "title" | "slug" | "content" | "seoTitle" | "seoDescription" | "sortOrder" | "legacyPath",
+    | "title"
+    | "slug"
+    | "content"
+    | "seoTitle"
+    | "seoDescription"
+    | "sortOrder"
+    | "legacyPath"
+    | "confirmReplace",
     string
   >
 >;
@@ -123,6 +136,14 @@ export function validatePageForm(input: PageFormInput): {
     }
   }
 
+  // Thay một trong ba đường dẫn cũ (/contact, /faq, /policy) thì
+  // bắt buộc tick "Tôi hiểu" trước khi lưu (Ngày 15 B2). /about
+  // không cần xác nhận. Kiểm ở máy chủ, không chỉ giao diện —
+  // create/updateAdminPage kiểm lại bằng cùng quy tắc này.
+  if (legacyPath !== null && needsReplaceConfirm(legacyPath) && !input.confirmReplace) {
+    errors.confirmReplace = "Tick “Tôi hiểu” để xác nhận thay trang cũ này.";
+  }
+
   if (Object.keys(errors).length > 0) return { errors, values: null };
   return {
     errors,
@@ -136,6 +157,7 @@ export function validatePageForm(input: PageFormInput): {
       isPublished: input.isPublished,
       showInFooter: input.showInFooter,
       legacyPath,
+      confirmReplace: input.confirmReplace,
     },
   };
 }
