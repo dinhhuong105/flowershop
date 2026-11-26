@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { isReservedSlug } from "@/lib/reserved-slugs";
-import { shouldSeed } from "@/lib/seed-guard";
+import { isProductionDatabaseUrl, shouldSeed } from "@/lib/seed-guard";
+import { seedDefaultSettings } from "@/lib/settings";
 
 const prisma = new PrismaClient();
 
@@ -75,13 +76,36 @@ function skuFor(product: { categorySlug: string; sortOrder: number }): string {
 }
 
 async function main() {
+  // A3 (Ngày 11): --force trên production bị từ chối trừ khi có thêm
+  // --i-know-this-is-production. Production nhận diện qua host của
+  // DATABASE_URL (không phải localhost). Chạy tay trên máy này với
+  // DB local không ảnh hưởng.
+  const force = process.argv.includes("--force");
+  if (
+    force &&
+    isProductionDatabaseUrl(process.env.DATABASE_URL) &&
+    !process.argv.includes("--i-know-this-is-production")
+  ) {
+    throw new Error(
+      "--force trên production bị từ chối: chạy lại với --i-know-this-is-production (chỉ khi chắc chắn muốn ghi đè dữ liệu production).",
+    );
+  }
+
+  // Seed cài đặt mặc định (Ngày 11 B2): CHỈ khi bảng site_settings
+  // trống — không ghi đè dữ liệu Henry đã nhập. Chạy độc lập với
+  // chặn seed demo bên dưới (DB production đã có danh mục/sản phẩm
+  // nhưng bảng cài đặt vẫn trống thì vẫn seed cài đặt).
+  const seededSettings = await seedDefaultSettings();
+  if (seededSettings > 0) {
+    console.log(`Seed cài đặt mặc định: ${seededSettings} khóa.`);
+  }
+
   // CHẶN SEED HỒI SINH DỮ LIỆU DEMO (mục 1 verdict Ngày 10): lệnh
   // build trên Vercel chạy `prisma db seed` MỖI lần deploy, mà upsert
   // vẫn TẠO LẠI dòng đã bị xóa (kể cả với update: {}). Nên chỉ seed
   // khi CẢ 3 bảng đều trống; DB đã có dữ liệu thì thoát ngay, không
   // tạo lại gì cả. Chạy tay với --force để bỏ qua chặn (vd dựng lại
   // DB sau khi xóa nhầm).
-  const force = process.argv.includes("--force");
   const before = {
     categories: await prisma.category.count(),
     products: await prisma.product.count(),

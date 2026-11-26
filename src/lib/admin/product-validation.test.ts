@@ -1,6 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { siteConfig } from "@/config/site";
 import {
+  isServerImageUrl,
   parseTags,
   slugifyName,
   validateProductForm,
@@ -176,5 +178,37 @@ describe("validateProductForm", () => {
       ]).errors.images,
       "URL ngoài không nằm trong ảnh đã có vẫn bị từ chối",
     );
+  });
+});
+
+describe("isServerImageUrl (Ngày 11 B1.3 — URL ảnh tuyệt đối)", () => {
+  it("tương đối /uploads/<hash>.<ext> → ok", () => {
+    assert.equal(isServerImageUrl("/uploads/abcdef012345.png"), true);
+    assert.equal(isServerImageUrl("/uploads/abcdef012345.jpg"), true);
+    assert.equal(isServerImageUrl("/uploads/abcdef012345.webp"), true);
+  });
+  it("tuyệt đối cùng domain shop → ok; host Blob Vercel → ok", () => {
+    assert.equal(isServerImageUrl(`${siteConfig.url}/uploads/abcdef012345.png`), true);
+    assert.equal(
+      isServerImageUrl(
+        "https://abc123.public.blob.vercel-storage.com/uploads/abcdef012345.png",
+      ),
+      true,
+    );
+  });
+  it("URL ngoài khác / placeholder / tên lạ → từ chối", () => {
+    assert.equal(isServerImageUrl("https://example.com/uploads/abcdef012345.png"), false);
+    assert.equal(isServerImageUrl("https://example.com/x.jpg"), false);
+    assert.equal(isServerImageUrl("/images/placeholder.svg"), false);
+    assert.equal(isServerImageUrl("/uploads/abcdef012345.svg"), false);
+    assert.equal(isServerImageUrl("/uploads/../../etc/passwd"), false);
+    assert.equal(isServerImageUrl(""), false);
+  });
+  it("validateProductForm nhận URL tuyệt đối do route upload trả về", () => {
+    const { errors, values } = validateProductForm(
+      baseInput({ images: [`${siteConfig.url}/uploads/abcdef012345.png`] }),
+    );
+    assert.deepEqual(errors, {});
+    assert.deepEqual(values?.images, [`${siteConfig.url}/uploads/abcdef012345.png`]);
   });
 });

@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { siteConfig, telHref, zaloHref } from "@/config/site";
+import { telHref, zaloHref } from "@/config/site";
+import type { ShopSettings } from "@/lib/settings";
 
 type CategoryLink = {
   name: string;
@@ -12,8 +13,15 @@ type CategoryLink = {
 // Menu di động (mục 3.3 phụ lục): ngăn kéo trượt từ trái
 // translateX(-100%→0) 300ms, nền mờ fade 200ms, các mục vào so le 40ms.
 // Đóng bằng Esc, bấm nền mờ, bấm liên kết. Khóa cuộn nền; trả focus về
-// nút mở. Chỉ hiện nút Gọi/Zalo khi có số thật trong siteConfig.
-export default function MobileMenu({ categories }: { categories: CategoryLink[] }) {
+// nút mở. Chỉ hiện nút Gọi/Zalo khi có số thật trong Cài đặt shop
+// (Ngày 11 B5) qua prop settings.
+export default function MobileMenu({
+  categories,
+  settings,
+}: {
+  categories: CategoryLink[];
+  settings: ShopSettings;
+}) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -81,7 +89,7 @@ export default function MobileMenu({ categories }: { categories: CategoryLink[] 
       >
         <div className="flex items-center justify-between border-b border-line px-4 py-3">
           <span className="font-display text-lg font-semibold text-green-900">
-            {siteConfig.name}
+            {settings.siteName}
           </span>
           <button
             type="button"
@@ -112,19 +120,19 @@ export default function MobileMenu({ categories }: { categories: CategoryLink[] 
               </li>
             ))}
           </ul>
-          {siteConfig.hotline || siteConfig.zaloPhone ? (
+          {settings.hotline || settings.zalo ? (
             <div className="flex flex-col gap-2 py-4">
-              {siteConfig.hotline ? (
+              {settings.hotline ? (
                 <a
-                  href={telHref(siteConfig.hotline)}
+                  href={telHref(settings.hotline)}
                   className="flex min-h-11 items-center justify-center rounded-[3px] bg-green-800 font-semibold text-white transition-colors duration-150 hover:bg-green-700"
                 >
-                  Gọi {siteConfig.hotline}
+                  Gọi {settings.hotline}
                 </a>
               ) : null}
-              {siteConfig.zaloPhone ? (
+              {settings.zalo ? (
                 <a
-                  href={zaloHref(siteConfig.zaloPhone)}
+                  href={zaloHref(settings.zalo)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex min-h-11 items-center justify-center rounded-[3px] border border-green-800 font-semibold text-green-800 transition-colors duration-150 hover:bg-cream-100"

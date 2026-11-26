@@ -3,6 +3,7 @@
     "@fontsource/playfair-display": "5.3.0",
     "@prisma/client": "6.19.3",
     "@types/qrcode": "^1.5.5",
+    "@vercel/blob": "^2.9.0",
     "next": "15.5.29",
     "qrcode": "^1.5.4",
     "react": "19.3.1",
@@ -35,8 +36,8 @@
     "postbuild": "rm -f .next/standalone/.env .next/standalone/.env.*",
     "resend:notifications": "tsx scripts/resend-notifications.ts",
     "start": "next start",
-    "test": "tsx --test src/lib/catalog-params.test.ts src/lib/cart-rules.test.ts src/lib/related.test.ts src/lib/delivery-rules.test.ts src/lib/checkout-validation.test.ts src/lib/vietqr.test.ts src/lib/telegram.test.ts src/lib/search.test.ts src/lib/quick-view.test.ts src/lib/bank.test.ts src/lib/seed-guard.test.ts src/lib/vn-datetime.test.ts src/lib/admin/password.test.ts src/lib/admin/product-validation.test.ts src/lib/admin/category-validation.test.ts src/lib/admin/uploads.test.ts src/lib/admin/ip.test.ts src/lib/admin/orders.test.ts src/lib/admin/toggle-toast.test.ts",
-    "test:db": "tsx --test src/lib/admin/orders.db.test.ts src/lib/admin/categories.db.test.ts src/lib/admin/products.db.test.ts",
+    "test": "tsx --test src/lib/catalog-params.test.ts src/lib/cart-rules.test.ts src/lib/related.test.ts src/lib/delivery-rules.test.ts src/lib/checkout-validation.test.ts src/lib/vietqr.test.ts src/lib/telegram.test.ts src/lib/search.test.ts src/lib/quick-view.test.ts src/lib/bank.test.ts src/lib/seed-guard.test.ts src/lib/vn-datetime.test.ts src/lib/settings.test.ts src/lib/storage.test.ts src/lib/admin/password.test.ts src/lib/admin/product-validation.test.ts src/lib/admin/category-validation.test.ts src/lib/admin/uploads.test.ts src/lib/admin/ip.test.ts src/lib/admin/orders.test.ts src/lib/admin/toggle-toast.test.ts src/lib/admin/clean-production.test.ts",
+    "test:db": "tsx --test src/lib/admin/orders.db.test.ts src/lib/admin/categories.db.test.ts src/lib/admin/products.db.test.ts src/lib/settings.db.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "version": "0.1.0"

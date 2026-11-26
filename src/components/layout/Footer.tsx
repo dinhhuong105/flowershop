@@ -1,32 +1,39 @@
 import Link from "next/link";
 import { siteConfig, telHref, zaloHref } from "@/config/site";
 import { isBankConfigured } from "@/lib/bank";
+import type { ShopSettings } from "@/lib/settings";
 
 // Footer (mục 4.3 phụ lục): nền green-900, 5 cột. Cột 2–4 ("Về chúng
 // tôi", "Hỗ trợ khách hàng", "Chính sách") đã có trang thật từ Ngày 9
 // (/about, /faq, /contact, /policy) nên link tới trang đó. Cột "Liên
-// hệ" chỉ ghi field có giá trị thật trong siteConfig (hiện chỉ còn
-// giờ mở cửa; hotline/địa chỉ trong .env mẫu là số giữ chỗ nên đã bị
-// lọc ở site.ts). Không cột newsletter, không logo VISA/Mastercard/
-// MoMo/ZaloPay. Thanh dưới: © + badge COD, Chuyển khoản.
-export default function Footer() {
+// hệ" chỉ ghi field có giá trị thật trong Cài đặt shop (Ngày 11 B5:
+// tên, slogan, mạng xã hội, địa chỉ, hotline, Zalo, giờ mở cửa);
+// field trống thì ẩn dòng đó. Tagline vẫn lấy từ siteConfig (không
+// phải trường cài đặt). Không cột newsletter, không logo
+// VISA/Mastercard/MoMo/ZaloPay. Thanh dưới: © + badge COD, Chuyển khoản.
+export default function Footer({ settings }: { settings: ShopSettings }) {
   const year = new Date().getFullYear();
   const hasContact =
-    siteConfig.address || siteConfig.hotline || siteConfig.zaloPhone || siteConfig.openHours;
+    settings.address || settings.hotline || settings.zalo || settings.openHours;
+  const socialLinks = [
+    { href: settings.facebook, label: "Facebook" },
+    { href: settings.instagram, label: "Instagram" },
+    { href: settings.tiktok, label: "TikTok" },
+  ].filter((s) => s.href !== "");
   return (
     <footer className="bg-green-900 text-white">
       <div className="shell grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-5">
         <div>
-          <p className="font-display text-xl font-semibold">{siteConfig.name}</p>
+          <p className="font-display text-xl font-semibold">{settings.siteName}</p>
           <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-gold-300">
             {siteConfig.tagline}
           </p>
           <p className="mt-3 text-sm leading-relaxed text-white/80">
-            {siteConfig.description}
+            {settings.slogan}
           </p>
-          {siteConfig.socialLinks.length > 0 ? (
+          {socialLinks.length > 0 ? (
             <ul className="mt-4 flex gap-2">
-              {siteConfig.socialLinks.map((s) => (
+              {socialLinks.map((s) => (
                 <li key={s.href}>
                   <a
                     href={s.href}
@@ -86,29 +93,29 @@ export default function Footer() {
           <p className="font-semibold">Liên hệ</p>
           {hasContact ? (
             <ul className="mt-3 space-y-2 text-sm text-white/80">
-              {siteConfig.address ? <li>{siteConfig.address}</li> : null}
-              {siteConfig.hotline ? (
+              {settings.address ? <li>{settings.address}</li> : null}
+              {settings.hotline ? (
                 <li>
                   Hotline:{" "}
-                  <a href={telHref(siteConfig.hotline)} className="text-white hover:underline">
-                    {siteConfig.hotline}
+                  <a href={telHref(settings.hotline)} className="text-white hover:underline">
+                    {settings.hotline}
                   </a>
                 </li>
               ) : null}
-              {siteConfig.zaloPhone ? (
+              {settings.zalo ? (
                 <li>
                   Zalo:{" "}
                   <a
-                    href={zaloHref(siteConfig.zaloPhone)}
+                    href={zaloHref(settings.zalo)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-white hover:underline"
                   >
-                    {siteConfig.zaloPhone}
+                    {settings.zalo}
                   </a>
                 </li>
               ) : null}
-              {siteConfig.openHours ? <li>Giờ mở cửa: {siteConfig.openHours}</li> : null}
+              {settings.openHours ? <li>Giờ mở cửa: {settings.openHours}</li> : null}
             </ul>
           ) : (
             <p className="mt-3 text-sm leading-relaxed text-white/70">Đang cập nhật.</p>
@@ -118,7 +125,7 @@ export default function Footer() {
       <div className="border-t border-white/15" data-testid="footer-bottom">
         <div className="shell flex flex-wrap items-center justify-between gap-3 py-4 text-sm text-white/70">
           <p>
-            © {year} {siteConfig.name}
+            © {year} {settings.siteName}
           </p>
           <p className="flex items-center gap-2">
             <span className="rounded-[2px] border border-white/30 px-2 py-0.5 text-xs font-semibold text-white">

@@ -21,3 +21,24 @@ export function shouldSeed(counts: SeedCounts, force: boolean): boolean {
     counts.shippingZones === 0
   );
 }
+
+// Nhận diện DB production qua host của DATABASE_URL (Ngày 11 A3):
+// production = host KHÔNG phải localhost. Dùng cho chặn --force
+// của seed và cho script dọn production. URL trống/không đọc được
+// → false (script từ chối chạy vì thiếu DATABASE_URL ở chỗ khác;
+// seed sẽ lỗi kết nối ồn ào, không động vào dữ liệu).
+export function dbUrlHost(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    // IPv6: Node giữ dấu ngoặc vuông trong hostname ("[::1]").
+    return new URL(url).hostname.replace(/^\[|\]$/g, "");
+  } catch {
+    return null;
+  }
+}
+
+export function isProductionDatabaseUrl(url: string | undefined): boolean {
+  const host = dbUrlHost(url);
+  if (host === null) return false;
+  return host !== "localhost" && host !== "127.0.0.1" && host !== "::1";
+}

@@ -222,32 +222,82 @@ header mỗi lần là né được giới hạn 5 lần/IP. Hệ quả của gi
 toàn hệ thống (chấp nhận, chỉ ghi chú): kẻ tấn công cố tình đăng
 nhập sai 20 lần cũng khóa được Henry tối đa 15 phút.
 
-### Ảnh tải lên
+### Ảnh tải lên (Ngày 11 B1)
 
-- Tải lên qua `POST /api/admin/upload` (chỉ JPEG/PNG/WebP theo magic
-  bytes, ≤ 5 MB/ảnh, ≤ 6 ảnh/sản phẩm). Tên file do máy chủ sinh
-  (`<12 ký tự đầu sha256>.<ext>`), lưu ở `UPLOAD_DIR` (mặc định
-  `./data/uploads`, tự tạo; thư mục `data/` không commit lên Git).
-  Ảnh phục vụ ở `/uploads/<tên>` (header `immutable`, `nosniff`).
+- Mọi chỗ tải ảnh (ảnh sản phẩm, logo, favicon) đều qua một module
+  duy nhất `src/lib/storage.ts` — giao diện `saveImage` /
+  `deleteImage`; URL lưu/trả về luôn TUYỆT ĐỐI (đường dẫn tương đối
+  được gắn domain shop, URL đã có domain giữ nguyên, không gắn 2
+  lần — hàm `toAbsoluteImageUrl`).
+- Hai adapter qua cùng giao diện, chọn theo biến môi trường: có
+  `BLOB_READ_WRITE_TOKEN` thì dùng **Vercel Blob** (production trên
+  Vercel — Henry tạo store trong Vercel dashboard, Vercel tự thêm
+  token vào env vars), không thì dùng **đĩa** (thư mục
+  `public/uploads` trong source — local và sau này trên VPS, nơi ổ
+  đĩa bền). Chưa có token trên Vercel thì upload lỗi ghi đĩa với
+  thông báo rõ ràng, không mất lặng.
+- Tải lên qua `POST /api/admin/upload` (ảnh sản phẩm: chỉ
+  JPEG/PNG/WebP theo magic bytes, ≤ 5 MB/ảnh, ≤ 6 ảnh/sản phẩm) và
+  `POST /api/admin/settings/upload` (logo ≤ 1 MB, favicon ≤ 256 KB;
+  nhận thêm SVG tĩnh — SVG chứa mã bị từ chối vì phục vụ cùng
+  origin với shop). Tên file do máy chủ sinh (`<12 ký tự đầu
+  sha256>.<ext>`), lưu ở `UPLOAD_DIR` (mặc định
+  `./public/uploads`, tự tạo; file ảnh không commit lên Git — chỉ
+  giữ thư mục trống qua `.gitkeep`). Ảnh đĩa phục vụ ở
+  `/uploads/<tên>` (header `immutable`, `nosniff`); ảnh Blob phục
+  vụ thẳng từ CDN của Vercel.
 - Ảnh không qua xử lý `sharp` (chưa có trong bản build): lưu nguyên
   file đã kiểm, không xoay theo EXIF, không bỏ metadata.
 - Dọn file mồ côi (không sản phẩm nào dùng, cũ hơn 24 giờ):
   `npx tsx scripts/prune-uploads.ts` (chỉ liệt kê) hoặc thêm
   `--delete` để xóa thật.
 
-**Volume trên VPS (Ngày 10):** ảnh tải lên phải nằm ngoài image
-Docker (volume) và ghi được bởi user không phải root của container —
-vd trong `docker-compose.yml` thêm:
+**Volume trên VPS (Ngày 10, cập nhật Ngày 11):** ảnh tải lên phải
+nằm ngoài image Docker (volume) và ghi được bởi user không phải
+root của container — vd trong `docker-compose.yml` thêm:
 
 ```yaml
 volumes:
-  - uploads:/app/data/uploads
+  - uploads:/app/public/uploads
 ```
 
-(kèm `UPLOAD_DIR=/app/data/uploads`). Ngày 7 chưa sửa
-`Dockerfile`/`docker-compose.yml`; việc thêm volume quyết cùng Henry
-ở Ngày 10. **Trên Vercel ảnh tải lên không bền** (filesystem tạm,
-mất khi redeploy) — chỉ dùng để xem thử, xử lý ở Ngày 10 VPS.
+(kèm `UPLOAD_DIR=/app/public/uploads`). `Dockerfile` /
+`docker-compose.yml` hiện chưa có volume uploads — thêm khi chuyển
+sang VPS (quyết cùng Henry). **Trên Vercel dùng Vercel Blob**
+(đã có adapter từ Ngày 11), không dùng đĩa.
+
+### Dọn dữ liệu test khỏi production (Ngày 11 A2)
+
+`npx tsx scripts/clean-production.ts --orders=CODE1,CODE2 --skus=SKU1`
+— chạy tay, KHÔNG chạy trong build. Mặc định chỉ liệt kê
+(dry-run); thêm `--confirm` mới xóa thật, trong một transaction.
+Chỉ xóa đơn có tên người đặt bắt đầu `[TEST]` hoặc mã trong
+`--orders`, và sản phẩm có SKU trong `--skus`. Từ chối khi > 20
+đơn khớp, hoặc có đơn COMPLETED+PAID mà thiếu `--allow-paid`.
+Production (DATABASE_URL không phải localhost) yêu cầu thêm
+`--i-know-this-is-production`. Xóa thật yêu cầu thêm
+`--snapshot=<vị trí/tên snapshot>` — snapshot phải chụp TRƯỚC
+bằng `pg_dump` hoặc snapshot của nhà cung cấp (máy này không có
+quyền pg_dump production). Sản phẩm còn dòng đơn thì giữ lại và
+báo rõ. Production hiện có 0 đơn, 20 sản phẩm, không có đơn/sản
+phẩm test — chưa có gì để xóa.
+
+### Cài đặt shop (Ngày 11 B2/B3)
+
+Tên website, slogan, logo, favicon (trang `/admin/settings/general`)
+và hotline, Zalo, email, địa chỉ, giờ mở cửa, mạng xã hội (trang
+`/admin/settings/contact`) lưu trong bảng `site_settings`
+(key-value `"nhóm.trường"`), đọc qua `getSettings()` (cache theo
+tag `site-settings`; lưu xong revalidate để mặt shop cập nhật
+ngay). Chưa có dòng nào thì dùng đúng chữ đang hiển thị trên shop
+(mặc định trong `src/lib/settings.ts`); seed chỉ ghi mặc định khi
+bảng trống, không ghi đè dữ liệu Henry đã nhập. Mọi lần đổi khóa
+ghi vào `settings_audit` (giá trị cũ/mới, ai, lúc nào). Mặt shop
+(header/footer/title/favicon/hotline/Zalo/địa chỉ/giờ mở cửa/trang
+Liên hệ) đọc từ cài đặt; trường trống thì ẩn dòng đó, không hiện
+"Đang cập nhật." từng dòng. JSON-LD, sitemap, robots và canonical
+vẫn lấy từ env (`SITE_URL`), không đổi. Ngân hàng & QR, Khu vực &
+phí, Telegram vẫn "Sắp có" (Ngày 12+).
 
 ## Chạy bản standalone (không dùng Docker)
 
@@ -296,6 +346,12 @@ dựng lại DB sau khi xóa nhầm): chạy tay
 `npm run db:seed -- -- --force` — cần 2 dấu `--` (npm ăn 1, prisma
 ăn 1, còn `--force` chuyển cho script); gọi trực tiếp thì
 `npx prisma db seed -- --force`. Cờ `--force` bỏ qua chặn.
+
+**A3 (Ngày 11): `--force` trên production bị từ chối trừ khi có
+thêm `--i-know-this-is-production`** — production nhận diện qua
+host của `DATABASE_URL` (không phải localhost). Seed cài đặt mặc
+định (12 khóa `site_settings`) chạy độc lập với chặn trên: chỉ ghi
+khi bảng trống, không ghi đè dữ liệu Henry đã nhập.
 
 - **Muốn đổi sản phẩm/danh mục/khu vực đang chạy thì sửa trong trang
   quản trị, không sửa seed** — sửa seed rồi chạy lại sẽ không áp lên

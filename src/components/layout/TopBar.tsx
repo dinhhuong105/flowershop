@@ -7,7 +7,8 @@ import { siteConfig, telHref } from "@/config/site";
 // Desktop: 3 mục căn giữa, ngăn cách bằng đường kẻ đứng mảnh. Mobile:
 // một dòng duy nhất đổi luân phiên (fade, 4s mỗi mục, dừng khi
 // reduced-motion). Mục "Hỗ trợ tư vấn" chỉ gắn tel: khi có số thật.
-export default function TopBar() {
+// Hotline lấy từ Cài đặt shop (Ngày 11 B5) qua prop.
+export default function TopBar({ hotline }: { hotline: string }) {
   const items = siteConfig.topBar;
   const [index, setIndex] = useState(0);
 
@@ -20,10 +21,10 @@ export default function TopBar() {
   }, [items.length]);
 
   const renderItem = (text: string, key: string) => {
-    if (text === "Hỗ trợ tư vấn" && siteConfig.hotline) {
+    if (text === "Hỗ trợ tư vấn" && hotline) {
       return (
-        <a key={key} href={telHref(siteConfig.hotline)} className="hover:underline">
-          {text}: {siteConfig.hotline}
+        <a key={key} href={telHref(hotline)} className="hover:underline">
+          {text}: {hotline}
         </a>
       );
     }

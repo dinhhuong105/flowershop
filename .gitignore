@@ -33,3 +33,10 @@ next-env.d.ts
 !.env.example
 backups/
 data/
+
+# Ảnh tải lên (Ngày 11 B1): thư mục public/uploads nằm trong
+# source để disk adapter ghi vào; FILE ảnh do người dùng tải lên
+# không commit (dữ liệu người dùng, có thể lớn) — chỉ giữ thư mục
+# trống qua .gitkeep. Trên Vercel dùng Vercel Blob thay cho đĩa.
+public/uploads/*
+!public/uploads/.gitkeep

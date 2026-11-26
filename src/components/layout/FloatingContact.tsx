@@ -1,17 +1,24 @@
-import { siteConfig, telHref, zaloHref } from "@/config/site";
+import { telHref, zaloHref } from "@/config/site";
 
 // Nút nổi Gọi/Zalo (mục 3.3 phụ lục): hover nở ra hiện nhãn, vòng sóng
 // tỏa tối đa 3 lần sau khi tải trang rồi dừng. Hiện KHÔNG render gì vì
-// chưa có số điện thoại thật trong siteConfig (số 0900000000 trong .env
-// mẫu là số giữ chỗ, đã bị lọc ở site.ts) — gắn tel:/zalo.me tới số giả
-// sẽ là "ô chết". Khi Henry cung cấp số thật, component này tự hiện lại.
-export default function FloatingContact() {
-  if (!siteConfig.hotline && !siteConfig.zaloPhone) return null;
+// chưa có số điện thoại thật trong Cài đặt shop (số 0900000000 trong
+// .env mẫu là số giữ chỗ, đã bị lọc ở site.ts) — gắn tel:/zalo.me tới
+// số giả sẽ là "ô chết". Khi Henry cung cấp số thật, component này tự
+// hiện lại. Hotline/Zalo lấy từ Cài đặt shop (Ngày 11 B5) qua prop.
+export default function FloatingContact({
+  hotline,
+  zalo,
+}: {
+  hotline: string;
+  zalo: string;
+}) {
+  if (!hotline && !zalo) return null;
   return (
     <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-3">
-      {siteConfig.hotline ? (
+      {hotline ? (
         <a
-          href={telHref(siteConfig.hotline)}
+          href={telHref(hotline)}
           aria-label="Gọi cho shop"
           className="group relative flex h-12 items-center justify-center rounded-full bg-green-800 text-white shadow-lg transition-all duration-200 hover:bg-green-700"
         >
@@ -39,9 +46,9 @@ export default function FloatingContact() {
           </span>
         </a>
       ) : null}
-      {siteConfig.zaloPhone ? (
+      {zalo ? (
         <a
-          href={zaloHref(siteConfig.zaloPhone)}
+          href={zaloHref(zalo)}
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Nhắn Zalo cho shop"

@@ -3,6 +3,27 @@
 // chỉ chứa quy tắc thuần (không truy vấn DB); kiểm tra duy nhất/trùng
 // (slug, SKU, danh mục tồn tại) nằm ở src/lib/admin/products.ts.
 
+import { siteConfig } from "@/config/site";
+
+// URL ảnh upload hợp lệ (Ngày 11 B1.3 — URL lưu/trả về là tuyệt
+// đối): đường dẫn tương đối /uploads/<hash>.<ext> do máy chủ sinh,
+// hoặc URL tuyệt đối trỏ đúng domain shop (disk) hoặc host Blob
+// của Vercel (production). URL ngoài khác vẫn bị từ chối.
+export function isServerImageUrl(u: string): boolean {
+  const t = u.trim();
+  const rel = /^\/uploads\/[a-f0-9]{12}\.(jpg|png|webp)$/;
+  if (rel.test(t)) return true;
+  try {
+    const parsed = new URL(t);
+    const shopHost = new URL(siteConfig.url).host;
+    const isBlobHost = /\.public\.blob\.vercel-storage\.com$/i.test(parsed.host);
+    if (parsed.host === shopHost || isBlobHost) return rel.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 // Bỏ dấu tiếng Việt để sinh slug: NFD rồi bỏ dấu tổ hợp, đ→d.
 export function slugifyName(name: string): string {
   return name
@@ -178,18 +199,15 @@ export function validateProductForm(
   }
 
   // Ảnh: mỗi URL phải đúng dạng /uploads/<12 ký tự hex>.<ext> do máy
-  // chủ sinh (không nhận URL ngoài), hoặc là ảnh đã có của sản phẩm
-  // đang sửa; tối đa 6 ảnh.
+  // chủ sinh (tương đối, hoặc tuyệt đối với domain shop / host Blob —
+  // xem isServerImageUrl), hoặc là ảnh đã có của sản phẩm đang sửa;
+  // tối đa 6 ảnh. URL ngoài khác bị từ chối.
   const images = input.images.filter((u) => u.trim() !== "");
   const allowedExisting = new Set(existingImages);
   if (images.length > 6) {
     errors.images = "Tối đa 6 ảnh cho một sản phẩm.";
   } else if (
-    images.some(
-      (u) =>
-        !/^\/uploads\/[a-f0-9]{12}\.(jpg|png|webp)$/.test(u) &&
-        !allowedExisting.has(u),
-    )
+    images.some((u) => !isServerImageUrl(u) && !allowedExisting.has(u))
   ) {
     errors.images = "Ảnh không hợp lệ.";
   }

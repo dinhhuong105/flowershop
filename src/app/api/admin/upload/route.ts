@@ -5,8 +5,8 @@ import {
   MAX_UPLOAD_BYTES,
   checkUploadContentLength,
   detectImageType,
-  saveUpload,
 } from "@/lib/admin/uploads";
+import { StorageWriteError, saveImage } from "@/lib/storage";
 import { db } from "@/lib/db";
 
 // Tải ảnh lên (Ngày 7 §4): POST multipart (productId tùy chọn —
@@ -137,8 +137,13 @@ export async function POST(request: Request): Promise<Response> {
   }
   let url: string;
   try {
-    url = await saveUpload(buf, type);
-  } catch {
+    // Lưu qua module storage (Ngày 11 B1.3): disk ở local, Vercel
+    // Blob ở production — URL trả về luôn tuyệt đối.
+    url = await saveImage(buf, type);
+  } catch (error) {
+    if (error instanceof StorageWriteError) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
     // UPLOAD_DIR không ghi được (sai quyền/volume chưa gắn...):
     // lỗi rõ ràng, không crash máy chủ (D7-22).
     return NextResponse.json(

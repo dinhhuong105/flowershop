@@ -34,11 +34,17 @@ type ToastPayload = {
 export default function Toast() {
   const [payload, setPayload] = useState<ToastPayload | null>(null);
   const [top, setTop] = useState(0);
+  // C3 (Ngày 11): toast trên trang quản trị nằm GÓC DƯỚI-PHẢI, không
+  // còn dưới header — vì ở dưới header nó đè lên nút "+ Thêm sản
+  // phẩm" (góc trên-phải trang danh sách). Mặt shop giữ nguyên vị
+  // trí dưới header. Vị trí chốt lúc toast hiện (theo pathname).
+  const [placement, setPlacement] = useState<"top" | "bottom">("top");
   const timer = useRef<number | null>(null);
   const actionRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const showToast = (p: ToastPayload, durationMs: number) => {
+      setPlacement(window.location.pathname.startsWith("/admin") ? "bottom" : "top");
       setPayload(p);
       if (timer.current) window.clearTimeout(timer.current);
       timer.current = window.setTimeout(() => setPayload(null), durationMs);
@@ -78,9 +84,11 @@ export default function Toast() {
     };
   }, []);
 
-  // Đo vị trí dưới header mỗi khi toast hiện và khi cuộn/resize.
+  // Đo vị trí dưới header mỗi khi toast hiện và khi cuộn/resize —
+  // chỉ khi toast nằm trên (mặt shop); toast quản trị ở dưới nên
+  // không cần đo.
   useEffect(() => {
-    if (!payload) return;
+    if (!payload || placement !== "top") return;
     const measure = () => {
       const header = document.querySelector("header");
       const bottom = header ? header.getBoundingClientRect().bottom : 0;
@@ -93,7 +101,7 @@ export default function Toast() {
       window.removeEventListener("scroll", measure);
       window.removeEventListener("resize", measure);
     };
-  }, [payload]);
+  }, [payload, placement]);
 
   if (!payload) return null;
 
@@ -109,11 +117,17 @@ export default function Toast() {
     <div
       role="status"
       data-testid={payload.testId}
-      style={{ top }}
+      style={placement === "top" ? { top } : undefined}
       // Một hàng trên cả mobile (Ngày 9 D9-7): trước đây flex-wrap đẩy
       // nút ✕ xuống dòng riêng, tạo khoảng trống lớn. Nội dung không
       // xuống dòng; nút ✕ giữ 44 px trên mobile (chuẩn chạm).
-      className="toast-slide-in fixed inset-x-4 z-[70] flex min-h-11 flex-nowrap items-center gap-2 rounded-[3px] border border-line bg-white px-3 py-2 text-sm font-medium text-ink shadow-[0_12px_28px_rgba(8,56,42,0.14)] sm:inset-x-auto sm:left-auto sm:right-4 sm:max-w-md sm:gap-3 sm:px-4"
+      // C3 (Ngày 11): trang quản trị → góc dưới-phải (bottom-4);
+      // mặt shop → dưới header, góc phải (như cũ).
+      className={`toast-slide-in fixed z-[70] flex min-h-11 flex-nowrap items-center gap-2 rounded-[3px] border border-line bg-white px-3 py-2 text-sm font-medium text-ink shadow-[0_12px_28px_rgba(8,56,42,0.14)] sm:gap-3 sm:px-4 ${
+        placement === "bottom"
+          ? "inset-x-4 bottom-4 sm:inset-x-auto sm:right-4 sm:max-w-md"
+          : "inset-x-4 sm:inset-x-auto sm:left-auto sm:right-4 sm:max-w-md"
+      }`}
     >
       <span
         aria-hidden="true"

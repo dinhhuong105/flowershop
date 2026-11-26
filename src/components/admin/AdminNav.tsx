@@ -152,6 +152,9 @@ type NavItem = {
   href?: string;
   match?: (pathname: string) => boolean;
   soon?: boolean;
+  // Nhóm con (Ngày 11 B3): mục cha không phải link, các mục con là
+  // link thật (vd "Cài đặt shop" → Chung / Liên hệ).
+  children?: Array<{ label: string; href: string; match: (pathname: string) => boolean }>;
 };
 
 const ITEMS: NavItem[] = [
@@ -169,7 +172,16 @@ const ITEMS: NavItem[] = [
   { label: "Khu vực & phí giao hàng", section: "config", icon: ICON_PIN, soon: true },
   { label: "Ngân hàng & QR", section: "config", icon: ICON_BANKNOTE, soon: true },
   { label: "Telegram", section: "config", icon: ICON_SEND, soon: true },
-  { label: "Cài đặt shop", section: "config", icon: ICON_SETTINGS, soon: true },
+  {
+    label: "Cài đặt shop",
+    section: "config",
+    icon: ICON_SETTINGS,
+    match: (p) => p.startsWith("/admin/settings/"),
+    children: [
+      { label: "Chung", href: "/admin/settings/general", match: (p) => p === "/admin/settings/general" },
+      { label: "Liên hệ", href: "/admin/settings/contact", match: (p) => p === "/admin/settings/contact" },
+    ],
+  },
   { label: "Nhật ký hoạt động", section: "config", icon: ICON_CLOCK, soon: true },
   { label: "Xem shop ↗", section: "shop", icon: ICON_EXTERNAL, href: "/", match: () => false },
 ];
@@ -197,6 +209,45 @@ export default function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
           ) : null}
           <ul className="space-y-1">
             {ITEMS.filter((item) => item.section === section.key).map((item) => {
+              if (item.children) {
+                const groupActive = item.match ? item.match(pathname) : false;
+                return (
+                  <li key={item.label}>
+                    <span
+                      aria-current={groupActive ? "true" : undefined}
+                      className={`flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold ${
+                        groupActive ? "text-white" : "text-slate-400"
+                      }`}
+                    >
+                      <span className="shrink-0" aria-hidden="true">
+                        {item.icon}
+                      </span>
+                      <span className="min-w-0 leading-snug">{item.label}</span>
+                    </span>
+                    <ul className="space-y-1">
+                      {item.children.map((child) => {
+                        const childActive = child.match(pathname);
+                        return (
+                          <li key={child.href}>
+                            <Link
+                              href={child.href}
+                              aria-current={childActive ? "page" : undefined}
+                              onClick={onNavigate}
+                              className={`flex min-h-11 items-center gap-3 rounded-lg py-2 pl-11 pr-3 text-sm font-semibold transition-colors duration-150 ${
+                                childActive
+                                  ? "bg-[#2563eb] font-bold text-white"
+                                  : "text-slate-400 hover:bg-white/10 hover:text-white"
+                              }`}
+                            >
+                              {child.label}
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </li>
+                );
+              }
               if (item.soon || !item.href) {
                 return (
                   <li key={item.label}>

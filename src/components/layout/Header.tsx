@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { siteConfig } from "@/config/site";
+import type { ShopSettings } from "@/lib/settings";
 import type { NavCategory } from "@/lib/queries";
 import MegaMenu from "@/components/layout/MegaMenu";
 import MobileMenu from "@/components/layout/MobileMenu";
@@ -43,9 +44,11 @@ function LogoMark() {
 export default function Header({
   categories,
   cartCount,
+  settings,
 }: {
   categories: NavCategory[];
   cartCount: number;
+  settings: ShopSettings;
 }) {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
@@ -100,12 +103,22 @@ export default function Header({
         }`}
       >
         {/* Không aria-label: tên truy cập = đúng chữ hiển thị
-            ("Hoa Tươi Demo" + tagline), tránh axe label-content-name-mismatch. */}
+            (tên shop + tagline), tránh axe label-content-name-mismatch.
+            Logo lấy từ Cài đặt shop (Ngày 11 B5); chưa có logo thì
+            dùng biểu tượng hoa mặc định. */}
         <Link href="/" className="flex min-h-11 shrink-0 items-center gap-2.5">
-          <LogoMark />
+          {settings.logo ? (
+            <img
+              src={settings.logo}
+              alt=""
+              className="h-10 w-10 shrink-0 object-contain"
+            />
+          ) : (
+            <LogoMark />
+          )}
           <span className="leading-none">
             <span className="block font-display text-[22px] font-semibold tracking-tight text-green-900 sm:text-2xl">
-              {siteConfig.name}
+              {settings.siteName}
             </span>
             <span className="mt-1 hidden text-[10px] font-bold uppercase tracking-[0.18em] text-gold-text sm:block">
               {siteConfig.tagline}
@@ -157,7 +170,7 @@ export default function Header({
             </span>
             <span className="hidden text-sm font-semibold sm:inline">Giỏ hàng</span>
           </Link>
-          <MobileMenu categories={categories} />
+          <MobileMenu categories={categories} settings={settings} />
         </div>
       </div>
       {/* Hàng 2: menu chính (desktop ≥1024px). */}

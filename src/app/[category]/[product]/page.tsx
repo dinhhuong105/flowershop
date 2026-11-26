@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getProduct, getRelated } from "@/lib/product";
 import { getDisplayPrice } from "@/lib/pricing";
 import { siteConfig, telHref } from "@/config/site";
+import { getSettings } from "@/lib/settings-cache";
 import Breadcrumb from "@/components/catalog/Breadcrumb";
 import UspStrip from "@/components/layout/UspStrip";
 import Gallery from "@/components/product/Gallery";
@@ -47,7 +48,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // làm ảnh chia sẻ — mục 5.1 đặc tả Ngày 4).
     openGraph: {
       // og:title không chịu template của layout nên ghi đủ tên shop.
-      title: `${p.name} | ${siteConfig.name}`,
+      title: `${p.name} | ${(await getSettings()).siteName}`,
       description,
       type: "website",
       locale: "vi_VN",
@@ -58,6 +59,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ProductPage({ params }: Props) {
   const { category, product } = await params;
   const p = await getProduct(category, product);
+  // Hotline/Zalo/tên shop lấy từ Cài đặt shop (Ngày 11 B5).
+  const settings = await getSettings();
   if (!p) notFound();
   const related = await getRelated(p);
   const price = getDisplayPrice(p);
@@ -124,11 +127,11 @@ export default async function ProductPage({ params }: Props) {
 
             <AddToCartForm productId={p.id} inStock={p.inStock} />
 
-            {siteConfig.hotline || siteConfig.zaloPhone ? (
+            {settings.hotline || settings.zalo ? (
               <div className="mt-4 flex flex-wrap gap-3">
-                {siteConfig.zaloPhone ? (
+                {settings.zalo ? (
                   <a
-                    href={`https://zalo.me/${siteConfig.zaloPhone}?text=${encodeURIComponent(zaloText)}`}
+                    href={`https://zalo.me/${settings.zalo}?text=${encodeURIComponent(zaloText)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex min-h-11 flex-1 items-center justify-center rounded-[3px] border border-[#0068ff] px-3 text-sm font-bold text-[#0068ff] transition-colors duration-150 hover:bg-[#0068ff]/5 active:scale-[0.97]"
@@ -136,12 +139,12 @@ export default async function ProductPage({ params }: Props) {
                     Tư vấn Zalo
                   </a>
                 ) : null}
-                {siteConfig.hotline ? (
+                {settings.hotline ? (
                   <a
-                    href={telHref(siteConfig.hotline)}
+                    href={telHref(settings.hotline)}
                     className="flex min-h-11 flex-1 items-center justify-center rounded-[3px] border border-green-800 px-3 text-sm font-bold text-green-800 transition-colors duration-150 hover:bg-cream-100 active:scale-[0.97]"
                   >
-                    Gọi {siteConfig.hotline}
+                    Gọi {settings.hotline}
                   </a>
                 ) : null}
               </div>
@@ -156,8 +159,8 @@ export default async function ProductPage({ params }: Props) {
           </div>
         </div>
 
-        <CommitmentBlock />
-        <ProductAdvice name={p.name} categorySlug={p.categorySlug} />
+        <CommitmentBlock shopName={settings.siteName} />
+        <ProductAdvice name={p.name} categorySlug={p.categorySlug} shopName={settings.siteName} />
         <ProductFaq categorySlug={p.categorySlug} categoryName={p.categoryName} />
         <RelatedProducts products={related} />
 
@@ -183,6 +186,8 @@ export default async function ProductPage({ params }: Props) {
         current={price.current}
         original={price.original}
         inStock={p.inStock}
+        hotline={settings.hotline}
+        zalo={settings.zalo}
       />
     </>
   );

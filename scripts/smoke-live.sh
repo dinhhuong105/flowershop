@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Kiểm production sau mỗi lần deploy (Ngày 10 D10-5) — thay cho chuỗi
-# curl gõ tay (D9-1). Chỉ dùng GET, không đăng nhập, không ghi dữ
-# liệu. Thoát 0 khi mọi mục PASS, khác 0 khi có mục FAIL.
+# Kiểm production sau mỗi lần deploy (Ngày 10 D10-5; Ngày 11 C5
+# thêm 2 mục: trang chủ hiện tên shop từ Cài đặt, trang Cài đặt
+# chung khi chưa đăng nhập chuyển về /login) — thay cho chuỗi curl
+# gõ tay (D9-1). Chỉ dùng GET, không đăng nhập, không ghi dữ liệu.
+# Thoát 0 khi mọi mục PASS, khác 0 khi có mục FAIL.
 #
 #   ./scripts/smoke-live.sh https://flowershop-steel.vercel.app/
 #   ./scripts/smoke-live.sh http://localhost:3000   (kiểm bản local)
@@ -46,6 +48,11 @@ check() {
     if ! grep -qi "^location:.*\/login" "$hdr"; then
       ok=0; reason="không chuyển tới /login"
     fi
+  elif [[ "$extra" == contains:* ]]; then
+    local needle="${extra#contains:}"
+    if ! grep -qF "$needle" "$body"; then
+      ok=0; reason="không chứa \"$needle\""
+    fi
   fi
   local ms
   ms="$(awk -v t="$time_s" 'BEGIN { printf "%d", t * 1000 }')"
@@ -60,6 +67,7 @@ check() {
 
 printf "%-32s %-42s %4s %6s    %s\n" "MỤC KIỂM" "ĐƯỜNG DẪN" "MÃ" "TGIAN" "KẾT QUẢ"
 check "Trang chủ" "/" "200"
+check "Trang chủ (tên shop)" "/" "200" "contains:Hoa Tươi Demo"
 check "Trang sản phẩm" "/hoa-tuoi/bo-hong-do-tinh-yeu" "200"
 check "Giỏ hàng" "/cart" "200"
 check "FAQ" "/faq" "200"
@@ -69,6 +77,7 @@ check "Checkout (giỏ trống)" "/checkout" "307"
 check "Đơn không tồn tại" "/order/KHONGTONTAI" "404"
 check "Admin (chưa đăng nhập)" "/admin" "307" "location-login"
 check "Danh sách đơn (chưa đăng nhập)" "/admin/orders" "307" "location-login"
+check "Cài đặt chung (chưa đăng nhập)" "/admin/settings/general" "307" "location-login"
 
 echo
 echo "PASS: $PASS  FAIL: $FAIL  (base: $BASE)"

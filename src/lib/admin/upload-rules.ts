@@ -5,9 +5,12 @@
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5 MB/ảnh
 export const MAX_UPLOAD_CONTENT_LENGTH = 5.5 * 1024 * 1024; // từ chối sớm
 export const MAX_IMAGES_PER_PRODUCT = 6;
-export const UPLOAD_NAME_RE = /^[a-f0-9]{12}\.(jpg|png|webp)$/;
+// Logo shop (Ngày 11 B2): tối đa 1 MB; favicon: tối đa 256 KB.
+export const MAX_LOGO_BYTES = 1 * 1024 * 1024;
+export const MAX_FAVICON_BYTES = 256 * 1024;
+export const UPLOAD_NAME_RE = /^[a-f0-9]{12}\.(jpg|png|webp|svg)$/;
 
-export type ImageType = "jpg" | "png" | "webp";
+export type ImageType = "jpg" | "png" | "webp" | "svg";
 
 // Kiểm MAGIC BYTES (không tin Content-Type hay đuôi file):
 // JPEG FF D8 FF; PNG 89 50 4E 47 0D 0A 1A 0A; WebP "RIFF" + "WEBP"
@@ -43,7 +46,28 @@ export function detectImageType(buf: Buffer): ImageType | null {
 export function contentTypeForImage(name: string): string {
   if (name.endsWith(".png")) return "image/png";
   if (name.endsWith(".webp")) return "image/webp";
+  if (name.endsWith(".svg")) return "image/svg+xml";
   return "image/jpeg";
+}
+
+// Kiểm SVG an toàn (Ngày 11 B2 — chỉ logo/favicon được nhận SVG,
+// vì SVG là văn bản XML nên magic bytes không áp dụng).
+// SVG tải lên được phục vụ cùng origin với shop, nên file SVG chứa
+// mã sẽ chạy trong origin của shop (XSS): chỉ nhận SVG "tĩnh".
+// Chấp nhận: tài liệu bắt đầu bằng <?xml?> (tùy chọn) rồi <svg>.
+// Từ chối: <script>, <foreignObject>, <iframe>, <object>, <embed>,
+// <link>, <meta>, <base>, <style>, mọi thuộc tính sự kiện on*,
+// "javascript:" và @import ở bất cứ đâu.
+export function isSafeSvgText(text: string): boolean {
+  const t = text.trim();
+  if (!/^(\s*<\?xml[^>]*\?>\s*)?<svg[\s>]/.test(t)) return false;
+  if (/<(script|foreignObject|iframe|object|embed|link|meta|base|style)[\s/>]/i.test(t)) {
+    return false;
+  }
+  if (/on\w+\s*=/i.test(t)) return false;
+  if (/javascript:/i.test(t)) return false;
+  if (/@import/i.test(t)) return false;
+  return true;
 }
 
 // Kiểm Content-Length trước khi đọc body (Ngày 8 K-2): thiếu hoặc
@@ -51,6 +75,10 @@ export function contentTypeForImage(name: string): string {
 // > 5,5 MB → 413. Trả null khi qua được kiểm tra.
 export function checkUploadContentLength(
   header: string | null,
+  // Giới hạn trần cho lần kiểm sớm (mặc định 5,5 MB của ảnh sản phẩm;
+  // upload logo/favicon Ngày 11 truyền trần riêng nhỏ hơn).
+  maxBytes: number = MAX_UPLOAD_CONTENT_LENGTH,
+  maxLabel: string = "5 MB/ảnh",
 ): { status: 411 | 413; error: string } | null {
   if (header === null || header.trim() === "") {
     return { status: 411, error: "Thiếu Content-Length." };
@@ -59,8 +87,8 @@ export function checkUploadContentLength(
   if (!Number.isFinite(n) || n < 0) {
     return { status: 411, error: "Content-Length không hợp lệ." };
   }
-  if (n > MAX_UPLOAD_CONTENT_LENGTH) {
-    return { status: 413, error: "File quá lớn (tối đa 5 MB/ảnh)." };
+  if (n > maxBytes) {
+    return { status: 413, error: `File quá lớn (tối đa ${maxLabel}).` };
   }
   return null;
 }

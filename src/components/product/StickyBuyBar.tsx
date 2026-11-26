@@ -3,15 +3,15 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatVND } from "@/lib/format";
-import { siteConfig, telHref, zaloHref } from "@/config/site";
+import { telHref, zaloHref } from "@/config/site";
 import { buyNow } from "@/app/actions/cart";
 import { asFormAction } from "@/lib/form-action";
 
 // Thanh mua hàng cố định trang chi tiết (mục 5.2 đặc tả Ngày 4):
 // chỉ di động (≤767px), hiện khi hộp mua hàng (#pdp-buy-box) đã cuộn
 // khỏi màn hình (IntersectionObserver), trượt lên 250ms. Gồm giá hiện
-// tại (+ giá gốc gạch ngang), nút Gọi/Zalo (chỉ khi siteConfig có số
-// thật — hiện chưa có nên ẩn), nút "Mua ngay" (form buyNow, số lượng
+// tại (+ giá gốc gạch ngang), nút Gọi/Zalo (chỉ khi Cài đặt shop có số
+// thật — hiện chưa có nên ẩn; Ngày 11 B5 qua prop), nút "Mua ngay" (form buyNow, số lượng
 // 1, submit thường → redirect /cart). Khi hiện, phát sự kiện
 // `sticky-buy:visible` để BackToTop ẩn đi, tránh chồng chéo; đồng thời
 // render một khoảng đệm 76px qua portal vào cuối document.body (sau
@@ -22,11 +22,15 @@ export default function StickyBuyBar({
   current,
   original,
   inStock,
+  hotline,
+  zalo,
 }: {
   productId: number;
   current: number;
   original: number | null;
   inStock: boolean;
+  hotline: string;
+  zalo: string;
 }) {
   const [visible, setVisible] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -95,9 +99,9 @@ export default function StickyBuyBar({
               <p className="truncate text-sm text-muted line-through">{formatVND(original)}</p>
             ) : null}
           </div>
-          {siteConfig.hotline ? (
+          {hotline ? (
             <a
-              href={telHref(siteConfig.hotline)}
+              href={telHref(hotline)}
               aria-label="Gọi cho shop"
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-green-800 text-white transition-colors duration-150 hover:bg-green-700"
             >
@@ -106,9 +110,9 @@ export default function StickyBuyBar({
               </svg>
             </a>
           ) : null}
-          {siteConfig.zaloPhone ? (
+          {zalo ? (
             <a
-              href={zaloHref(siteConfig.zaloPhone)}
+              href={zaloHref(zalo)}
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Nhắn Zalo cho shop"

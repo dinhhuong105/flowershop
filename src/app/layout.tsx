@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { siteConfig } from "@/config/site";
 import { getNavCategories } from "@/lib/queries";
 import { getCartCount } from "@/lib/cart";
+import { getSettings } from "@/lib/settings-cache";
 import TopBar from "@/components/layout/TopBar";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -17,20 +18,28 @@ import "./globals.css";
 // DB lúc `next build`.
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: {
-    default: siteConfig.name,
-    template: `%s | ${siteConfig.name}`,
-  },
-  description: siteConfig.description,
-  metadataBase: new URL(siteConfig.url),
-  openGraph: {
-    title: siteConfig.name,
-    description: siteConfig.description,
-    type: "website",
-    locale: "vi_VN",
-  },
-};
+// Tiêu đề/mô tả/favicon lấy từ Cài đặt shop (Ngày 11 B5): đổi tên
+// trong admin thì tiêu đề tab + mô tả + favicon đổi theo. JSON-LD,
+// sitemap, robots và canonical vẫn lấy từ env (siteConfig.url) theo
+// đặc tả — không đổi ở đây.
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getSettings();
+  return {
+    title: {
+      default: settings.siteName,
+      template: `%s | ${settings.siteName}`,
+    },
+    description: settings.slogan,
+    metadataBase: new URL(siteConfig.url),
+    openGraph: {
+      title: settings.siteName,
+      description: settings.slogan,
+      type: "website",
+      locale: "vi_VN",
+    },
+    ...(settings.favicon ? { icons: { icon: settings.favicon } } : {}),
+  };
+}
 
 export default async function RootLayout({
   children,
@@ -46,6 +55,10 @@ export default async function RootLayout({
   const isAdminArea = h.get("x-admin-area") === "1";
   const categories = isAdminArea ? [] : await getNavCategories();
   const cartCount = isAdminArea ? 0 : await getCartCount();
+  // Cài đặt shop (Ngày 11 B5): tên/logo/hotline/Zalo/địa chỉ/giờ
+  // mở cửa/mạng xã hội cho Header/Footer/TopBar/nút nổi. Khu vực
+  // quản trị không cần — không đọc thừa.
+  const settings = isAdminArea ? null : await getSettings();
   return (
     <html lang="vi">
       {/* Gắn class `js` để hiệu ứng reveal không giấu nội dung khi tắt JS. */}
@@ -55,7 +68,7 @@ export default async function RootLayout({
         }}
       />
       <body>
-        {isAdminArea ? null : (
+        {isAdminArea || !settings ? null : (
           <>
             <a
               href="#noi-dung-chinh"
@@ -63,27 +76,27 @@ export default async function RootLayout({
             >
               Bỏ qua tới nội dung chính
             </a>
-            <TopBar />
-            <Header categories={categories} cartCount={cartCount} />
+            <TopBar hotline={settings.hotline} />
+            <Header categories={categories} cartCount={cartCount} settings={settings} />
           </>
         )}
         <main id="noi-dung-chinh">{children}</main>
         {/* Dải USP KHÔNG render ở layout nữa (F-2): trang chủ tự render
             USP dưới hero; các trang khác render USP trên footer trong
             chính page của mình. */}
-        {isAdminArea ? null : (
+        {isAdminArea || !settings ? null : (
           <>
-            <Footer />
-            <FloatingContact />
+            <Footer settings={settings} />
+            <FloatingContact hotline={settings.hotline} zalo={settings.zalo} />
             <BackToTop />
           </>
         )}
         {/* Toast render Ở MỌI TRANG kể cả admin (Đợt 4 — 25/11):
             trước đây Toast nằm trong nhánh !isAdminArea nên trang
             quản trị không có toast nào — toast Hoàn tác Ẩn/Hiện
-            (sự kiện `admin:toast`) vì thế không bao giờ hiện. Toast
-            tự đo mép dưới của <header> nên trên admin nó nằm dưới
-            thanh trên của AdminShell, không đè nội dung. */}
+            (sự kiện `admin:toast`) vì thế không bao giờ hiện. C3
+            (Ngày 11): toast quản trị nằm góc dưới-phải, không đè
+            nút "+ Thêm sản phẩm"; mặt shop vẫn dưới header. */}
         <Toast />
       </body>
     </html>

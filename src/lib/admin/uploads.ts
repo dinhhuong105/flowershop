@@ -21,10 +21,14 @@ export {
   MAX_UPLOAD_CONTENT_LENGTH,
 } from "./upload-rules";
 
-// Thư mục lưu ảnh: env UPLOAD_DIR, mặc định ./data/uploads (tự tạo).
-// Đường dẫn tương đối tính từ thư mục làm việc của tiến trình.
+// Thư mục lưu ảnh (Ngày 11 B1 — quyết định của Henry 26/11: lưu
+// trên ĐĨA trong source, thư mục public/uploads): env UPLOAD_DIR,
+// mặc định ./public/uploads (tự tạo). Đường dẫn tương đối tính từ
+// thư mục làm việc của tiến trình. (Ngày 7 dùng ./data/uploads;
+// đã chuyển sang public/uploads để ảnh nằm cùng source — file cũ
+// duy nhất trong data/uploads đã dời sang đây.)
 export function getUploadDir(): string {
-  const dir = (process.env.UPLOAD_DIR ?? "./data/uploads").trim() || "./data/uploads";
+  const dir = (process.env.UPLOAD_DIR ?? "./public/uploads").trim() || "./public/uploads";
   return path.isAbsolute(dir) ? dir : path.resolve(process.cwd(), dir);
 }
 

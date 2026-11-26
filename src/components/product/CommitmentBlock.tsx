@@ -1,10 +1,11 @@
 import { siteConfig } from "@/config/site";
 
 // Khối cam kết trang chi tiết (mục 5.2 đặc tả Ngày 4): CHỈ hiện khi
-// siteConfig.commitments có dữ liệu thật do Henry cung cấp. Mặc định
+// siteConfig.commitments có dữ liệu thật do Henry cung cấp (tên shop
+// lấy từ Cài đặt shop qua prop — Ngày 11 B5). Mặc định
 // mảng rỗng → ẩn cả khối (không bịa cam kết như "Miễn phí giao",
 // "Đổi trả 7 ngày" khi chưa có chính sách thật).
-export default function CommitmentBlock() {
+export default function CommitmentBlock({ shopName }: { shopName: string }) {
   const items = siteConfig.commitments;
   if (items.length === 0) return null;
   return (
@@ -13,7 +14,7 @@ export default function CommitmentBlock() {
       data-testid="commitment-block"
       className="mt-10 rounded-[3px] border border-line bg-cream-50 p-5"
     >
-      <h2 className="text-xl text-ink">Cam kết của {siteConfig.name}</h2>
+      <h2 className="text-xl text-ink">Cam kết của {shopName}</h2>
       <ul className="mt-4 grid gap-4 sm:grid-cols-2">
         {items.map((c) => (
           <li key={c.title}>
