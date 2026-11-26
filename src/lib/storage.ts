@@ -32,11 +32,82 @@ import {
 import { getUploadDir, readUpload, saveUpload, uploadFileName } from "./admin/uploads";
 
 // Lỗi ghi ảnh với thông báo HẰNG cho người dùng (không lộ stack).
+// `code` là mã lỗi nội bộ (để test + đọc log), KHÔNG hiện cho người
+// dùng: "blob-denied" (token/quyền/store), "blob-exists" (tệp đã
+// tồn tại), "blob-network" (lỗi mạng tới Blob), "blob-unknown".
+export type StorageWriteErrorCode =
+  | "blob-denied"
+  | "blob-exists"
+  | "blob-network"
+  | "blob-unknown";
+
 export class StorageWriteError extends Error {
-  constructor(message: string) {
+  readonly code: StorageWriteErrorCode | undefined;
+  constructor(message: string, code?: StorageWriteErrorCode) {
     super(message);
     this.name = "StorageWriteError";
+    this.code = code;
   }
+}
+
+// Phân loại lỗi Blob (Ngày 13 A1.1): SDK @vercel/blob ném các lớp
+// lỗi riêng (BlobAccessError, BlobPreconditionFailedError,
+// BlobStoreNotFoundError, BlobStoreSuspendedError,
+// BlobClientTokenExpiredError, BlobServiceNotAvailable,
+// BlobServiceRateLimited...). Phân loại theo `error.name` (chuỗi)
+// để vẫn đúng khi lỗi bị bọc lại, kèm dự phòng theo thông điệp.
+// Thông điệp trả về là câu tiếng Việt phân biệt được; KHÔNG bao
+// giờ chứa token (xem sanitizeBlobErrorMessage).
+export function classifyBlobError(error: unknown): {
+  code: StorageWriteErrorCode;
+  message: string;
+} {
+  const name = error instanceof Error ? error.name : "";
+  const rawMessage = error instanceof Error ? error.message : "";
+  const message = `${name} ${rawMessage}`.toLowerCase();
+  // 412 Precondition Failed: put() không có allowOverwrite gặp tệp
+  // đã tồn tại (tên file theo content-hash nên upload lại cùng ảnh
+  // sẽ trùng đường dẫn).
+  if (
+    name === "BlobPreconditionFailedError" ||
+    /already exists|precondition failed/.test(message)
+  ) {
+    return { code: "blob-exists", message: "Tệp đã tồn tại" };
+  }
+  if (
+    name === "BlobAccessError" ||
+    name === "BlobClientTokenExpiredError" ||
+    name === "BlobStoreNotFoundError" ||
+    name === "BlobStoreSuspendedError" ||
+    /access denied|unauthorized|forbidden|invalid token|token expired|store (not found|suspended)/.test(
+      message,
+    )
+  ) {
+    return {
+      code: "blob-denied",
+      message: "Nơi lưu ảnh từ chối ghi (kiểm token/quyền)",
+    };
+  }
+  const nodeCode = (error as NodeJS.ErrnoException | null)?.code ?? "";
+  if (
+    name === "BlobServiceNotAvailable" ||
+    name === "BlobServiceRateLimited" ||
+    /fetch failed|network|econnreset|econnrefused|enotfound|etimedout|eai_again|socket hang up/.test(
+      message,
+    ) ||
+    ["ECONNRESET", "ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "EAI_AGAIN"].includes(nodeCode)
+  ) {
+    return { code: "blob-network", message: "Lỗi mạng tới nơi lưu ảnh" };
+  }
+  return { code: "blob-unknown", message: "Không lưu được ảnh, vui lòng thử lại." };
+}
+
+// Che token trong thông điệp lỗi trước khi ghi log (phòng khi SDK
+// hay fetch nhét token vào message/URL).
+function sanitizeBlobErrorMessage(error: unknown, token: string | undefined): string {
+  const raw = error instanceof Error ? `${error.name}: ${error.message}` : "unknown";
+  if (token && token !== "") return raw.split(token).join("[token đã che]");
+  return raw;
 }
 
 export type StorageKind = "disk" | "blob";
@@ -134,6 +205,7 @@ export type BlobClient = {
       access: "public";
       contentType: string;
       addRandomSuffix: boolean;
+      allowOverwrite?: boolean;
       token?: string;
     },
   ) => Promise<{ url: string }>;
@@ -146,6 +218,16 @@ const realBlobClient: BlobClient = { put: blobPut, del: blobDel };
 // disk), không thêm hậu tố ngẫu nhiên — trùng nội dung dùng lại URL
 // cũ. token lấy từ BLOB_READ_WRITE_TOKEN (Vercel tự thêm khi Henry
 // tạo store); client truyền vào để test bằng mock.
+//
+// Ngày 13 A1:
+// - put() có `allowOverwrite: true`: cùng nội dung thì cùng đường
+//   dẫn, ghi đè an toàn — upload lại cùng ảnh không còn lỗi
+//   "đã tồn tại" (trước đây put() mặc định từ chối khi tệp có sẵn).
+// - Lỗi put() được bọc thành StorageWriteError có mã nội bộ +
+//   console.error đã che token (xem classifyBlobError) để dòng lỗi
+//   thật hiện trong Vercel Runtime Logs thay vì 500 chung chung.
+// - access: "public" (giá trị đang dùng — xem báo cáo Ngày 13 A1.3;
+//   nếu store tạo ở chế độ Private thì ghi bị từ chối, xem log).
 export function createBlobAdapter(
   client: BlobClient = realBlobClient,
   token?: string,
@@ -154,19 +236,32 @@ export function createBlobAdapter(
     kind: "blob",
     save: async (buf, ext) => {
       const name = uploadFileName(buf, ext);
-      const result = await client.put(`uploads/${name}`, buf, {
-        access: "public",
-        contentType: contentTypeForImage(name),
-        addRandomSuffix: false,
-        ...(token ? { token } : {}),
-      });
-      return result.url;
+      try {
+        const result = await client.put(`uploads/${name}`, buf, {
+          access: "public",
+          contentType: contentTypeForImage(name),
+          addRandomSuffix: false,
+          allowOverwrite: true,
+          ...(token ? { token } : {}),
+        });
+        return result.url;
+      } catch (error) {
+        const classified = classifyBlobError(error);
+        console.error(
+          `[storage] Blob put lỗi (${classified.code}): ${sanitizeBlobErrorMessage(error, token)}`,
+        );
+        throw new StorageWriteError(classified.message, classified.code);
+      }
     },
     remove: async (url) => {
       try {
         await client.del(url, ...(token ? [{ token }] : []));
         return true;
-      } catch {
+      } catch (error) {
+        const classified = classifyBlobError(error);
+        console.error(
+          `[storage] Blob del lỗi (${classified.code}): ${sanitizeBlobErrorMessage(error, token)}`,
+        );
         return false;
       }
     },

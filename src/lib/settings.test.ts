@@ -4,12 +4,15 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   DEFAULT_SETTINGS,
+  defaultBankFromEnv,
+  defaultTelegramEnabledFromEnv,
   maskAccountNumber,
   mergeSettings,
   renderTransferContent,
   validateBankValues,
   validateContactValues,
   validateGeneralValues,
+  validateSeoValues,
   validateTelegramValues,
 } from "./settings";
 
@@ -302,5 +305,107 @@ describe("renderTransferContent + maskAccountNumber (Ngày 12 B1/B3)", () => {
   it("mẫu mặc định = nội dung hiện hành 'DH {ORDER_CODE}'", () => {
     assert.equal(DEFAULT_SETTINGS.transferNoteTemplate, "DH {ORDER_CODE}");
     assert.equal(typeof DEFAULT_SETTINGS.bankEnabled, "boolean");
+  });
+});
+
+describe("mặc định từ env (Ngày 13 A2)", () => {
+  it("defaultBankFromEnv: đủ BANK_* hợp lệ → bật + đúng giá trị", () => {
+    assert.deepEqual(
+      defaultBankFromEnv({
+        BANK_BIN: "970415",
+        BANK_ACCOUNT: "1234567890",
+        BANK_ACCOUNT_NAME: "NGUYEN VAN A",
+      }),
+      {
+        bankCode: "970415",
+        accountNumber: "1234567890",
+        accountName: "NGUYEN VAN A",
+        bankEnabled: true,
+      },
+    );
+  });
+  it("defaultBankFromEnv: thiếu/sai một trường → tắt, trường sai thành rỗng", () => {
+    assert.deepEqual(defaultBankFromEnv({}), {
+      bankCode: "",
+      accountNumber: "",
+      accountName: "",
+      bankEnabled: false,
+    });
+    assert.deepEqual(
+      defaultBankFromEnv({
+        BANK_BIN: "9704",
+        BANK_ACCOUNT: "1234567890",
+        BANK_ACCOUNT_NAME: "NGUYEN VAN A",
+      }),
+      {
+        bankCode: "",
+        accountNumber: "1234567890",
+        accountName: "NGUYEN VAN A",
+        bankEnabled: false,
+      },
+    );
+  });
+  it("defaultTelegramEnabledFromEnv: đủ token + chat id → bật; thiếu một → tắt", () => {
+    assert.equal(
+      defaultTelegramEnabledFromEnv({
+        TELEGRAM_BOT_TOKEN: "123456:ABC",
+        TELEGRAM_CHAT_ID: "-1001234567890",
+      }),
+      true,
+    );
+    assert.equal(defaultTelegramEnabledFromEnv({ TELEGRAM_BOT_TOKEN: "123456:ABC" }), false);
+    assert.equal(defaultTelegramEnabledFromEnv({ TELEGRAM_CHAT_ID: "-1001234567890" }), false);
+    assert.equal(defaultTelegramEnabledFromEnv({}), false);
+  });
+});
+
+describe("validateSeoValues (Ngày 13 C1)", () => {
+  it("hợp lệ: mẫu có đúng một %s, mô tả ≤ 160, OG jpg/png/webp", () => {
+    const { values, errors } = validateSeoValues({
+      titleTemplate: "%s | Hoa Tươi Demo",
+      defaultDescription: "Mô tả mặc định.",
+      defaultOgImage: "/uploads/abcdef012345.jpg",
+      metaKeywords: "hoa tươi, lan hồ điệp",
+      allowIndexing: true,
+    });
+    assert.deepEqual(errors, {});
+    assert.equal(values.titleTemplate, "%s | Hoa Tươi Demo");
+    assert.equal(values.allowIndexing, true);
+  });
+  it("mẫu thiếu %s, thừa %s, rỗng hoặc > 80 ký tự → lỗi", () => {
+    assert.ok(
+      validateSeoValues({ titleTemplate: "Hoa Tươi Demo" }).errors.titleTemplate,
+    );
+    assert.ok(
+      validateSeoValues({ titleTemplate: "%s | %s" }).errors.titleTemplate,
+    );
+    assert.ok(validateSeoValues({ titleTemplate: "" }).errors.titleTemplate);
+    assert.ok(
+      validateSeoValues({ titleTemplate: `%s | ${"x".repeat(80)}` }).errors
+        .titleTemplate,
+    );
+  });
+  it("mô tả > 160, từ khóa > 200, OG svg → lỗi; OG rỗng → được", () => {
+    assert.ok(
+      validateSeoValues({ titleTemplate: "%s | X", defaultDescription: "x".repeat(161) })
+        .errors.defaultDescription,
+    );
+    assert.ok(
+      validateSeoValues({ titleTemplate: "%s | X", metaKeywords: "x".repeat(201) }).errors
+        .metaKeywords,
+    );
+    assert.ok(
+      validateSeoValues({ titleTemplate: "%s | X", defaultOgImage: "/uploads/a.svg" })
+        .errors.defaultOgImage,
+    );
+    assert.deepEqual(
+      validateSeoValues({ titleTemplate: "%s | X", defaultOgImage: "" }).errors,
+      {},
+    );
+  });
+  it("mặc định seo: mẫu đúng tên shop hiện nay, lập chỉ mục BẬT", () => {
+    assert.equal(DEFAULT_SETTINGS.titleTemplate, "%s | Hoa Tươi Demo");
+    assert.equal(DEFAULT_SETTINGS.allowIndexing, true);
+    assert.equal(DEFAULT_SETTINGS.defaultOgImage, "");
   });
 });

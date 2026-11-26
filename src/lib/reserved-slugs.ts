@@ -12,6 +12,7 @@ export const RESERVED_SLUGS: string[] = [
   "about",
   "contact",
   "policy",
+  "trang",
   "van-chuyen",
   "doi-tra",
   "bao-mat",

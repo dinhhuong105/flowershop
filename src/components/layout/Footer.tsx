@@ -11,7 +11,19 @@ import type { ShopSettings } from "@/lib/settings";
 // field trống thì ẩn dòng đó. Tagline vẫn lấy từ siteConfig (không
 // phải trường cài đặt). Không cột newsletter, không logo
 // VISA/Mastercard/MoMo/ZaloPay. Thanh dưới: © + badge COD, Chuyển khoản.
-export default function Footer({ settings }: { settings: ShopSettings }) {
+//
+// Ngày 13 B4: thêm cột "Trang tĩnh" liệt kê trang đã xuất bản +
+// showInFooter (theo sortOrder) — chỉ hiện khi có ít nhất một trang.
+// Các mục footer cũ giữ nguyên (không tự gỡ /policy hay các link cũ
+// khi có trang thay thế — việc thay thế do Henry quyết từng trang;
+// không để link chết vì /policy vẫn tồn tại).
+export default function Footer({
+  settings,
+  footerPages = [],
+}: {
+  settings: ShopSettings;
+  footerPages?: Array<{ slug: string; title: string }>;
+}) {
   const year = new Date().getFullYear();
   const hasContact =
     settings.address || settings.hotline || settings.zalo || settings.openHours;
@@ -22,7 +34,11 @@ export default function Footer({ settings }: { settings: ShopSettings }) {
   ].filter((s) => s.href !== "");
   return (
     <footer className="bg-green-900 text-white">
-      <div className="shell grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-5">
+      <div
+        className={`shell grid gap-10 py-12 sm:grid-cols-2 ${
+          footerPages.length > 0 ? "lg:grid-cols-6" : "lg:grid-cols-5"
+        }`}
+      >
         <div>
           <p className="font-display text-xl font-semibold">{settings.siteName}</p>
           <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-gold-300">
@@ -89,6 +105,23 @@ export default function Footer({ settings }: { settings: ShopSettings }) {
             </li>
           </ul>
         </nav>
+        {footerPages.length > 0 ? (
+          <nav aria-label="Trang tĩnh">
+            <p className="font-semibold">Trang tĩnh</p>
+            <ul className="mt-3 space-y-2 text-sm text-white/80">
+              {footerPages.map((page) => (
+                <li key={page.slug}>
+                  <Link
+                    href={`/trang/${page.slug}`}
+                    className="hover:text-white hover:underline"
+                  >
+                    {page.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ) : null}
         <div>
           <p className="font-semibold">Liên hệ</p>
           {hasContact ? (

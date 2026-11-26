@@ -33,6 +33,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     orderBy: { id: "asc" },
   });
+  // Trang tĩnh đã xuất bản (Ngày 13 B4): chỉ trang đã xuất bản mới
+  // vào sitemap; nháp không lộ.
+  const pages = await db.page.findMany({
+    where: { isPublished: true },
+    select: { slug: true, updatedAt: true },
+    orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+  });
   return [
     ...staticPages,
     ...categories.map((c) => ({
@@ -41,6 +48,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })),
     ...products.map((p) => ({
       url: `${base}/${p.category.slug}/${p.slug}`,
+      lastModified: p.updatedAt,
+    })),
+    ...pages.map((p) => ({
+      url: `${base}/trang/${p.slug}`,
       lastModified: p.updatedAt,
     })),
   ];

@@ -40,3 +40,16 @@ export function undoToggleZoneFormData(zoneId: number, wasActive: boolean): Form
   formData.set("isActive", String(wasActive));
   return formData;
 }
+
+/** Thông báo sau khi bấm Xuất bản/Chuyển về nháp (Ngày 13 B3): wasPublished = trạng thái TRƯỚC khi bấm. */
+export function togglePageToastMessage(wasPublished: boolean): string {
+  return wasPublished ? "Đã chuyển trang về nháp" : "Đã xuất bản trang";
+}
+
+/** FormData để hoàn tác Xuất bản/Nháp: đặt lại đúng trạng thái trước khi bấm. */
+export function undoTogglePageFormData(pageId: number, wasPublished: boolean): FormData {
+  const formData = new FormData();
+  formData.set("pageId", String(pageId));
+  formData.set("isPublished", String(wasPublished));
+  return formData;
+}

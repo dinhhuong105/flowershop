@@ -36,9 +36,16 @@ export type ShopSettings = {
   // trường, KHÔNG BAO GIỜ lưu vào DB hay hiện ra giao diện/log.
   telegramChatId: string;
   telegramEnabled: boolean;
+  // SEO (Ngày 13 C1): mẫu tiêu đề, mô tả mặc định, ảnh OG mặc
+  // định, từ khóa, cho phép lập chỉ mục.
+  titleTemplate: string; // chứa %s đúng một lần, vd "%s | Hoa Tươi Demo"
+  defaultDescription: string;
+  defaultOgImage: string; // URL ảnh jpg/png/webp, rỗng = không có
+  metaKeywords: string;
+  allowIndexing: boolean; // false = noindex toàn site + robots Disallow
 };
 
-export type SettingsGroup = "general" | "contact" | "bank" | "telegram";
+export type SettingsGroup = "general" | "contact" | "bank" | "telegram" | "seo";
 
 // Khóa trong bảng site_settings: "nhóm.trường".
 export const SETTING_KEYS = {
@@ -61,6 +68,11 @@ export const SETTING_KEYS = {
   bankEnabled: "bank.enabled",
   telegramChatId: "telegram.chatId",
   telegramEnabled: "telegram.enabled",
+  titleTemplate: "seo.titleTemplate",
+  defaultDescription: "seo.defaultDescription",
+  defaultOgImage: "seo.defaultOgImage",
+  metaKeywords: "seo.metaKeywords",
+  allowIndexing: "seo.allowIndexing",
 } as const satisfies Record<keyof ShopSettings, string>;
 
 const KEY_TO_FIELD = Object.fromEntries(
@@ -86,21 +98,35 @@ export const BANK_FIELDS = [
   "bankEnabled",
 ] as const;
 export const TELEGRAM_FIELDS = ["telegramChatId", "telegramEnabled"] as const;
+export const SEO_FIELDS = [
+  "titleTemplate",
+  "defaultDescription",
+  "defaultOgImage",
+  "metaKeywords",
+  "allowIndexing",
+] as const;
 
 // Trường boolean trong ShopSettings (lưu DB dạng "true"/"false").
-const BOOLEAN_FIELDS = new Set<keyof ShopSettings>(["bankEnabled", "telegramEnabled"]);
+const BOOLEAN_FIELDS = new Set<keyof ShopSettings>([
+  "bankEnabled",
+  "telegramEnabled",
+  "allowIndexing",
+]);
 
 // Mặc định ngân hàng từ BIẾN MÔI TRƯỜNG hiện hành (B4: seed bank
 // bằng đúng giá trị hiện hành, enabled giữ như hiện trạng để shop
 // không đổi). Env trống (như production hiện nay: không có BANK_*)
-// → bank chưa cấu hình, enabled = false.
-function defaultBankFromEnv(): Pick<
+// → bank chưa cấu hình, enabled = false. Nhận env làm tham số để
+// test được trực tiếp (mặc định là process.env lúc gọi).
+export function defaultBankFromEnv(
+  env: Record<string, string | undefined> = process.env,
+): Pick<
   ShopSettings,
   "bankCode" | "accountNumber" | "accountName" | "bankEnabled"
 > {
-  const bankCode = (process.env.BANK_BIN ?? "").trim();
-  const accountNumber = (process.env.BANK_ACCOUNT ?? "").trim();
-  const accountName = (process.env.BANK_ACCOUNT_NAME ?? "").trim();
+  const bankCode = (env.BANK_BIN ?? "").trim();
+  const accountNumber = (env.BANK_ACCOUNT ?? "").trim();
+  const accountName = (env.BANK_ACCOUNT_NAME ?? "").trim();
   const configured =
     /^\d{6}$/.test(bankCode) &&
     /^\d{6,19}$/.test(accountNumber) &&
@@ -111,6 +137,20 @@ function defaultBankFromEnv(): Pick<
     accountName,
     bankEnabled: configured,
   };
+}
+
+// Mặc định Telegram từ BIẾN MÔI TRƯỜNG (Ngày 13 A2): trước Ngày
+// 12, thông báo đơn gửi khi env có token + chat id. Khi chưa có
+// dòng telegram trong DB, enabled phải suy ra từ env (có đủ thì
+// bật) để hành vi không đổi. Chat id mặc định vẫn rỗng vì đường
+// gửi đã fallback về env TELEGRAM_CHAT_ID (getTelegramChatId).
+export function defaultTelegramEnabledFromEnv(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return (
+    (env.TELEGRAM_BOT_TOKEN ?? "").trim() !== "" &&
+    (env.TELEGRAM_CHAT_ID ?? "").trim() !== ""
+  );
 }
 
 // Mặc định = chữ đang hiển thị trên shop (xem site.ts): tên shop,
@@ -135,7 +175,16 @@ export const DEFAULT_SETTINGS: ShopSettings = {
   // — để shop không đổi khi seed; xem "Độ lệch" báo cáo Ngày 12.
   transferNoteTemplate: "DH {ORDER_CODE}",
   telegramChatId: "",
-  telegramEnabled: false,
+  telegramEnabled: defaultTelegramEnabledFromEnv(),
+  // SEO (Ngày 13 C1): mẫu tiêu đề giữ đúng cách đặt hiện nay
+  // ("%s | tên shop"); mô tả mặc định = mô tả hiện nay của shop.
+  // Lưu ý: mẫu tiêu đề lưu tên shop theo chữ lúc mặc định — đổi tên
+  // shop trong Cài đặt chung thì sửa lại mẫu ở trang Cài đặt SEO.
+  titleTemplate: `%s | ${siteConfig.name}`,
+  defaultDescription: siteConfig.description,
+  defaultOgImage: "",
+  metaKeywords: "",
+  allowIndexing: true,
 };
 
 export type SettingsFieldErrors = Partial<Record<keyof ShopSettings, string>>;
@@ -355,6 +404,58 @@ export function validateTelegramValues(input: {
   return { values: { telegramChatId, telegramEnabled }, errors };
 }
 
+// Kiểm hợp lệ nhóm seo (thuần, C1). titleTemplate bắt buộc, chứa
+// %s đúng một lần, ≤ 80 ký tự. defaultDescription ≤ 160 (được để
+// trống — trống thì mặt shop dùng slogan). defaultOgImage: rỗng
+// hoặc URL ảnh jpg/png/webp (không nhận SVG cho OG). metaKeywords
+// ≤ 200, tùy chọn.
+export function validateSeoValues(input: {
+  titleTemplate?: string;
+  defaultDescription?: string;
+  defaultOgImage?: string;
+  metaKeywords?: string;
+  allowIndexing?: boolean;
+}): {
+  values: Pick<
+    ShopSettings,
+    "titleTemplate" | "defaultDescription" | "defaultOgImage" | "metaKeywords" | "allowIndexing"
+  >;
+  errors: SettingsFieldErrors;
+} {
+  const titleTemplate = (input.titleTemplate ?? "").trim();
+  const defaultDescription = (input.defaultDescription ?? "").trim();
+  const defaultOgImage = (input.defaultOgImage ?? "").trim();
+  const metaKeywords = (input.metaKeywords ?? "").trim();
+  const allowIndexing = input.allowIndexing ?? true;
+  const errors: SettingsFieldErrors = {};
+  const placeholderCount = titleTemplate.split("%s").length - 1;
+  if (titleTemplate === "") {
+    errors.titleTemplate = "Nhập mẫu tiêu đề.";
+  } else if (placeholderCount !== 1) {
+    errors.titleTemplate = "Mẫu tiêu đề phải chứa đúng một lần %s.";
+  } else if (titleTemplate.length > 80) {
+    errors.titleTemplate = "Mẫu tiêu đề tối đa 80 ký tự.";
+  }
+  if (defaultDescription.length > 160) {
+    errors.defaultDescription = "Mô tả mặc định tối đa 160 ký tự.";
+  }
+  if (defaultOgImage !== "") {
+    const ogOk =
+      isImageUrl(defaultOgImage) &&
+      /\.(png|jpe?g|webp)(\?|#|$)/i.test(defaultOgImage);
+    if (!ogOk) {
+      errors.defaultOgImage = "Ảnh OG phải là đường dẫn ảnh JPEG, PNG hoặc WebP.";
+    }
+  }
+  if (metaKeywords.length > 200) {
+    errors.metaKeywords = "Từ khóa tối đa 200 ký tự.";
+  }
+  return {
+    values: { titleTemplate, defaultDescription, defaultOgImage, metaKeywords, allowIndexing },
+    errors,
+  };
+}
+
 // Đọc các khóa đã lưu (không cache — lớp cache ở settings-cache.ts).
 export async function readSettingsFromDb(): Promise<Partial<ShopSettings>> {
   const rows = await db.siteSetting.findMany();
@@ -401,6 +502,7 @@ const GROUP_FIELDS: Record<SettingsGroup, ReadonlyArray<keyof ShopSettings>> = {
   contact: CONTACT_FIELDS,
   bank: BANK_FIELDS,
   telegram: TELEGRAM_FIELDS,
+  seo: SEO_FIELDS,
 };
 
 // Ghi một dòng nhật ký thủ công (không kèm thay đổi cài đặt): dùng

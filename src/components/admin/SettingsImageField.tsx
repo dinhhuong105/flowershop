@@ -13,13 +13,19 @@ export default function SettingsImageField({
   initialUrl,
   hint,
   previewClass,
+  accept = "image/jpeg,image/png,image/webp,.svg",
+  onUrlChange,
 }: {
   label: string;
   name: string;
-  purpose: "logo" | "favicon";
+  purpose: "logo" | "favicon" | "og";
   initialUrl: string;
   hint: string;
   previewClass: string;
+  /** Kiểu file cho phép chọn (mặc định nhận thêm .svg cho logo/favicon; ảnh OG truyền riêng). */
+  accept?: string;
+  /** Gọi mỗi khi URL thay đổi (tải lên/gỡ) — để form cha đồng bộ xem trước. */
+  onUrlChange?: (url: string) => void;
 }) {
   const [url, setUrl] = useState(initialUrl);
   const [uploading, setUploading] = useState(false);
@@ -46,6 +52,7 @@ export default function SettingsImageField({
         return;
       }
       setUrl(data.url);
+      onUrlChange?.(data.url);
     } catch {
       setError("Không tải được ảnh, vui lòng thử lại.");
     } finally {
@@ -78,7 +85,7 @@ export default function SettingsImageField({
           <input
             ref={fileRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp,.svg"
+            accept={accept}
             className="hidden"
             aria-label={`Chọn ${label.toLowerCase()}`}
             onChange={onFileChange}
@@ -94,7 +101,10 @@ export default function SettingsImageField({
           {url ? (
             <button
               type="button"
-              onClick={() => setUrl("")}
+              onClick={() => {
+                setUrl("");
+                onUrlChange?.("");
+              }}
               className="flex min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-danger transition-opacity hover:opacity-80"
             >
               Gỡ ảnh

@@ -2,9 +2,13 @@
 # Kiểm production sau mỗi lần deploy (Ngày 10 D10-5; Ngày 11 C5
 # thêm 2 mục: trang chủ hiện tên shop từ Cài đặt, trang Cài đặt
 # chung khi chưa đăng nhập chuyển về /login; Ngày 12 E2 thêm 3 mục:
-# Ngân hàng & QR, Khu vực & phí, Telegram khi chưa đăng nhập) — thay
-# cho chuỗi curl gõ tay (D9-1). Chỉ dùng GET, không đăng nhập, không
-# ghi dữ liệu. Thoát 0 khi mọi mục PASS, khác 0 khi có mục FAIL.
+# Ngân hàng & QR, Khu vực & phí, Telegram khi chưa đăng nhập;
+# Ngày 13 D2 thêm 4 mục: trang tĩnh nháp → 404, Trang tĩnh + Cài
+# đặt SEO khi chưa đăng nhập, sitemap đếm đúng số trang đã xuất bản
+# — biến SMOKE_EXPECTED_PUBLISHED_PAGES, mặc định 0 vì hiện chưa có
+# trang nào xuất bản) — thay cho chuỗi curl gõ tay (D9-1). Chỉ dùng
+# GET, không đăng nhập, không ghi dữ liệu. Thoát 0 khi mọi mục PASS,
+# khác 0 khi có mục FAIL.
 #
 #   ./scripts/smoke-live.sh https://flowershop-steel.vercel.app/
 #   ./scripts/smoke-live.sh http://localhost:3000   (kiểm bản local)
@@ -66,6 +70,31 @@ check() {
   fi
 }
 
+# check_sitemap_pages <tên> — đếm URL /trang/ trong sitemap, so
+# với SMOKE_EXPECTED_PUBLISHED_PAGES (mặc định 0). Sitemap chỉ liệt
+# kê trang đã xuất bản (Ngày 13 B4) nên số này phải đúng.
+check_sitemap_pages() {
+  local name="$1"
+  local body="$TMP/sitemap-pages-body"
+  local out code time_s
+  out="$(curl -s -o "$body" -w "%{http_code} %{time_total}" --max-time 20 "$BASE/sitemap.xml" 2>/dev/null || true)"
+  if [ -z "$out" ]; then out="000 0"; fi
+  code="${out%% *}"
+  time_s="${out##* }"
+  local count=0
+  if [ -f "$body" ]; then count="$(grep -c "/trang/" "$body" || true)"; fi
+  local expected="${SMOKE_EXPECTED_PUBLISHED_PAGES:-0}"
+  local ms
+  ms="$(awk -v t="$time_s" 'BEGIN { printf "%d", t * 1000 }')"
+  if [ "$code" = "200" ] && [ "$count" = "$expected" ]; then
+    PASS=$((PASS + 1))
+    printf "%-32s %-42s %4s %6s ms  PASS (%s trang đã xuất bản)\n" "$name" "/sitemap.xml" "$code" "$ms" "$count"
+  else
+    FAIL=$((FAIL + 1))
+    printf "%-32s %-42s %4s %6s ms  FAIL (muốn %s trang, được %s; mã %s)\n" "$name" "/sitemap.xml" "$code" "$ms" "$expected" "$count" "$code"
+  fi
+}
+
 printf "%-32s %-42s %4s %6s    %s\n" "MỤC KIỂM" "ĐƯỜNG DẪN" "MÃ" "TGIAN" "KẾT QUẢ"
 check "Trang chủ" "/" "200"
 check "Trang chủ (tên shop)" "/" "200" "contains:Hoa Tươi Demo"
@@ -82,6 +111,11 @@ check "Cài đặt chung (chưa đăng nhập)" "/admin/settings/general" "307" 
 check "Ngân hàng & QR (chưa đăng nhập)" "/admin/settings/bank" "307" "location-login"
 check "Khu vực & phí (chưa đăng nhập)" "/admin/shipping-zones" "307" "location-login"
 check "Telegram (chưa đăng nhập)" "/admin/settings/telegram" "307" "location-login"
+check "Trang tĩnh nháp (giới thiệu)" "/trang/gioi-thieu" "404"
+check "Trang tĩnh (chưa đăng nhập)" "/admin/pages" "307" "location-login"
+check "Cài đặt SEO (chưa đăng nhập)" "/admin/settings/seo" "307" "location-login"
+check_sitemap_pages "Sitemap (số trang đã xuất bản)"
+
 
 echo
 echo "PASS: $PASS  FAIL: $FAIL  (base: $BASE)"

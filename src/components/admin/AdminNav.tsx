@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -162,7 +163,7 @@ const ITEMS: NavItem[] = [
   { label: "Sản phẩm", section: "content", icon: ICON_BOX, href: "/admin/products", match: (p) => p === "/admin/products" || p.startsWith("/admin/products/") },
   { label: "Danh mục", section: "content", icon: ICON_TAG, href: "/admin/categories", match: (p) => p === "/admin/categories" || p.startsWith("/admin/categories/") },
   { label: "Bài viết / Tin tức", section: "content", icon: ICON_NEWSPAPER, soon: true },
-  { label: "Trang tĩnh", section: "content", icon: ICON_FILE, soon: true },
+  { label: "Trang tĩnh", section: "content", icon: ICON_FILE, href: "/admin/pages", match: (p) => p === "/admin/pages" || p.startsWith("/admin/pages/") },
   { label: "Đơn hàng", section: "sales", icon: ICON_CLIPBOARD, href: "/admin/orders", match: (p) => p === "/admin/orders" || p.startsWith("/admin/orders/") },
   { label: "Yêu cầu liên hệ", section: "sales", icon: ICON_MAIL, soon: true },
   { label: "Khách hàng", section: "sales", icon: ICON_USERS, soon: true },
@@ -185,7 +186,7 @@ const ITEMS: NavItem[] = [
     ],
   },
   { label: "Nhật ký hoạt động", section: "config", icon: ICON_CLOCK, soon: true },
-  { label: "Cài đặt SEO", section: "config", icon: ICON_FILE, soon: true },
+  { label: "Cài đặt SEO", section: "config", icon: ICON_FILE, href: "/admin/settings/seo", match: (p) => p === "/admin/settings/seo" },
   { label: "Xem shop ↗", section: "shop", icon: ICON_EXTERNAL, href: "/", match: () => false },
 ];
 
@@ -200,9 +201,19 @@ const SECTIONS: Array<{ key: string; label: string | null }> = [
 
 export default function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const navRef = useRef<HTMLElement | null>(null);
+
+  // A4 (Ngày 13): mục đang mở phải nằm trong vùng nhìn của menu
+  // (trước đây mục cuối nhóm như "Ngân hàng & QR" bị nút Đăng xuất
+  // che một phần ở viewport 900 px). Cuộn trong khung nav
+  // (block: "nearest" — chỉ cuộn đủ để thấy mục, không cuộn cả trang).
+  useEffect(() => {
+    const active = navRef.current?.querySelector('[aria-current="page"]');
+    active?.scrollIntoView({ block: "nearest" });
+  }, [pathname]);
 
   return (
-    <nav aria-label="Quản trị" className="admin-nav-scroll mt-2 flex-1 overflow-y-auto px-3 py-2">
+    <nav ref={navRef} aria-label="Quản trị" className="admin-nav-scroll mt-2 flex-1 overflow-y-auto px-3 py-2">
       {SECTIONS.map((section) => (
         <div key={section.key} className="mt-4 first:mt-0">
           {section.label ? (

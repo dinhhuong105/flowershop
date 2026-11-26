@@ -43,6 +43,19 @@ import {
   updateAdminZone,
 } from "@/lib/admin/zones";
 import {
+  createAdminPage,
+  deleteAdminPage,
+  getAdminPage,
+  setAdminPagePublished,
+  updateAdminPage,
+} from "@/lib/admin/pages";
+import {
+  validatePageForm,
+  type PageFormErrors,
+  type PageFormInput,
+} from "@/lib/admin/page-validation";
+import type { AdminPageState } from "@/lib/admin/page-form-state";
+import {
   validateZoneForm,
   type ZoneFormErrors,
   type ZoneFormInput,
@@ -358,5 +371,118 @@ export async function deleteZoneAction(id: number): Promise<DeleteZoneState> {
   }
   revalidatePath("/", "layout");
   revalidatePath("/admin/shipping-zones");
+  return { ok: true, error: null };
+}
+
+// ---- Trang tĩnh & Chính sách (Ngày 13 B1–B3 — theo mẫu Danh mục) ----
+
+function pageFormDataToInput(formData: FormData): PageFormInput {
+  const get = (name: string): string => {
+    const v = formData.get(name);
+    return typeof v === "string" ? v : "";
+  };
+  return {
+    title: get("title"),
+    slug: get("slug"),
+    content: get("content"),
+    seoTitle: get("seoTitle"),
+    seoDescription: get("seoDescription"),
+    sortOrder: get("sortOrder"),
+    // Checkbox: chỉ gửi khi được chọn ("on").
+    isPublished: formData.get("isPublished") === "on",
+    showInFooter: formData.get("showInFooter") === "on",
+  };
+}
+
+function pageFail(
+  fieldErrors: PageFormErrors,
+  input: PageFormInput,
+  formError: string | null = null,
+): AdminPageState {
+  return { ok: false, fieldErrors, formError, values: input };
+}
+
+export async function createPageAction(
+  prevState: AdminPageState,
+  formData: FormData,
+): Promise<AdminPageState> {
+  await requireAdmin();
+  const input = pageFormDataToInput(formData);
+  const { errors, values } = validatePageForm(input);
+  if (!values) return pageFail(errors, input);
+  const result = await createAdminPage(values);
+  if ("conflict" in result) {
+    const fieldErrors: PageFormErrors = {
+      [result.conflict.field]: result.conflict.message,
+    };
+    return pageFail(fieldErrors, input);
+  }
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/pages");
+  return { ok: true, fieldErrors: {}, formError: null, values: null };
+}
+
+export async function updatePageAction(
+  id: number,
+  prevState: AdminPageState,
+  formData: FormData,
+): Promise<AdminPageState> {
+  await requireAdmin();
+  const input = pageFormDataToInput(formData);
+  const existing = await getAdminPage(id);
+  if (!existing) {
+    return pageFail({}, input, "Không tìm thấy trang.");
+  }
+  const { errors, values } = validatePageForm(input);
+  if (!values) return pageFail(errors, input);
+  const result = await updateAdminPage(id, values);
+  if (result === null) {
+    return pageFail({}, input, "Không tìm thấy trang.");
+  }
+  if ("conflict" in result) {
+    const fieldErrors: PageFormErrors = {
+      [result.conflict.field]: result.conflict.message,
+    };
+    return pageFail(fieldErrors, input);
+  }
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/pages");
+  return { ok: true, fieldErrors: {}, formError: null, values: null };
+}
+
+export type TogglePageState = { ok: boolean; error: string | null };
+
+// Bật/tắt xuất bản trang (đổi isPublished). Không có hộp xác nhận —
+// đảo ngược được bằng một lần bấm nữa, kèm toast Hoàn tác (theo mẫu
+// ToggleZoneButton).
+export async function togglePageAction(
+  prevState: TogglePageState,
+  formData: FormData,
+): Promise<TogglePageState> {
+  await requireAdmin();
+  const id = Number(formData.get("pageId"));
+  const nextPublished = formData.get("isPublished") === "true";
+  if (!Number.isInteger(id) || id <= 0) {
+    return { ok: false, error: "Không tìm thấy trang." };
+  }
+  const changed = await setAdminPagePublished(id, nextPublished);
+  if (!changed) return { ok: false, error: "Không tìm thấy trang." };
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/pages");
+  return { ok: true, error: null };
+}
+
+export type DeletePageState = { ok: boolean; error: string | null };
+
+// Xóa trang tĩnh — luôn được phép (trang không có đơn hàng hay sản
+// phẩm ràng buộc); máy chủ kiểm lại tồn tại trong deleteAdminPage.
+export async function deletePageAction(id: number): Promise<DeletePageState> {
+  await requireAdmin();
+  const result = await deleteAdminPage(id);
+  if (!result.ok) {
+    return { ok: false, error: "Không tìm thấy trang." };
+  }
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/pages");
   return { ok: true, error: null };
 }

@@ -200,6 +200,26 @@ model AdminSession {
   @@map("admin_sessions")
 }
 
+// Trang tĩnh & chính sách (Ngày 13 B1): nội dung do chủ shop nhập
+// trong quản trị, render bằng Markdown an toàn (xem src/lib/markdown.ts).
+// Chỉ trang isPublished mới hiện ra shop; seed 3 trang mẫu ở trạng
+// thái nháp (chưa xuất bản). Rollback: DROP TABLE "pages".
+model Page {
+  id             Int      @id @default(autoincrement())
+  slug           String   @unique
+  title          String
+  content        String   @default("")
+  isPublished    Boolean  @default(false)
+  seoTitle       String   @default("")
+  seoDescription String   @default("")
+  sortOrder      Int      @default(0)
+  showInFooter   Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("pages")
+}
+
 // Cài đặt shop (Ngày 11 B2): bảng key-value, một dòng một khóa.
 // Giá trị lưu dạng text (chuỗi thường; mảng/khối lưu JSON nếu cần).
 // Mặc định KHÔNG nằm ở DB mà ở src/lib/settings.ts — DB trống vẫn

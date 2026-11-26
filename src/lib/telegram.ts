@@ -8,7 +8,10 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { deliveryConfig } from "@/config/delivery";
 import { formatVND } from "@/lib/format";
-import { readSettingsFromDb } from "./settings";
+import {
+  defaultTelegramEnabledFromEnv,
+  readSettingsFromDb,
+} from "./settings";
 import { formatVnDateTime } from "./vn-datetime";
 
 export type OrderWithItems = Prisma.OrderGetPayload<{ include: { items: true } }>;
@@ -109,15 +112,34 @@ export function buildTelegramMessage(order: OrderWithItems): string {
   return message;
 }
 
+// Cổng thông báo đơn TỰ ĐỘNG (Ngày 13 A2): tôn trọng công tắc
+// Telegram trong cài đặt. Có dòng telegram.enabled trong DB thì
+// dùng nó; chưa có thì suy ra từ env lúc gọi (có token + chat id
+// thì bật) — đúng hành vi trước Ngày 12. DB lỗi thì cũng rơi về
+// env (không làm mất thông báo vì lỗi đọc DB thoáng qua).
+// Chỉ cổng đường tự động (đơn mới); gửi lại tay, gửi thử và báo
+// đổi ngân hàng là hành động chủ động của quản trị nên không qua
+// cổng này.
+export async function isTelegramNotifyEnabled(): Promise<boolean> {
+  try {
+    const partial = await readSettingsFromDb();
+    if (partial.telegramEnabled !== undefined) return partial.telegramEnabled;
+  } catch {
+    // Rơi về env.
+  }
+  return defaultTelegramEnabledFromEnv();
+}
+
 // Gửi báo đơn cho một đơn đã tạo. Trả true khi Telegram nhận (đã set
-// notifiedAt), false khi bỏ qua (thiếu cấu hình) hoặc gửi lỗi. Không
-// bao giờ throw — lỗi nào cũng chỉ log tên lỗi, không log token hay URL.
+// notifiedAt), false khi bỏ qua (thiếu cấu hình / Telegram đang tắt)
+// hoặc gửi lỗi. Không bao giờ throw — lỗi nào cũng chỉ log tên lỗi, không log token hay URL.
 export async function sendOrderNotification(orderId: number): Promise<boolean> {
   const order = await db.order.findUnique({
     where: { id: orderId },
     include: { items: { orderBy: { id: "asc" } } },
   });
   if (!order) return false;
+  if (!(await isTelegramNotifyEnabled())) return false;
   const sent = await sendTelegramForOrder(order);
   if (!sent) return false;
   await db.order.update({

@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { isReservedSlug } from "@/lib/reserved-slugs";
 import { isProductionDatabaseUrl, shouldSeed } from "@/lib/seed-guard";
 import { seedDefaultSettings } from "@/lib/settings";
+import { seedDefaultPages } from "@/lib/admin/pages";
 
 const prisma = new PrismaClient();
 
@@ -98,6 +99,14 @@ async function main() {
   const seededSettings = await seedDefaultSettings();
   if (seededSettings > 0) {
     console.log(`Seed cài đặt mặc định: ${seededSettings} khóa.`);
+  }
+
+  // Seed trang tĩnh mẫu (Ngày 13 B4): CHỈ khi bảng pages trống —
+  // 3 trang nháp (chưa xuất bản). Chạy độc lập với chặn seed demo
+  // bên dưới, như seed cài đặt.
+  const seededPages = await seedDefaultPages();
+  if (seededPages > 0) {
+    console.log(`Seed trang tĩnh mẫu: ${seededPages} trang (nháp).`);
   }
 
   // CHẶN SEED HỒI SINH DỮ LIỆU DEMO (mục 1 verdict Ngày 10): lệnh

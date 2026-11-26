@@ -1,8 +1,10 @@
-// Tải logo/favicon lên (Ngày 11 B3): POST multipart (purpose =
-// logo|favicon + file). Chỉ quản trị. Logo tối đa 1 MB, favicon
-// tối đa 256 KB; nhận JPEG/PNG/WebP (magic bytes) + SVG tĩnh
+// Tải logo/favicon/ảnh OG lên (Ngày 11 B3, Ngày 13 C1 thêm "og"):
+// POST multipart (purpose = logo|favicon|og + file). Chỉ quản trị.
+// Logo tối đa 1 MB, favicon tối đa 256 KB, ảnh OG tối đa 1 MB;
+// nhận JPEG/PNG/WebP (magic bytes) + SVG tĩnh cho logo/favicon
 // (isSafeSvgText — SVG chứa mã bị từ chối vì phục vụ cùng origin
-// với shop). Lưu qua storage.saveImage nên trả URL TUYỆT ĐỐI
+// với shop). Ảnh OG KHÔNG nhận SVG (đặc tả C1: chỉ jpg/png/webp).
+// Lưu qua storage.saveImage nên trả URL TUYỆT ĐỐI
 // (Blob trên Vercel, /uploads/... gắn domain shop ở local).
 // Lỗi ghi (vd chưa có BLOB_READ_WRITE_TOKEN trên Vercel) trả 500
 // với thông báo rõ ràng, không crash máy chủ.
@@ -91,15 +93,22 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const purposeRaw = form.get("purpose");
-  const purpose = purposeRaw === "favicon" ? "favicon" : purposeRaw === "logo" ? "logo" : null;
+  const purpose =
+    purposeRaw === "favicon"
+      ? "favicon"
+      : purposeRaw === "logo"
+        ? "logo"
+        : purposeRaw === "og"
+          ? "og"
+          : null;
   if (!purpose) {
     return NextResponse.json(
-      { ok: false, error: "Thiếu loại ảnh (logo hoặc favicon)." },
+      { ok: false, error: "Thiếu loại ảnh (logo, favicon hoặc ảnh OG)." },
       { status: 400 },
     );
   }
-  const maxBytes = purpose === "logo" ? MAX_LOGO_BYTES : MAX_FAVICON_BYTES;
-  const maxLabel = purpose === "logo" ? "1 MB" : "256 KB";
+  const maxBytes = purpose === "favicon" ? MAX_FAVICON_BYTES : MAX_LOGO_BYTES;
+  const maxLabel = purpose === "favicon" ? "256 KB" : "1 MB";
 
   const file = form.get("file");
   if (!(file instanceof File)) {
@@ -130,7 +139,14 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
   }
-  // Không khớp magic bytes JPEG/PNG/WebP — thử SVG tĩnh.
+  // Không khớp magic bytes JPEG/PNG/WebP — thử SVG tĩnh (trừ ảnh
+  // OG: đặc tả C1 chỉ nhận jpg/png/webp).
+  if (purpose === "og") {
+    return NextResponse.json(
+      { ok: false, error: "Ảnh OG chỉ nhận JPEG, PNG hoặc WebP." },
+      { status: 400 },
+    );
+  }
   if (isSafeSvgText(buf.toString("utf8"))) {
     try {
       const url = await saveImage(buf, "svg");

@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { siteConfig } from "@/config/site";
 import { isSafeSvgText } from "./admin/upload-rules";
 import {
+  classifyBlobError,
   createBlobAdapter,
   createDiskAdapter,
   diskFileNameFromUrl,
@@ -111,6 +112,185 @@ describe("blob adapter (mock provider)", () => {
     assert.equal(calls.put[0]?.contentType, "image/png");
     assert.equal(await adapter.remove(url), true);
     assert.deepEqual(calls.del, [url]);
+  });
+});
+
+describe("blob adapter lỗi (Ngày 13 A1)", () => {
+  // Bắt console.error trong các ca lỗi để output test không bị
+  // spam dòng log của adapter; khôi phục sau mỗi ca.
+  function silenceConsole(): () => void {
+    const original = console.error;
+    console.error = () => {};
+    return () => {
+      console.error = original;
+    };
+  }
+
+  function namedError(name: string, message: string): Error {
+    const e = new Error(message);
+    e.name = name;
+    return e;
+  }
+
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+  it("put truyền allowOverwrite: true + access 'public'", async () => {
+    let seen: { allowOverwrite?: boolean; access?: string } | null = null;
+    const mock: BlobClient = {
+      put: async (_pathname, _body, options) => {
+        seen = { allowOverwrite: options.allowOverwrite, access: options.access };
+        return { url: "https://mock.public.blob.vercel-storage.com/uploads/x.png" };
+      },
+      del: async () => {},
+    };
+    const adapter = createBlobAdapter(mock, "token-test");
+    await adapter.save(png, "png");
+    assert.deepEqual(seen, { allowOverwrite: true, access: "public" });
+  });
+
+  it("put lỗi 'đã tồn tại' → StorageWriteError code blob-exists, câu 'Tệp đã tồn tại'", async () => {
+    const restore = silenceConsole();
+    try {
+      const mock: BlobClient = {
+        put: async () => {
+          throw namedError(
+            "BlobPreconditionFailedError",
+            "This blob already exists. Please use allowOverwrite.",
+          );
+        },
+        del: async () => {},
+      };
+      const adapter = createBlobAdapter(mock, "token-test");
+      await assert.rejects(
+        () => adapter.save(png, "png"),
+        (e: unknown) =>
+          e instanceof StorageWriteError &&
+          e.code === "blob-exists" &&
+          e.message === "Tệp đã tồn tại",
+      );
+    } finally {
+      restore();
+    }
+  });
+
+  it("put lỗi quyền/token → code blob-denied, câu 'Nơi lưu ảnh từ chối ghi (kiểm token/quyền)'", async () => {
+    const restore = silenceConsole();
+    try {
+      for (const name of ["BlobAccessError", "BlobStoreNotFoundError", "BlobClientTokenExpiredError"]) {
+        const mock: BlobClient = {
+          put: async () => {
+            throw namedError(name, "Access denied");
+          },
+          del: async () => {},
+        };
+        const adapter = createBlobAdapter(mock, "token-test");
+        await assert.rejects(
+          () => adapter.save(png, "png"),
+          (e: unknown) =>
+            e instanceof StorageWriteError &&
+            e.code === "blob-denied" &&
+            e.message === "Nơi lưu ảnh từ chối ghi (kiểm token/quyền)",
+        );
+      }
+    } finally {
+      restore();
+    }
+  });
+
+  it("put lỗi mạng → code blob-network, câu 'Lỗi mạng tới nơi lưu ảnh'", async () => {
+    const restore = silenceConsole();
+    try {
+      const mock: BlobClient = {
+        put: async () => {
+          throw namedError("TypeError", "fetch failed");
+        },
+        del: async () => {},
+      };
+      const adapter = createBlobAdapter(mock, "token-test");
+      await assert.rejects(
+        () => adapter.save(png, "png"),
+        (e: unknown) =>
+          e instanceof StorageWriteError &&
+          e.code === "blob-network" &&
+          e.message === "Lỗi mạng tới nơi lưu ảnh",
+      );
+    } finally {
+      restore();
+    }
+  });
+
+  it("put lỗi lạ → code blob-unknown, câu chung chung", async () => {
+    const restore = silenceConsole();
+    try {
+      const mock: BlobClient = {
+        put: async () => {
+          throw new Error("something odd happened");
+        },
+        del: async () => {},
+      };
+      const adapter = createBlobAdapter(mock, "token-test");
+      await assert.rejects(
+        () => adapter.save(png, "png"),
+        (e: unknown) =>
+          e instanceof StorageWriteError &&
+          e.code === "blob-unknown" &&
+          e.message === "Không lưu được ảnh, vui lòng thử lại.",
+      );
+    } finally {
+      restore();
+    }
+  });
+
+  it("del lỗi → remove trả false, không ném; log không lộ token", async () => {
+    const logs: string[] = [];
+    const original = console.error;
+    console.error = (...args: unknown[]) => {
+      logs.push(args.map(String).join(" "));
+    };
+    try {
+      const mock: BlobClient = {
+        put: async () => {
+          throw new Error("lỗi chứa vercel_blob_rw_SECRETXYZ123");
+        },
+        del: async () => {
+          throw new Error("del lỗi chứa vercel_blob_rw_SECRETXYZ123");
+        },
+      };
+      const adapter = createBlobAdapter(mock, "vercel_blob_rw_SECRETXYZ123");
+      assert.equal(await adapter.remove("https://x/uploads/a.png"), false);
+      await assert.rejects(
+        () => adapter.save(png, "png"),
+        (e: unknown) =>
+          e instanceof StorageWriteError &&
+          !e.message.includes("vercel_blob_rw_SECRETXYZ123"),
+      );
+      assert.equal(
+        logs.some((line) => line.includes("vercel_blob_rw_SECRETXYZ123")),
+        false,
+      );
+      assert.ok(logs.some((line) => line.includes("[storage] Blob")));
+    } finally {
+      console.error = original;
+    }
+  });
+
+  it("classifyBlobError: phân loại đúng theo tên lỗi", () => {
+    assert.deepEqual(classifyBlobError(namedError("BlobPreconditionFailedError", "x")), {
+      code: "blob-exists",
+      message: "Tệp đã tồn tại",
+    });
+    assert.deepEqual(classifyBlobError(namedError("BlobStoreSuspendedError", "x")), {
+      code: "blob-denied",
+      message: "Nơi lưu ảnh từ chối ghi (kiểm token/quyền)",
+    });
+    assert.deepEqual(classifyBlobError(namedError("BlobServiceRateLimited", "x")), {
+      code: "blob-network",
+      message: "Lỗi mạng tới nơi lưu ảnh",
+    });
+    assert.deepEqual(classifyBlobError(new Error("lạ")), {
+      code: "blob-unknown",
+      message: "Không lưu được ảnh, vui lòng thử lại.",
+    });
   });
 });
 

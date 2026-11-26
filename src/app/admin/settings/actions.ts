@@ -22,6 +22,7 @@ import {
   validateBankValues,
   validateContactValues,
   validateGeneralValues,
+  validateSeoValues,
   validateTelegramValues,
 } from "@/lib/settings";
 import { getSettings } from "@/lib/settings-cache";
@@ -166,6 +167,27 @@ export async function saveTelegramSettingsAction(
 // Trạng thái nút "Gửi thử" (D2): form riêng, không dùng
 // SettingsFormState (không có lỗi từng trường).
 export type TelegramTestState = { ok: boolean; message: string };
+
+export async function saveSeoSettingsAction(
+  _prevState: SettingsFormState,
+  formData: FormData,
+): Promise<SettingsFormState> {
+  await requireAdmin();
+  const { values, errors } = validateSeoValues({
+    titleTemplate: formDataString(formData, "titleTemplate"),
+    defaultDescription: formDataString(formData, "defaultDescription"),
+    defaultOgImage: formDataString(formData, "defaultOgImage"),
+    metaKeywords: formDataString(formData, "metaKeywords"),
+    allowIndexing: formDataBoolean(formData, "allowIndexing"),
+  });
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, message: "Kiểm tra lại các trường tô đỏ.", errors };
+  }
+  await saveSettingsToDb("seo", values, "admin");
+  revalidateTag("site-settings");
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Đã lưu cài đặt SEO.", errors: {} };
+}
 
 export async function sendTelegramTestAction(): Promise<TelegramTestState> {
   await requireAdmin();
