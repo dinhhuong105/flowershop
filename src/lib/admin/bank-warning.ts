@@ -13,17 +13,22 @@ export function bankChangeWarningText(unpaidCount: number, onlyDisabled = false)
   return `${unpaidCount} đơn chuyển khoản chưa thu sẽ hiển thị QR mới`;
 }
 
-/** Thông báo sau khi lưu: ghi lại N tại thời điểm lưu (N = 0 thì không nhắc). */
+/** Thông báo sau khi lưu: ghi lại N tại thời điểm lưu (N = 0 thì không nhắc).
+ * telegramSkipped = true: chưa cấu hình token/chat id nên không có
+ * tin nào được gửi (fixup 3) — KHÔNG hiện câu lưu ý Telegram; chỉ
+ * hiện câu đó khi failed thật (có cấu hình mà gửi lỗi). */
 export function bankSaveSuccessMessage(
   unpaidCount: number,
   telegramFailed: boolean,
   onlyDisabled = false,
+  telegramSkipped = false,
 ): string {
   const base = "Đã lưu thông tin ngân hàng.";
   const affected =
     unpaidCount > 0 ? ` ${bankChangeWarningText(unpaidCount, onlyDisabled)}.` : "";
-  const note = telegramFailed
-    ? " Lưu ý: không gửi được thông báo Telegram, đã ghi vào nhật ký."
-    : "";
+  const note =
+    telegramFailed && !telegramSkipped
+      ? " Lưu ý: không gửi được thông báo Telegram, đã ghi vào nhật ký."
+      : "";
   return `${base}${affected}${note}`;
 }

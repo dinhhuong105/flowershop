@@ -58,4 +58,22 @@ describe("bankSaveSuccessMessage", () => {
       "Đã lưu thông tin ngân hàng. 2 đơn chuyển khoản chưa thu sẽ không còn hiển thị mã QR.",
     );
   });
+  it("Telegram: ok / skipped / failed — chỉ failed thật mới thêm câu lưu ý (fixup 3)", () => {
+    // ok: gửi được → không câu lưu ý.
+    assert.equal(bankSaveSuccessMessage(0, false), "Đã lưu thông tin ngân hàng.");
+    // skipped: chưa cấu hình, không có tin nào được gửi → không câu lưu ý.
+    assert.equal(
+      bankSaveSuccessMessage(0, true, false, true),
+      "Đã lưu thông tin ngân hàng.",
+    );
+    assert.equal(
+      bankSaveSuccessMessage(2, true, false, true),
+      "Đã lưu thông tin ngân hàng. 2 đơn chuyển khoản chưa thu sẽ hiển thị QR mới.",
+    );
+    // failed thật (có cấu hình mà gửi lỗi) → vẫn câu lưu ý.
+    assert.equal(
+      bankSaveSuccessMessage(0, true, false, false),
+      "Đã lưu thông tin ngân hàng. Lưu ý: không gửi được thông báo Telegram, đã ghi vào nhật ký.",
+    );
+  });
 });

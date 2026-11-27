@@ -300,9 +300,12 @@ export function validateContactValues(input: {
   };
 }
 
-// Che STK trong nhật ký (B3): chỉ giữ 4 số cuối.
+// Che STK trong nhật ký (B3): chỉ giữ 4 số cuối. Giá trị rỗng
+// (không có chữ số nào) trả "" — để nhật ký lưu "" và trang nhật ký
+// hiện "(trống)" thay vì "****" (fixup 3).
 export function maskAccountNumber(value: string): string {
   const digits = value.replace(/\D/g, "");
+  if (digits.length === 0) return "";
   if (digits.length <= 4) return "****";
   return `****${digits.slice(-4)}`;
 }

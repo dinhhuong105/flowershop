@@ -149,7 +149,7 @@ export async function saveBankSettingsAction(
     // cảnh báo khác (QR biến mất, không phải QR mới).
     const onlyDisabled =
       saved.length === 1 && saved[0] === "bank.enabled" && values.bankEnabled === false;
-    message = bankSaveSuccessMessage(unpaidCount, !notify.ok, onlyDisabled);
+    message = bankSaveSuccessMessage(unpaidCount, !notify.ok, onlyDisabled, notify.skipped ?? false);
   }
   revalidateTag("site-settings");
   revalidatePath("/", "layout");

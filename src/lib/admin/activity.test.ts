@@ -115,6 +115,19 @@ describe("displayActivityValue", () => {
     assert.equal(displayActivityValue(null), "(trống)");
     assert.equal(displayActivityValue(null, "contact.hotline"), "(trống)");
   });
+  it("fixup 3: cặp cũ → mới của STK — phía rỗng hiện (trống), không phải ****", () => {
+    // Cách trang nhật ký ghép cặp: cũ → mới (mỗi phía qua displayActivityValue).
+    const pair = (oldV: string | null, newV: string | null) =>
+      `${displayActivityValue(oldV, "bank.accountNumber")} → ${displayActivityValue(newV, "bank.accountNumber")}`;
+    // Cũ rỗng (nhật ký lưu "" sau khi mask sửa) → "(trống) → ****1098".
+    assert.equal(pair("", "****1098"), "(trống) → ****1098");
+    // Mới rỗng → "****9012 → (trống)".
+    assert.equal(pair("****9012", ""), "****9012 → (trống)");
+    // Cả 2 phía rỗng → "(trống) → (trống)".
+    assert.equal(pair("", ""), "(trống) → (trống)");
+    // Cả 2 phía có giá trị → giữ nguyên như cũ.
+    assert.equal(pair("****9012", "****1098"), "****9012 → ****1098");
+  });
 });
 
 describe("formatVnActivityTime", () => {

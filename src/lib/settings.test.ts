@@ -297,10 +297,11 @@ describe("renderTransferContent + maskAccountNumber (Ngày 12 B1/B3)", () => {
       "ABC ABC",
     );
   });
-  it("che STK chỉ giữ 4 số cuối; ≤ 4 số hoặc rỗng → ****", () => {
+  it("che STK chỉ giữ 4 số cuối; ≤ 4 số → ****; rỗng → '' để nhật ký hiện '(trống)' (fixup 3)", () => {
     assert.equal(maskAccountNumber("1234567890"), "****7890");
     assert.equal(maskAccountNumber("1234"), "****");
-    assert.equal(maskAccountNumber(""), "****");
+    assert.equal(maskAccountNumber(""), "");
+    assert.equal(maskAccountNumber("   "), "");
   });
   it("mẫu mặc định = nội dung hiện hành 'DH {ORDER_CODE}'", () => {
     assert.equal(DEFAULT_SETTINGS.transferNoteTemplate, "DH {ORDER_CODE}");
