@@ -267,7 +267,29 @@ Bất cứ lúc nào, mở trang Tổng quan (`/admin`) và xem thẻ
    điểm snapshot (đơn mới, sửa giá, cài đặt mới) — ghi lại những gì
    sẽ mất trước khi khôi phục, và nhập lại tay sau đó nếu cần.
 
-### 5.4. Dữ liệu test local (không phải production)
+### 5.5. Lùi code về bản trước (Vercel Instant Rollback)
+
+Khi bản deploy mới (Ngày 17) gây lỗi trên live mà chưa rõ nguyên
+nhân, lùi code về bản trước thay vì sửa vội trên production:
+
+1. Mở Vercel Dashboard → project `flowershop` → **Deployments**.
+2. Tìm deployment của commit **`6e4a514`** (bản live trước Ngày 17 —
+   "Ngày 16 fixup 3") → bấm `⋯` → **Instant Rollback** (hoặc
+   **Promote to Production**) → xác nhận.
+3. Kiểm tra: mở https://flowershop-steel.vercel.app/ — trang chủ
+   phải trả 200, đăng nhập admin được; chạy
+   `bash scripts/smoke-live.sh https://flowershop-steel.vercel.app/`
+   (kỳ vọng 21/21).
+4. **Lưu ý:** rollback chỉ lùi CODE, không lùi dữ liệu. Migration
+   Ngày 17 chỉ thêm cột `source` và bảng `rate_limit_events` mới —
+   code cũ không đọc chúng nên chạy bình thường; đơn hàng/sản phẩm
+   tạo sau deploy Ngày 17 vẫn còn nguyên trong DB.
+5. Lùi xong vẫn lỗi thì xem Runtime Logs của deployment đang chạy
+   (Deployments → deployment → **Runtime Logs**) và báo lại cho
+   người phụ trách kỹ thuật kèm ảnh chụp. Đừng push lại commit
+   Ngày 17 cho tới khi rõ nguyên nhân lỗi.
+
+### 5.6. Dữ liệu test local (không phải production)
 
 Trên máy dev, dựng lại DB bằng `~/workspace/rebuild-flower-db.mjs`
 + `prisma migrate deploy` + `prisma db seed` (đủ 20 sản phẩm, 4 danh

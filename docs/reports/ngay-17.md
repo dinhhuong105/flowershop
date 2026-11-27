@@ -444,13 +444,15 @@ product-source, `src/lib/rate-limit.*`, `security-headers.*`,
 
 1. **`test:security` FAIL trên đúng cây đã commit** — quét tĩnh S11 báo
    "bí mật (postgres URL có mật khẩu) trong `docs/reports/ngay-17.md`".
-   Nguyên nhân: dòng 311 của báo cáo viết mẫu ví dụ ``postgres://…:…@``
-   khi liệt kê các mẫu đã quét; regex của máy quét khớp đúng chuỗi mẫu
-   đó (dương tính giả — không có mật khẩu thật nào trong repo, đã grep
-   toàn repo xác nhận chỉ có đúng 1 chỗ này). Sửa: bỏ chuỗi mẫu khỏi
+   Nguyên nhân: dòng 311 của báo cáo viết nguyên văn mẫu URL Postgres
+   có mật khẩu khi liệt kê các mẫu đã quét; regex của máy quét khớp
+   đúng chuỗi mẫu đó (dương tính giả — không có mật khẩu thật nào
+   trong repo, đã grep toàn repo xác nhận). Sửa: bỏ chuỗi mẫu khỏi
    báo cáo, viết "URL Postgres có mật khẩu". Chạy lại `test:security` →
    **TẤT CẢ ĐẠT**. Bài học: báo cáo không được viết nguyên văn các mẫu
-   bí mật mà máy quét đang tìm (kể cả dạng placeholder).
+   bí mật mà máy quét đang tìm (kể cả dạng placeholder) — chính phụ
+   lục này đã lặp lại lỗi đó khi trích lại mẫu, nên đợt chuẩn bị đẩy
+   sửa luôn dòng này (xem `docs/reports/ngay-17-day18-prep.md`).
 2. **Mã commit trong báo cáo sai** — đầu báo cáo ghi `c869c6a` nhưng
    commit thực tế lúc bàn giao là `85abd29` (báo cáo viết trước khi
    điều phối viên gom lại). Sửa: bỏ mã commit tự tham chiếu khỏi đầu
