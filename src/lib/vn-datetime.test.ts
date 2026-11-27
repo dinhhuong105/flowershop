@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { vnDayBounds } from "./admin/dashboard";
-import { formatVnDateTime } from "./vn-datetime";
+import { formatVnDate, formatVnDateTime } from "./vn-datetime";
 
 // Múi giờ dashboard (mục 4 verdict Ngày 10): Vercel chạy UTC nên
 // vùng rủi ro là 00:00–07:00 giờ VN, khi ngày UTC còn lùi một ngày
@@ -51,5 +51,14 @@ describe("nhãn giờ cập nhật dashboard — formatVnDateTime", () => {
       formatVnDateTime(new Date("2026-11-24T17:00:00Z")),
       "00:00, 25/11/2026",
     );
+  });
+});
+
+describe("ngày đăng tin tức — formatVnDate", () => {
+  it("dạng dd/MM/yyyy theo giờ VN (UTC+7)", () => {
+    // 16:30 UTC ngày 25 = 23:30 giờ VN ngày 25 (không sang ngày 26).
+    assert.equal(formatVnDate(new Date("2026-11-25T16:30:00Z")), "25/11/2026");
+    // 17:30 UTC ngày 25 = 00:30 giờ VN ngày 26.
+    assert.equal(formatVnDate(new Date("2026-11-25T17:30:00Z")), "26/11/2026");
   });
 });

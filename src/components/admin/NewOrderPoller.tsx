@@ -22,7 +22,7 @@
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { AdminToastDetail } from "@/lib/admin/toggle-toast";
 import {
   NEW_ORDER_POLL_INTERVAL_MS,
@@ -94,6 +94,7 @@ export default function NewOrderPoller({
   initialLatestCode: string | null;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [pendingCount, setPendingCount] = useState(initialPendingCount);
   const [newCount, setNewCount] = useState(0);
   const [soundOn, setSoundOn] = useState(false);
@@ -150,6 +151,16 @@ export default function NewOrderPoller({
   // thì KHÔNG đụng vào tiêu đề (Next.js quản lý theo từng trang);
   // chỉ khi có đơn mới mới đổi thành "(N) Hoa Tươi Demo — Quản trị",
   // và khi đã xem hết thì trả về tiêu đề của trang hiện tại.
+  //
+  // Ngày 18 (a): effect này CHẠY SAU MỌI LẦN RENDER (không có mảng
+  // deps) — vì router.refresh() khi có đơn mới cũng re-render lại
+  // RSC và Next.js ghi đè document.title về tiêu đề metadata của
+  // trang; effect chỉ chạy khi newCount đổi thì tiền tố "(N)" bị mất
+  // ngay sau refresh (probe Ngày 18 thấy title về "Tổng quan" dù
+  // chuông/thẻ đã lên 1). Chạy mỗi render thì sau commit của refresh
+  // effect khẳng định lại "(N) ...". Ghi title là idempotent nên
+  // không tốn kém; nhánh newCount = 0 chỉ ghi khi title đang bắt
+  // đầu bằng "(" (khôi phục một lần rồi thôi).
   const newCountRef = useRef(0);
   useEffect(() => {
     newCountRef.current = newCount;
@@ -164,7 +175,7 @@ export default function NewOrderPoller({
     ) {
       document.title = originalTitleRef.current;
     }
-  }, [newCount]);
+  });
 
   // Theo dõi tiêu đề gốc của từng trang (khi không có đơn mới) để
   // trả về đúng tiêu đề sau khi đã xem đơn mới.
@@ -181,7 +192,12 @@ export default function NewOrderPoller({
     }
   }, [pathname]);
 
-  // Hỏi máy chủ một lần: chỉ báo hiệu khi số đơn TĂNG.
+  // Hỏi máy chủ một lần: báo hiệu (chuông/toast/âm báo) chỉ khi số
+  // đơn TĂNG; nhưng refresh RSC khi số đơn đổi theo CẢ hai chiều —
+  // chỉ refresh khi tăng thì lúc đơn bị xử lý/xóa ở tab khác, chuông
+  // về 0 nhưng thẻ "Đơn cần xử lý" vẫn giữ số cũ (probe Ngày 18 H2
+  // thấy lệch đúng kiểu này). Tiêu đề "(N)" vẫn giữ theo số đơn mới
+  // chưa xem cho tới khi mở danh sách (không đổi ở đây).
   const pollOnce = useCallback(async () => {
     let data: unknown;
     try {
@@ -200,6 +216,10 @@ export default function NewOrderPoller({
     prevCountRef.current = parsed.pendingCount;
     prevCodeRef.current = parsed.latestCode;
     setPendingCount(parsed.pendingCount);
+    // Refresh RSC khi số đơn đổi theo cả hai chiều (tăng hoặc giảm)
+    // để thẻ "Đơn cần xử lý" luôn khớp chuông; toast + chuông mới +
+    // âm báo + thông báo trình duyệt chỉ chạy ở nhánh tăng bên dưới.
+    if (parsed.pendingCount !== previous) router.refresh();
     if (!hasNewOrders(previous, parsed.pendingCount)) return;
     const delta = newOrderDelta(previous, parsed.pendingCount);
     setNewCount((current) => current + delta);
@@ -230,7 +250,7 @@ export default function NewOrderPoller({
         // Bỏ qua: toast + chuông vẫn báo hiệu.
       }
     }
-  }, []);
+  }, [router]);
 
   // Vòng hỏi định kỳ (N1): 60 giây/lần, chỉ khi tab đang hiển thị.
   // Tab ẩn → dừng hẳn (không gọi route); quay lại → hỏi ngay một

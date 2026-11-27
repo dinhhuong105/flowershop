@@ -171,3 +171,32 @@ describe("activityAreaOf — khu vực sản phẩm/danh mục/khu vực (Ngày 
     assert.equal(ACTIVITY_AREA_LABELS.zone, "Khu vực");
   });
 });
+
+describe("khu vực Tin tức + nhãn xuất bản tin tức (Ngày 18)", () => {
+  it("news:<slug> → Tin tức; ACTIVITY_AREAS có news", () => {
+    assert.equal(activityAreaOf("news:giu-hoa-tuoi-lau"), "news");
+    assert.ok((ACTIVITY_AREAS as readonly string[]).includes("news"));
+    assert.equal(ACTIVITY_AREA_LABELS.news, "Tin tức");
+  });
+  it("news-published → Đã xuất bản; news-draft → Đã chuyển về nháp", () => {
+    assert.equal(formatActivityChange("draft", "news-published"), "Đã xuất bản");
+    assert.equal(formatActivityChange("published", "news-draft"), "Đã chuyển về nháp");
+  });
+});
+
+describe("displayActivityValue — giá tiền định dạng VND (Ngày 18)", () => {
+  it("product:<sku>.price 890000 → 891000 hiện 890.000 ₫ → 891.000 ₫", () => {
+    assert.equal(displayActivityValue("890000", "product:HT-001.price"), "890.000 ₫");
+    assert.equal(displayActivityValue("891000", "product:HT-001.price"), "891.000 ₫");
+    assert.equal(displayActivityValue("950000", "product:HT-001.salePrice"), "950.000 ₫");
+    assert.equal(displayActivityValue("25000", "zone:2.fee"), "25.000 ₫");
+  });
+  it("giá 8 chữ số không bị che thành **** (định dạng trước khi che)", () => {
+    assert.equal(displayActivityValue("10000000", "product:HT-001.price"), "10.000.000 ₫");
+  });
+  it("chỉ trường tiền mới định dạng; tên/slug giữ nguyên, dữ liệu lưu không đổi", () => {
+    assert.equal(displayActivityValue("890000", "product:HT-001.name"), "890000");
+    assert.equal(displayActivityValue("890000", "general.siteName"), "890000");
+    assert.equal(displayActivityValue("890000", "product:HT-001.price"), "890.000 ₫");
+  });
+});

@@ -144,7 +144,7 @@ const ITEMS: NavItem[] = [
   { label: "Tổng quan", section: "dashboard", icon: ICON_GRID, href: "/admin", match: (p) => p === "/admin" },
   { label: "Sản phẩm", section: "content", icon: ICON_BOX, href: "/admin/products", match: (p) => p === "/admin/products" || p.startsWith("/admin/products/") },
   { label: "Danh mục", section: "content", icon: ICON_TAG, href: "/admin/categories", match: (p) => p === "/admin/categories" || p.startsWith("/admin/categories/") },
-  { label: "Bài viết / Tin tức", section: "content", icon: ICON_NEWSPAPER, soon: true },
+  { label: "Bài viết / Tin tức", section: "content", icon: ICON_NEWSPAPER, href: "/admin/news", match: (p) => p === "/admin/news" || p.startsWith("/admin/news/") },
   { label: "Trang tĩnh", section: "content", icon: ICON_FILE, href: "/admin/pages", match: (p) => p === "/admin/pages" || p.startsWith("/admin/pages/") },
   { label: "Đơn hàng", section: "sales", icon: ICON_CLIPBOARD, href: "/admin/orders", match: (p) => p === "/admin/orders" || p.startsWith("/admin/orders/") },
   { label: "Yêu cầu liên hệ", section: "sales", icon: ICON_MAIL, soon: true },
@@ -180,8 +180,9 @@ const ITEMS: NavItem[] = [
     ],
   },
   // Nhật ký hoạt động (Ngày 15 C1): mục thật, đứng riêng dưới nhóm
-  // Cài đặt. Còn 6 mục "Sắp có": Bài viết, Yêu cầu liên hệ, Khách
-  // hàng, Tin nhắn, Tài khoản quản trị, Vai trò & phân quyền.
+  // Cài đặt. Còn 5 mục "Sắp có": Yêu cầu liên hệ, Khách hàng, Tin
+  // nhắn, Tài khoản quản trị, Vai trò & phân quyền (Bài viết / Tin
+  // tức đã làm xong Ngày 18).
   { label: "Nhật ký hoạt động", section: "config", icon: ICON_CLOCK, href: "/admin/activity", match: (p) => p === "/admin/activity" },
   { label: "Xem shop ↗", section: "shop", icon: ICON_EXTERNAL, href: "/", match: () => false },
 ];

@@ -93,13 +93,13 @@ describe("cột Nguồn + nhật ký sản phẩm/danh mục/khu vực (Ngày 17
   after(async () => {
     if (productId !== 0) {
       await db.settingsAudit.deleteMany({
-        where: { key: { startsWith: `product:${productId}` } },
+        where: { key: { startsWith: "product:P5-TEST-01" } },
       });
       await db.product.deleteMany({ where: { id: productId } });
     }
     if (product2Id !== 0) {
       await db.settingsAudit.deleteMany({
-        where: { key: { startsWith: `product:${product2Id}` } },
+        where: { key: { startsWith: "product:P5-TEST-02" } },
       });
       await db.product.deleteMany({ where: { id: product2Id } });
     }
@@ -139,10 +139,10 @@ describe("cột Nguồn + nhật ký sản phẩm/danh mục/khu vực (Ngày 17
       select: { source: true },
     });
     assert.equal(row?.source, "manual");
-    const rows = await auditRows(`product:${productId}`);
+    const rows = await auditRows("product:P5-TEST-01");
     assert.deepEqual(
       rows.map((r) => [r.key, r.oldValue, r.newValue, r.updatedBy]),
-      [[`product:${productId}`, null, "created", "admin"]],
+      [["product:P5-TEST-01", null, "created", "admin"]],
     );
   });
 
@@ -172,25 +172,25 @@ describe("cột Nguồn + nhật ký sản phẩm/danh mục/khu vực (Ngày 17
       productValues({ price: 550000 }),
     );
     assert.ok(updated !== null && !("conflict" in updated));
-    const rows = await auditRows(`product:${productId}.price`);
+    const rows = await auditRows("product:P5-TEST-01.price");
     assert.equal(rows.length, 1);
     assert.equal(rows[0].oldValue, "500000");
     assert.equal(rows[0].newValue, "550000");
     assert.equal(rows[0].updatedBy, "admin");
-    const nameRows = await auditRows(`product:${productId}.name`);
+    const nameRows = await auditRows("product:P5-TEST-01.name");
     assert.equal(nameRows.length, 0, "tên không đổi thì không ghi dòng name");
   });
 
   it("P5: ẩn sản phẩm → dòng audit isActive; bấm lại cùng trạng thái → không ghi thừa", async () => {
     assert.equal(await setProductActive(productId, false), true);
-    const rows = await auditRows(`product:${productId}.isActive`);
+    const rows = await auditRows("product:P5-TEST-01.isActive");
     assert.equal(rows.length, 1);
     assert.equal(rows[0].oldValue, "Đang bán");
     assert.equal(rows[0].newValue, "Đã ẩn");
     assert.equal(await setProductActive(productId, false), true);
-    assert.equal((await auditRows(`product:${productId}.isActive`)).length, 1);
+    assert.equal((await auditRows("product:P5-TEST-01.isActive")).length, 1);
     assert.equal(await setProductActive(productId, true), true);
-    assert.equal((await auditRows(`product:${productId}.isActive`)).length, 2);
+    assert.equal((await auditRows("product:P5-TEST-01.isActive")).length, 2);
   });
 
   it("P3: thao tác hàng loạt ẩn 2 sản phẩm → updated 2, mỗi SP một dòng audit; id lạ báo missing", async () => {
@@ -205,8 +205,8 @@ describe("cột Nguồn + nhật ký sản phẩm/danh mục/khu vực (Ngày 17
     product2Id = (created2 as { id: number }).id;
     const result = await setProductsActiveBulk([productId, product2Id, 999999], false);
     assert.deepEqual(result, { updated: 2, missing: [999999] });
-    for (const id of [productId, product2Id]) {
-      const rows = await auditRows(`product:${id}.isActive`);
+    for (const [id, sku] of [[productId, "P5-TEST-01"], [product2Id, "P5-TEST-02"]] as const) {
+      const rows = await auditRows(`product:${sku}.isActive`);
       assert.ok(
         rows.some((r) => r.oldValue === "Đang bán" && r.newValue === "Đã ẩn"),
         `SP ${id} phải có dòng audit ẩn từ thao tác hàng loạt`,
@@ -306,7 +306,7 @@ describe("cột Nguồn + nhật ký sản phẩm/danh mục/khu vực (Ngày 17
     assert.ok(productList.total >= 1, "phải có ít nhất 1 dòng audit sản phẩm");
     assert.ok(productList.rows.every((r) => r.key.startsWith("product:")));
     assert.ok(
-      productList.rows.some((r) => r.key === `product:${productId}.price`),
+      productList.rows.some((r) => r.key === "product:P5-TEST-01.price"),
       "lọc Sản phẩm phải thấy dòng đổi giá vừa tạo",
     );
     const categoryList = await listActivity({ area: "category" });

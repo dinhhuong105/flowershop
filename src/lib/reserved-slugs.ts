@@ -12,6 +12,9 @@ export const RESERVED_SLUGS: string[] = [
   "about",
   "contact",
   "policy",
+  // "tin-tuc" là route công khai /tin-tuc + /tin-tuc/[slug] (Ngày 18):
+  // không được dùng làm slug danh mục/trang tĩnh/bài tin tức.
+  "tin-tuc",
   // "trang" giữ trong danh sách cấm dù route /trang/[slug] đã bỏ
   // (Ngày 14, lệnh Henry): tránh slug "trang" gây nhầm với tiền tố
   // cũ; không còn URL /trang/... nào được tạo ra nữa.

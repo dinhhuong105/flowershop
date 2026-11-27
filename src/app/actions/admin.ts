@@ -52,6 +52,19 @@ import {
   updateAdminPage,
 } from "@/lib/admin/pages";
 import {
+  validateNewsForm,
+  type NewsFormErrors,
+  type NewsFormInput,
+} from "@/lib/admin/news-validation";
+import type { AdminNewsState } from "@/lib/admin/news-form-state";
+import {
+  createAdminNews,
+  deleteAdminNews,
+  getAdminNews,
+  setAdminNewsPublished,
+  updateAdminNews,
+} from "@/lib/admin/news";
+import {
   validatePageForm,
   type PageFormErrors,
   type PageFormInput,
@@ -517,6 +530,126 @@ export async function togglePageAction(
   if (!result.ok) return { ok: false, error: "Không tìm thấy trang." };
   revalidatePath("/", "layout");
   revalidatePath("/admin/pages");
+  return { ok: true, error: null };
+}
+
+// ---------------- Tin tức (Ngày 18) ----------------
+
+function newsFormDataToInput(formData: FormData): NewsFormInput {
+  const get = (name: string): string => {
+    const v = formData.get(name);
+    return typeof v === "string" ? v : "";
+  };
+  return {
+    title: get("title"),
+    slug: get("slug"),
+    excerpt: get("excerpt"),
+    content: get("content"),
+    coverImage: get("coverImage"),
+    author: get("author"),
+    seoTitle: get("seoTitle"),
+    seoDescription: get("seoDescription"),
+    // Checkbox: chỉ gửi khi được chọn ("on").
+    isPublished: formData.get("isPublished") === "on",
+  };
+}
+
+function newsFail(
+  fieldErrors: NewsFormErrors,
+  input: NewsFormInput,
+  formError: string | null = null,
+): AdminNewsState {
+  return { ok: false, fieldErrors, formError, values: input };
+}
+
+export async function createNewsAction(
+  prevState: AdminNewsState,
+  formData: FormData,
+): Promise<AdminNewsState> {
+  await requireAdmin();
+  const input = newsFormDataToInput(formData);
+  const { errors, values } = validateNewsForm(input);
+  if (!values) return newsFail(errors, input);
+  const result = await createAdminNews(values);
+  if ("conflict" in result) {
+    const fieldErrors: NewsFormErrors = {
+      [result.conflict.field]: result.conflict.message,
+    };
+    return newsFail(fieldErrors, input);
+  }
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/news");
+  return { ok: true, fieldErrors: {}, formError: null, values: null };
+}
+
+export async function updateNewsAction(
+  id: number,
+  prevState: AdminNewsState,
+  formData: FormData,
+): Promise<AdminNewsState> {
+  await requireAdmin();
+  const input = newsFormDataToInput(formData);
+  const existing = await getAdminNews(id);
+  if (!existing) {
+    return newsFail({}, input, "Không tìm thấy bài tin tức.");
+  }
+  const { errors, values } = validateNewsForm(input);
+  if (!values) return newsFail(errors, input);
+  const result = await updateAdminNews(id, values);
+  if (result === null) {
+    return newsFail({}, input, "Không tìm thấy bài tin tức.");
+  }
+  if ("conflict" in result) {
+    const fieldErrors: NewsFormErrors = {
+      [result.conflict.field]: result.conflict.message,
+    };
+    return newsFail(fieldErrors, input);
+  }
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/news");
+  return { ok: true, fieldErrors: {}, formError: null, values: null };
+}
+
+export type ToggleNewsState = { ok: boolean; error: string | null };
+
+// Bật/tắt xuất bản bài tin tức (đổi isPublished). Không có hộp xác
+// nhận — đảo ngược được bằng một lần bấm nữa, kèm toast Hoàn tác
+// (theo mẫu TogglePageButton).
+export async function toggleNewsAction(
+  prevState: ToggleNewsState,
+  formData: FormData,
+): Promise<ToggleNewsState> {
+  await requireAdmin();
+  const id = Number(formData.get("newsId"));
+  const nextPublished = formData.get("isPublished") === "true";
+  if (!Number.isInteger(id) || id <= 0) {
+    return { ok: false, error: "Không tìm thấy bài tin tức." };
+  }
+  const result = await setAdminNewsPublished(id, nextPublished);
+  if (!result.ok && result.reason === "slug-clash") {
+    return {
+      ok: false,
+      error: "Đường dẫn này đã dùng cho một danh mục hoặc trang tĩnh, không xuất bản được.",
+    };
+  }
+  if (!result.ok) return { ok: false, error: "Không tìm thấy bài tin tức." };
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/news");
+  return { ok: true, error: null };
+}
+
+export type DeleteNewsState = { ok: boolean; error: string | null };
+
+// Xóa bài tin tức — luôn được phép (bài không có đơn hàng hay sản
+// phẩm ràng buộc); máy chủ kiểm lại tồn tại trong deleteAdminNews.
+export async function deleteNewsAction(id: number): Promise<DeleteNewsState> {
+  await requireAdmin();
+  const result = await deleteAdminNews(id);
+  if (!result.ok) {
+    return { ok: false, error: "Không tìm thấy bài tin tức." };
+  }
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/news");
   return { ok: true, error: null };
 }
 

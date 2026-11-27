@@ -19,6 +19,19 @@ export { BULK_PRODUCTS_MAX };
 
 export const ADMIN_PAGE_SIZE = 20;
 
+// Khóa nhật ký của một sản phẩm (Ngày 18): dùng SKU thay cho id
+// nội bộ để đọc được ngay ("product:HT-001.price" thay vì
+// "product:1.price"); sản phẩm không có SKU thì dùng id. Dòng nhật
+// ký CŨ vẫn giữ khóa product:<id> trong DB — lúc HIỂN THỊ,
+// resolveActivityKeys (activity.ts) tra SKU theo id, sản phẩm đã
+// xóa thì giữ nguyên id.
+export function productAuditPrefix(product: {
+  id: number;
+  sku: string | null;
+}): string {
+  return `product:${product.sku ?? product.id}`;
+}
+
 export type AdminProductRow = {
   id: number;
   name: string;
@@ -220,7 +233,7 @@ export async function createAdminProduct(
       return { conflict: { field: "sku", message: "SKU này đã dùng cho một sản phẩm khác." } };
     }
   }
-  // Nguồn "manual": tạo trong admin (Ngày 17 P1). Tạo + ghi nhật ký
+// Nguồn "manual": tạo trong admin (Ngày 17 P1). Tạo + ghi nhật ký
   // vòng đời trong cùng transaction (P5): lỗi ghi nhật ký thì sản
   // phẩm cũng không được tạo.
   const created = await db.$transaction(async (tx) => {
@@ -243,10 +256,10 @@ export async function createAdminProduct(
         seoDescription: values.seoDescription,
         source: "manual",
       },
-      select: { id: true },
+      select: { id: true, sku: true },
     });
     await writeCatalogAudits(tx, [
-      lifecycleAuditRow(`product:${page.id}`, null, "created"),
+      lifecycleAuditRow(productAuditPrefix(page), null, "created"),
     ]);
     return page;
   });
@@ -258,7 +271,7 @@ export async function updateAdminProduct(
   values: ProductFormValues,
 ): Promise<{ id: number } | { conflict: ProductSaveConflict } | null> {
   // Đọc đủ bản ghi cũ để ghi nhật ký từng trường đã đổi (P5):
-  // chỉ ghi các trường thay đổi thật (giá đổi → product:<id>.price).
+  // chỉ ghi các trường thay đổi thật (giá đổi → product:<sku>.price).
   const existing = await db.product.findUnique({ where: { id } });
   if (!existing) return null;
   const category = await db.category.findUnique({ where: { id: values.categoryId } });
@@ -290,7 +303,11 @@ export async function updateAdminProduct(
     where: { id: existing.categoryId },
     select: { name: true },
   });
-  const prefix = `product:${id}`;
+  // Khóa nhật ký dùng SKU MỚI (values.sku) — nếu đổi SKU thì các
+  // dòng của lần sửa này ghi dưới SKU mới; SKU cũ vẫn tra được qua
+  // dòng đổi trường sku (product:<sku cũ>.sku). Không có SKU (cũ và
+  // mới đều null) thì dùng id.
+  const prefix = productAuditPrefix({ id, sku: values.sku ?? existing.sku });
   const fieldRows = changedFieldAudits(prefix, [
     { field: "name", oldValue: existing.name, newValue: values.name },
     { field: "slug", oldValue: existing.slug, newValue: values.slug },
@@ -357,21 +374,21 @@ export async function updateAdminProduct(
 }
 
 // Ẩn/hiện sản phẩm (đổi isActive). Không có xóa cứng.
-// Ghi nhật ký product:<id>.isActive ("Đang bán" ↔ "Đã ẩn") trong
+// Ghi nhật ký product:<sku>.isActive ("Đang bán" ↔ "Đã ẩn") trong
 // cùng transaction (P5); bấm lại cùng trạng thái thì không ghi
 // dòng thừa.
 export async function setProductActive(id: number, isActive: boolean): Promise<boolean> {
   return db.$transaction(async (tx) => {
     const existing = await tx.product.findUnique({
       where: { id },
-      select: { id: true, name: true, isActive: true },
+      select: { id: true, sku: true, name: true, isActive: true },
     });
     if (!existing) return false;
     if (existing.isActive === isActive) return true;
     await tx.product.update({ where: { id }, data: { isActive } });
     await writeCatalogAudits(
       tx,
-      changedFieldAudits(`product:${id}`, [
+      changedFieldAudits(productAuditPrefix(existing), [
         {
           field: "isActive",
           oldValue: existing.isActive ? "Đang bán" : "Đã ẩn",
@@ -389,7 +406,7 @@ export async function setProductActive(id: number, isActive: boolean): Promise<b
 // gốc tra cứu). Tối đa 50 id/lần (BULK_PRODUCTS_MAX, xem
 // bulk-products.ts); id không tồn tại được báo lại
 // (missing) thay vì lỗi 500; mỗi sản phẩm đổi thật đều có một dòng
-// nhật ký product:<id>.isActive (P5). Toàn bộ trong một transaction.
+// nhật ký product:<sku>.isActive (P5). Toàn bộ trong một transaction.
 export type BulkProductsResult = {
   updated: number;
   missing: number[];
@@ -406,7 +423,7 @@ export async function setProductsActiveBulk(
   return db.$transaction(async (tx) => {
     const rows = await tx.product.findMany({
       where: { id: { in: uniqueIds } },
-      select: { id: true, name: true, isActive: true },
+      select: { id: true, sku: true, name: true, isActive: true },
     });
     const found = new Set(rows.map((r) => r.id));
     const missing = uniqueIds.filter((id) => !found.has(id));
@@ -417,7 +434,7 @@ export async function setProductsActiveBulk(
         data: { isActive },
       });
       const auditRows = toChange.flatMap((r) =>
-        changedFieldAudits(`product:${r.id}`, [
+        changedFieldAudits(productAuditPrefix(r), [
           {
             field: "isActive",
             oldValue: r.isActive ? "Đang bán" : "Đã ẩn",

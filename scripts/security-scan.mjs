@@ -131,9 +131,11 @@ console.log("S3 — dangerouslySetInnerHTML / SQL thô:");
 const DSI_ALLOWLIST = new Set([
   "src/app/layout.tsx", // script class 'js' (nội dung cố định) + JSON-LD đã thoát <
   "src/app/[category]/page.tsx", // renderMarkdown (đã thoát HTML)
+  "src/app/tin-tuc/[slug]/page.tsx", // renderMarkdown (đã thoát HTML) — Ngày 18
   "src/components/order/BankTransferBox.tsx", // SVG QR do thư viện qrcode sinh
   "src/components/admin/BankQrPreview.tsx", // SVG QR do thư viện qrcode sinh
   "src/components/admin/PageForm.tsx", // xem trước renderMarkdown
+  "src/components/admin/NewsForm.tsx", // xem trước renderMarkdown — Ngày 18
 ]);
 const srcFiles = listFiles(path.join(ROOT, "src"), [".ts", ".tsx"]).filter(
   (f) => !/\.test\.ts(x)?$/.test(f) && !/\.db\.test\.ts$/.test(f),

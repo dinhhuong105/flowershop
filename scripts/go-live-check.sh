@@ -137,7 +137,10 @@ else
     bad "home-og-image" "og:image sai domain: $OGIMAGE"
   fi
   # JSON-LD: bỏ qua chính base-host rồi mới tìm domain lạ.
-  JSONLD="$(sed -n '/<script type="application\/ld+json">/,/<\/script>/p' "$TMP/home.html" | sed "s#$BASE_HOST##g" || true)"
+  # Mẫu khớp cả khi thẻ script mang thuộc tính (vd nonce của CSP —
+  # Ngày 18: mẫu khớp chính xác cũ bỏ qua thẻ có nonce nên báo
+  # dương tính giả "không có JSON-LD" dù JSON-LD có thật).
+  JSONLD="$(sed -n '/<script[^>]*type="application\/ld+json"[^>]*>/,/<\/script>/p' "$TMP/home.html" | sed "s#$BASE_HOST##g" || true)"
   if [ -z "$JSONLD" ]; then
     info "home-jsonld" "không có JSON-LD"
   elif printf '%s' "$JSONLD" | grep -q "localhost"; then

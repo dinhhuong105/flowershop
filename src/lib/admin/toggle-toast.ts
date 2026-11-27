@@ -56,3 +56,17 @@ export function undoTogglePageFormData(pageId: number, wasPublished: boolean): F
   formData.set("isPublished", String(wasPublished));
   return formData;
 }
+
+/** Thông báo sau khi bấm Xuất bản/Chuyển về nháp bài tin tức (Ngày 18):
+    wasPublished = trạng thái TRƯỚC khi bấm. */
+export function toggleNewsToastMessage(wasPublished: boolean): string {
+  return wasPublished ? "Đã chuyển bài về nháp" : "Đã xuất bản bài";
+}
+
+/** FormData để hoàn tác Xuất bản/Nháp bài tin tức: đặt lại đúng trạng thái trước khi bấm. */
+export function undoToggleNewsFormData(newsId: number, wasPublished: boolean): FormData {
+  const formData = new FormData();
+  formData.set("newsId", String(newsId));
+  formData.set("isPublished", String(wasPublished));
+  return formData;
+}

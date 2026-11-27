@@ -22,6 +22,17 @@ export function formatVnDateTime(now: Date): string {
   return `${time}, ${date}`;
 }
 
+// Ngày theo giờ VN, dạng "dd/MM/yyyy" (Ngày 18 — ngày đăng bài
+// tin tức). Múi giờ tường minh Asia/Ho_Chi_Minh như các hàm trên.
+export function formatVnDate(now: Date): string {
+  return new Intl.DateTimeFormat("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(now);
+}
+
 // Giờ cho nhật ký hoạt động (Ngày 15 C1): dạng "dd/MM/yyyy HH:mm"
 // (ngày trước, giờ sau — khác formatVnDateTime ở trên).
 export function formatVnActivityTime(now: Date): string {

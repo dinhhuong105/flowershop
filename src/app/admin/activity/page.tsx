@@ -9,6 +9,7 @@ import {
   formatActivityChange,
   isActivityArea,
   listActivity,
+  resolveActivityKeys,
 } from "@/lib/admin/activity";
 import ActivityFilterBar from "@/components/admin/ActivityFilterBar";
 import { formatVnActivityTime } from "@/lib/vn-datetime";
@@ -69,6 +70,9 @@ export default async function AdminActivityPage({
     to,
     page,
   });
+  // Khóa nhật ký sản phẩm cũ (product:<id>) đổi sang SKU lúc hiển
+  // thị (Ngày 18); sản phẩm đã xóa thì giữ nguyên id.
+  const rows = await resolveActivityKeys(list.rows);
   const base: BaseParams = { area, q, from, to };
 
   return (
@@ -88,7 +92,7 @@ export default async function AdminActivityPage({
         {list.totalPages > 1 ? ` — trang ${list.page} / ${list.totalPages}` : ""}
       </p>
 
-      {list.rows.length === 0 ? (
+      {rows.length === 0 ? (
         <p data-testid="activity-empty" className="mt-6 rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
           Không có dòng nhật ký nào khớp bộ lọc.
         </p>
@@ -106,7 +110,7 @@ export default async function AdminActivityPage({
                 </tr>
               </thead>
               <tbody>
-                {list.rows.map((row) => (
+                {rows.map((row) => (
                   <tr
                     key={row.id}
                     data-testid="activity-row"
@@ -142,7 +146,7 @@ export default async function AdminActivityPage({
           </div>
 
           <ul className="mt-6 space-y-4 md:hidden">
-            {list.rows.map((row) => (
+            {rows.map((row) => (
               <li
                 key={row.id}
                 data-testid="activity-row"

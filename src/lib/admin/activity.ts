@@ -5,6 +5,7 @@
 
 import { db } from "../db";
 import type { Prisma } from "@prisma/client";
+import { formatVND } from "../format";
 
 export const ACTIVITY_PAGE_SIZE = 20;
 
@@ -21,6 +22,8 @@ export const ACTIVITY_AREAS = [
   "product",
   "category",
   "zone",
+  // Nhật ký tin tức (Ngày 18): khóa "news:<slug>[.<trường>]".
+  "news",
 ] as const;
 
 export type ActivityArea = (typeof ACTIVITY_AREAS)[number];
@@ -35,6 +38,7 @@ export const ACTIVITY_AREA_LABELS: Record<ActivityArea, string> = {
   product: "Sản phẩm",
   category: "Danh mục",
   zone: "Khu vực",
+  news: "Tin tức",
 };
 
 export function isActivityArea(value: string): value is ActivityArea {
@@ -51,6 +55,7 @@ export function activityAreaOf(key: string): ActivityArea {
   if (key.startsWith("product:")) return "product";
   if (key.startsWith("category:")) return "category";
   if (key.startsWith("zone:")) return "zone";
+  if (key.startsWith("news:")) return "news";
   const prefix = key.split(".")[0];
   switch (prefix) {
     case "general":
@@ -115,8 +120,18 @@ export function truncateActivityValue(value: string | null): string {
 // Giá trị rỗng (null hoặc "") hiện "(trống)" (fixup sau verdict
 // Ngày 16): dòng "0900123456 →" không cho biết đó là thêm hay xóa,
 // còn "0900123456 → (trống)" thì rõ.
+// Giá tiền (Ngày 18): giá/phí là số VND nguyên (khóa
+// product:<sku>.price/.salePrice, zone:<id>.fee) thì định dạng
+// "890.000 ₫" thay vì số thô "890000" — chỉ ở TẦNG HIỂN THỊ,
+// dữ liệu audit đã lưu không đổi. Định dạng TRƯỚC khi che/cắt vì
+// dãy ≥ 8 chữ số sẽ bị che thành "****0000" nếu đi qua hàm che.
+const MONEY_FIELD_RE = /^(product|zone):[^.]+\.(price|salePrice|fee)$/;
+
 export function displayActivityValue(value: string | null, key = ""): string {
   if (value === null || value === "") return "(trống)";
+  if (MONEY_FIELD_RE.test(key) && /^\d+$/.test(value)) {
+    return formatVND(Number(value));
+  }
   return truncateActivityValue(maskSensitiveForDisplay(value, key));
 }
 
@@ -132,6 +147,8 @@ export function formatActivityChange(
   if (newValue === "created") return "Đã tạo";
   if (newValue === "deleted") return "Đã xóa";
   if (newValue === "updated") return "Cập nhật";
+  if (newValue === "news-published") return "Đã xuất bản";
+  if (newValue === "news-draft") return "Đã chuyển về nháp";
   if (oldValue === "draft" && newValue === "published") return "Nháp → Đã xuất bản";
   if (oldValue === "published" && newValue === "draft") return "Đã xuất bản → Nháp";
   return null;
@@ -187,14 +204,15 @@ export async function listActivity(filters: ActivityFilters = {}): Promise<Activ
   const page = filters.page !== undefined && filters.page >= 1 ? filters.page : 1;
   const where: Prisma.SettingsAuditWhereInput = {};
   if (filters.area) {
-    // Khu vực dạng "xxx:" (trang tĩnh, sản phẩm, danh mục, khu vực)
-    // lọc theo tiền tố có dấu hai chấm; các nhóm cài đặt ("xxx.")
-    // lọc theo tiền tố có dấu chấm.
+    // Khu vực dạng "xxx:" (trang tĩnh, sản phẩm, danh mục, khu vực,
+    // tin tức) lọc theo tiền tố có dấu hai chấm; các nhóm cài đặt
+    // ("xxx.") lọc theo tiền tố có dấu chấm.
     where.key =
       filters.area === "page" ||
       filters.area === "product" ||
       filters.area === "category" ||
-      filters.area === "zone"
+      filters.area === "zone" ||
+      filters.area === "news"
         ? { startsWith: `${filters.area}:` }
         : { startsWith: `${filters.area}.` };
   }
@@ -238,4 +256,32 @@ export async function listActivity(filters: ActivityFilters = {}): Promise<Activ
     totalPages: Math.max(1, Math.ceil(total / ACTIVITY_PAGE_SIZE)),
     page,
   };
+}
+
+// Đổi khóa nhật ký sản phẩm CŨ (product:<id nội bộ>) sang SKU lúc
+// HIỂN THỊ (Ngày 18): tra SKU theo id; sản phẩm đã xóa (không còn
+// trong DB) thì giữ nguyên id. Chỉ đổi khóa có phần id toàn số —
+// khóa đã là product:<sku> (chữ/số/gạch nối) giữ nguyên. Dữ liệu
+// audit đã lưu không đổi.
+export async function resolveActivityKeys(
+  rows: ActivityRow[],
+): Promise<ActivityRow[]> {
+  const ids = new Set<number>();
+  for (const row of rows) {
+    const m = /^product:(\d+)(\..*)?$/.exec(row.key);
+    if (m) ids.add(Number(m[1]));
+  }
+  if (ids.size === 0) return rows;
+  const products = await db.product.findMany({
+    where: { id: { in: [...ids] } },
+    select: { id: true, sku: true },
+  });
+  const skuById = new Map(products.map((p) => [p.id, p.sku]));
+  return rows.map((row) => {
+    const m = /^product:(\d+)(\..*)?$/.exec(row.key);
+    if (!m) return row;
+    const sku = skuById.get(Number(m[1]));
+    if (!sku) return row;
+    return { ...row, key: `product:${sku}${m[2] ?? ""}` };
+  });
 }

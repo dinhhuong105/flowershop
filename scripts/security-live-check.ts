@@ -82,7 +82,7 @@ async function main() {
     const body = await r.text();
     assert(!/Đơn cần xử lý|Doanh thu|pendingCount/i.test(body), "redirect không được chứa dữ liệu admin");
   });
-  for (const p of ["/admin/products", "/admin/orders", "/admin/settings/general", "/admin/activity", "/admin/categories", "/admin/pages", "/admin/shipping-zones"]) {
+  for (const p of ["/admin/products", "/admin/orders", "/admin/settings/general", "/admin/activity", "/admin/categories", "/admin/pages", "/admin/shipping-zones", "/admin/news", "/admin/news/new", "/admin/news/1"]) {
     await check(`không đăng nhập: ${p} → 307`, async () => {
       const r = await fetchNoRedirect(`${BASE}${p}`);
       assert(r.status === 307 || r.status === 401 || r.status === 403, `status ${r.status}`);
@@ -122,7 +122,7 @@ async function main() {
     assertEq(r.status, 200);
   });
   await check("phản hồi admin có Cache-Control: no-store", async () => {
-    for (const p of ["/admin", "/admin/products", "/admin/activity"]) {
+    for (const p of ["/admin", "/admin/products", "/admin/activity", "/admin/news"]) {
       const r = await fetchNoRedirect(`${BASE}${p}`, { headers: authHeaders });
       assert((r.headers.get("cache-control") ?? "").includes("no-store"), `${p} thiếu no-store`);
     }
@@ -198,6 +198,22 @@ async function main() {
       assert(r.status !== 500, `${u} → ${r.status}`);
     }
   });
+  // SQLi lên slug/trang tin tức (Ngày 18): không 500, không đổi dữ liệu.
+  await check("SQLi lên slug/trang tin tức không 500, không đổi dữ liệu", async () => {
+    const before = await db.newsArticle.count();
+    const urls = [
+      "/tin-tuc/' OR 1=1--",
+      "/tin-tuc/%22; DROP TABLE news;--",
+      "/tin-tuc?trang=' OR 1=1--",
+      "/tin-tuc?trang=999999999",
+      "/search?q=' OR 1=1--",
+    ];
+    for (const u of urls) {
+      const r = await fetch(`${BASE}${u}`);
+      assert(r.status !== 500, `${u} → ${r.status}`);
+    }
+    assertEq(await db.newsArticle.count(), before);
+  });
   await check("XSS: payload <script> vào q bị escape ở shop", async () => {
     const payload = "<script>alert(1)</script>";
     const r = await fetch(`${BASE}/search?q=${encodeURIComponent(payload)}`);
@@ -222,6 +238,50 @@ async function main() {
     assert(r.status === 200, `status ${r.status}`);
     const body = await r.text();
     assert(!body.includes("<img src=x onerror=alert(1)>"), "payload thô trong HTML admin");
+  });
+  // XSS lưu qua bài tin tức (Ngày 18): payload vào tiêu đề/nội dung/
+  // tác giả/tóm tắt — kiểm HTML ở shop (/tin-tuc, chi tiết) VÀ admin
+  // (/admin/news): payload phải bị escape, không thực thi. Nội dung
+  // Markdown đi qua renderMarkdown chung (đã có test ReDoS 50 ms ở
+  // markdown.test.ts) nên không fuzz lại ở đây.
+  await check("XSS lưu qua tin tức: payload không chạy ở shop và admin", async () => {
+    const slug = "test-xss-news";
+    await db.newsArticle.deleteMany({ where: { slug } });
+    await db.settingsAudit.deleteMany({ where: { key: `news:${slug}` } });
+    try {
+      await db.newsArticle.create({
+        data: {
+          slug,
+          title: "<script>alert(1)</script>",
+          excerpt: "<script>alert(2)</script>",
+          content: "# Hi\n\n<img src=x onerror=alert(1)>\n\n[x](javascript:alert(1))",
+          author: '"><svg onload=alert(1)>',
+          isPublished: true,
+          publishedAt: new Date(),
+        },
+      });
+      const detail = await fetch(`${BASE}/tin-tuc/${slug}`);
+      assertEq(detail.status, 200);
+      const detailBody = await detail.text();
+      assert(!detailBody.includes("<script>alert(1)</script>"), "payload script thô ở chi tiết");
+      assert(!detailBody.includes("<img src=x onerror=alert(1)>"), "payload img thô ở chi tiết");
+      assert(!detailBody.includes("<svg onload=alert(1)>"), "payload svg thô ở chi tiết");
+      assert(!detailBody.includes("javascript:alert(1)"), "link javascript: lọt vào HTML");
+      assert(detailBody.includes("&lt;script&gt;"), "payload phải bị escape ở chi tiết");
+      const list = await fetch(`${BASE}/tin-tuc`);
+      assertEq(list.status, 200);
+      const listBody = await list.text();
+      assert(!listBody.includes("<script>alert(1)</script>"), "payload script thô ở danh sách");
+      assert(!listBody.includes("<script>alert(2)</script>"), "payload excerpt thô ở danh sách");
+      const admin = await fetchNoRedirect(`${BASE}/admin/news`, { headers: authHeaders });
+      assertEq(admin.status, 200);
+      const adminBody = await admin.text();
+      assert(!adminBody.includes("<script>alert(1)</script>"), "payload script thô ở admin");
+      assert(!adminBody.includes("<svg onload=alert(1)>"), "payload svg thô ở admin");
+    } finally {
+      await db.newsArticle.deleteMany({ where: { slug } });
+      await db.settingsAudit.deleteMany({ where: { key: `news:${slug}` } });
+    }
   });
 
   console.log("S4 — CSRF:");

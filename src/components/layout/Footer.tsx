@@ -95,9 +95,26 @@ export default function Footer({
                   </Link>
                 </li>
               ) : null}
+              {/* Tin tức (Ngày 18): link cố định tới /tin-tuc. */}
+              <li>
+                <Link href="/tin-tuc" className="hover:text-white hover:underline">
+                  Tin tức
+                </Link>
+              </li>
             </ul>
           </nav>
-        ) : null}
+        ) : (
+          <nav aria-label="Về chúng tôi">
+            <p className="font-semibold">Về chúng tôi</p>
+            <ul className="mt-3 space-y-2 text-sm text-white/80">
+              <li>
+                <Link href="/tin-tuc" className="hover:text-white hover:underline">
+                  Tin tức
+                </Link>
+              </li>
+            </ul>
+          </nav>
+        )}
         {showLegacy("/faq") || showLegacy("/contact") ? (
           <nav aria-label="Hỗ trợ khách hàng">
             <p className="font-semibold">Hỗ trợ khách hàng</p>

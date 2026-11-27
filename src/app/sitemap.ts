@@ -48,8 +48,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     select: { slug: true, updatedAt: true },
     orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
   });
+  // Trang tin tức (Ngày 18): /tin-tuc + các bài đã xuất bản
+  // (lastmod theo updatedAt); nháp không lộ.
+  const news = await db.newsArticle.findMany({
+    where: { isPublished: true },
+    select: { slug: true, updatedAt: true },
+    orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
+  });
   return [
     ...staticPages,
+    { url: `${base}/tin-tuc` },
+    ...news.map((n) => ({
+      url: `${base}/tin-tuc/${n.slug}`,
+      lastModified: n.updatedAt,
+    })),
     ...categories.map((c) => ({
       url: `${base}/${c.slug}`,
       lastModified: c.updatedAt,

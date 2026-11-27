@@ -146,6 +146,45 @@ export type SearchSuggestion = {
   image: string | null;
 };
 
+// Tìm kiếm tin tức (Ngày 18): chỉ bài ĐÃ XUẤT BẢN, tìm trong tiêu
+// đề/tóm tắt/nội dung, không phân biệt dấu (vi_unaccent), mỗi từ
+// phải xuất hiện (phép AND — cùng quy tắc như tìm sản phẩm).
+// An toàn: mọi từ truyền bằng tham số (Prisma.sql), so khớp bằng
+// strpos (không dùng LIKE nên `%`, `_`, `\` không phải ký tự đặc
+// biệt). Mới nhất trước (publishedAt DESC + id DESC). Tối đa 5 bài.
+export type SearchNewsHit = {
+  slug: string;
+  title: string;
+  excerpt: string;
+  publishedAt: Date | null;
+  createdAt: Date;
+};
+
+export async function searchNews(q: string): Promise<SearchNewsHit[]> {
+  const words = tokenizeSearchQuery(q);
+  if (words.length === 0) return [];
+  const searchText = Prisma.sql`vi_unaccent(n."title" || ' ' || coalesce(n."excerpt", '') || ' ' || n."content")`;
+  const wordConds = words.map(
+    (w) => Prisma.sql`strpos(${searchText}, vi_unaccent(${w})) > 0`,
+  );
+  const rows = await db.$queryRaw<
+    Array<{
+      slug: string;
+      title: string;
+      excerpt: string;
+      publishedAt: Date | null;
+      createdAt: Date;
+    }>
+  >(Prisma.sql`
+    SELECT n."slug", n."title", n."excerpt", n."publishedAt", n."createdAt"
+    FROM "news" AS n
+    WHERE n."isPublished" = true AND ${Prisma.join(wordConds, " AND ")}
+    ORDER BY n."publishedAt" DESC NULLS LAST, n."id" DESC
+    LIMIT 5
+  `);
+  return rows;
+}
+
 export async function searchSuggestions(q: string): Promise<SearchSuggestion[]> {
   const words = tokenizeSearchQuery(q);
   if (words.length === 0) return [];

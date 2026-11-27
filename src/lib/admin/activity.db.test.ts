@@ -22,7 +22,7 @@ if (dbHost !== "localhost" && dbHost !== "127.0.0.1" && dbHost !== "::1") {
 }
 
 import { db } from "../db";
-import { displayActivityValue, listActivity } from "./activity";
+import { displayActivityValue, listActivity, resolveActivityKeys } from "./activity";
 
 const MARK = "n15";
 const DAY_20 = new Date("2026-11-20T02:00:00Z"); // 09:00 giờ VN 20/11
@@ -157,5 +157,59 @@ describe("nhật ký hoạt động (Ngày 15 C1/C2)", () => {
     assert.ok(!shownOld.includes("123456789012"), "không được lộ STK đầy đủ");
     assert.equal(shownOld, "****9012");
     assert.equal(shownNew, "****9012");
+  });
+});
+
+describe("resolveActivityKeys — khóa sản phẩm cũ đổi sang SKU lúc hiển thị (Ngày 18)", () => {
+  it("product:<id> → product:<sku>; sản phẩm đã xóa → giữ nguyên id", async () => {
+    const created = await db.product.create({
+      data: {
+        name: "SP resolve test",
+        slug: "n18-resolve-test",
+        sku: "N18-RESOLVE-01",
+        categoryId: 1,
+        price: 100000,
+        description: "",
+        images: [],
+        tags: [],
+      },
+      select: { id: true },
+    });
+    const pid = created.id;
+    try {
+      const rows = [
+        { id: 1, key: `product:${pid}`, oldValue: null, newValue: "created", updatedBy: "admin", createdAt: new Date() },
+        { id: 2, key: `product:${pid}.price`, oldValue: "890000", newValue: "891000", updatedBy: "admin", createdAt: new Date() },
+        { id: 3, key: "product:HT-001.price", oldValue: "1", newValue: "2", updatedBy: "admin", createdAt: new Date() },
+        { id: 4, key: "page:gioi-thieu", oldValue: null, newValue: "created", updatedBy: "admin", createdAt: new Date() },
+      ];
+      const resolved = await resolveActivityKeys(rows);
+      assert.equal(resolved[0]?.key, "product:N18-RESOLVE-01");
+      assert.equal(resolved[1]?.key, "product:N18-RESOLVE-01.price");
+      assert.equal(resolved[2]?.key, "product:HT-001.price");
+      assert.equal(resolved[3]?.key, "page:gioi-thieu");
+      // Xóa sản phẩm rồi resolve lại → fallback về id.
+      await db.product.delete({ where: { id: pid } });
+      const again = await resolveActivityKeys(rows);
+      assert.equal(again[0]?.key, `product:${pid}`);
+      assert.equal(again[1]?.key, `product:${pid}.price`);
+    } finally {
+      await db.product.deleteMany({ where: { id: pid } });
+    }
+  });
+
+  it("lọc theo khu vực Tin tức chỉ thấy dòng news:", async () => {
+    await db.settingsAudit.createMany({
+      data: [
+        { key: "news:n18-test-bai", oldValue: null, newValue: "created", updatedBy: "admin" },
+      ],
+    });
+    try {
+      const list = await listActivity({ area: "news" });
+      assert.ok(list.rows.every((r) => r.key.startsWith("news:")));
+      assert.ok(list.rows.some((r) => r.key === "news:n18-test-bai"));
+    } finally {
+      await db.settingsAudit.deleteMany({ where: { key: "news:n18-test-bai" } });
+    }
   });
 });

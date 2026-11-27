@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getNavCategories } from "@/lib/queries";
-import { searchProducts, tokenizeSearchQuery } from "@/lib/search";
+import { searchNews, searchProducts, tokenizeSearchQuery } from "@/lib/search";
 import {
   buildSearchHref,
   parseSearchParams,
@@ -147,6 +147,10 @@ export default async function SearchPage({ searchParams }: Props) {
   }
 
   const data = await searchProducts(parsed.q, { sort: parsed.sx, page: parsed.trang });
+  // Tin tức (Ngày 18): tìm trong tiêu đề/tóm tắt/nội dung của bài
+  // ĐÃ XUẤT BẢN; tối đa 5 bài, mới nhất trước. q ≤ 100 ký tự vẫn
+  // giữ như tìm sản phẩm (tokenizeSearchQuery cắt ở 80 ký tự).
+  const news = await searchNews(parsed.q);
   // trang lớn hơn tổng số trang thì 404; nếu rỗng (0 trang) chỉ trang=1 hợp lệ.
   if (data.totalPages === 0 ? parsed.trang !== 1 : parsed.trang > data.totalPages) {
     notFound();
@@ -181,6 +185,28 @@ export default async function SearchPage({ searchParams }: Props) {
             <ProductGrid products={products} />
           </div>
         )}
+        {/* Kết quả tin tức (Ngày 18): chỉ hiện khi có bài khớp; kể
+            cả khi không có sản phẩm nào khớp. */}
+        {news.length > 0 ? (
+          <section aria-label="Tin tức" data-testid="search-news" className="mt-10">
+            <h2 className="font-display text-2xl font-semibold text-ink">Tin tức</h2>
+            <ul className="mt-4 space-y-4">
+              {news.map((n) => (
+                <li key={n.slug} className="rounded-[3px] border border-line bg-white p-4">
+                  <Link
+                    href={`/tin-tuc/${n.slug}`}
+                    className="font-display text-lg font-semibold text-ink hover:text-green-800 hover:underline"
+                  >
+                    {n.title}
+                  </Link>
+                  {n.excerpt !== "" ? (
+                    <p className="mt-1 text-sm leading-relaxed text-ink-soft">{n.excerpt}</p>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
         <SearchPagination params={parsed} totalPages={totalPages} />
       </div>
       <UspStrip />

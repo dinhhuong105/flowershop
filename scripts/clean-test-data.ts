@@ -9,7 +9,11 @@
 //   - đơn test: mã trong TEST_ORDER_CODES (3 đơn Ngày 7)
 //   - đơn seed phân trang: mã bắt đầu "SEED" (45 đơn Ngày 9)
 //   - sản phẩm test: SKU bắt đầu "TEST-"
-//   - phiên admin: mọi dòng admin_sessions (ở local chỉ có phiên test)
+//   - bài tin tức test (Ngày 18): slug bắt đầu "test-"
+//   - sự kiện rate-limit (local): mọi dòng rate_limit_events —
+//     đây là nhật ký test (vd các lần poll /api/admin/orders/new-count
+//     và tra cứu đơn trong probe/security-live-check), không phải dữ
+//     liệu nghiệp vụ; dọn để DB cuối đợt về 0.
 // Từ chối chạy khi NODE_ENV=production HOẶC khi host của DATABASE_URL
 // không phải localhost (Ngày 9 D9-3: chỉ kiểm NODE_ENV thì ai đó trỏ
 // DATABASE_URL vào DB production mà không đặt NODE_ENV vẫn chạy được).
@@ -26,6 +30,7 @@ import { db } from "../src/lib/db";
 export const TEST_ORDER_CODES = ["QAFNN907ZY", "0Z2DZBQNTJ", "1N0PEZH0J7"];
 export const SEED_ORDER_PREFIX = "SEED";
 export const TEST_SKU_PREFIX = "TEST-";
+export const TEST_NEWS_SLUG_PREFIX = "test-";
 
 function dbHostIsLocalhost(): boolean {
   const raw = (process.env.DATABASE_URL ?? "").trim();
@@ -38,7 +43,7 @@ function dbHostIsLocalhost(): boolean {
   }
 }
 
-type Scope = "sessions" | "orders" | "products" | "seed";
+type Scope = "sessions" | "orders" | "products" | "seed" | "news" | "ratelimit";
 
 function parseOnly(): Scope[] | null {
   const arg = process.argv.find((a) => a.startsWith("--only="));
@@ -47,7 +52,7 @@ function parseOnly(): Scope[] | null {
     .slice("--only=".length)
     .split(",")
     .map((s) => s.trim())
-    .filter((s): s is Scope => s === "sessions" || s === "orders" || s === "products" || s === "seed");
+    .filter((s): s is Scope => s === "sessions" || s === "orders" || s === "products" || s === "seed" || s === "news" || s === "ratelimit");
   return parts.length > 0 ? parts : null;
 }
 
@@ -111,6 +116,28 @@ async function main(): Promise<void> {
     console.log(`[phiên admin] ${sessions} phiên`);
   }
 
+  // 4. Bài tin tức test (Ngày 18): slug bắt đầu "test-" — test tự
+  // dọn sau mỗi lần chạy, đây là lưới an toàn khi test chết giữa
+  // chừng. Dòng audit news:test-* đi kèm cũng được dọn.
+  let testNews: Array<{ slug: string }> = [];
+  if (inScope("news")) {
+    testNews = await db.newsArticle.findMany({
+      where: { slug: { startsWith: TEST_NEWS_SLUG_PREFIX } },
+      select: { slug: true },
+      orderBy: { slug: "asc" },
+    });
+    console.log(
+      `[tin tức test] ${testNews.length} bài: ${testNews.map((n) => n.slug).join(", ") || "(không có)"}`,
+    );
+  }
+
+  // 5. Sự kiện rate-limit (local): nhật ký test, dọn hết.
+  let rateLimitEvents = 0;
+  if (inScope("ratelimit")) {
+    rateLimitEvents = await db.rateLimitEvent.count();
+    console.log(`[rate-limit] ${rateLimitEvents} sự kiện`);
+  }
+
   if (!shouldDelete) {
     console.log("[dry-run] Chưa xóa gì. Thêm --delete để xóa thật.");
     await db.$disconnect();
@@ -147,6 +174,19 @@ async function main(): Promise<void> {
   if (inScope("sessions") && sessions > 0) {
     const deleted = await db.adminSession.deleteMany({});
     console.log(`[đã xóa] ${deleted.count} phiên admin.`);
+  }
+  if (inScope("news") && testNews.length > 0) {
+    const deleted = await db.newsArticle.deleteMany({
+      where: { slug: { startsWith: TEST_NEWS_SLUG_PREFIX } },
+    });
+    const deletedAudit = await db.settingsAudit.deleteMany({
+      where: { key: { startsWith: `news:${TEST_NEWS_SLUG_PREFIX}` } },
+    });
+    console.log(`[đã xóa] ${deleted.count} bài tin tức test + ${deletedAudit.count} dòng audit.`);
+  }
+  if (inScope("ratelimit") && rateLimitEvents > 0) {
+    const deleted = await db.rateLimitEvent.deleteMany({});
+    console.log(`[đã xóa] ${deleted.count} sự kiện rate-limit.`);
   }
   await db.$disconnect();
 }
