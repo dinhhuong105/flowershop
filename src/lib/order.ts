@@ -6,6 +6,7 @@
 import { randomInt } from "node:crypto";
 import type { DeliveryMethod, PaymentMethod } from "@prisma/client";
 import { db } from "@/lib/db";
+import { MAX_CART_LINES, MAX_QTY } from "@/config/cart";
 import { deliveryConfig } from "@/config/delivery";
 import { getDisplayPrice } from "@/lib/pricing";
 
@@ -36,6 +37,12 @@ export class RateLimitError extends Error {
     super("Bạn đã đặt quá nhiều đơn trong thời gian ngắn, vui lòng thử lại sau.");
   }
 }
+
+// Giỏ không hợp lệ khi tạo đơn (Ngày 17 S8): quá 50 dòng, hoặc có
+// dòng số lượng ngoài [1, MAX_QTY] (số lượng chỉ vào được giỏ qua
+// action đã kiểm, nhưng đơn tạo từ giỏ trong DB phải tự vệ trước
+// dữ liệu đã bị sửa tay / caller khác).
+export class InvalidCartError extends Error {}
 
 export type CreateOrderInput = {
   cartId: string;
@@ -110,6 +117,18 @@ export async function createOrder(input: CreateOrderInput): Promise<CreatedOrder
       orderBy: { id: "asc" },
     });
     if (lines.length === 0) throw new EmptyCartError();
+    // Ngày 17 S8: chặn giỏ quá 50 dòng và số lượng ngoài [1, MAX_QTY]
+    // ngay trong giao dịch (phòng dữ liệu giỏ bị sửa trực tiếp trong
+    // DB, không qua action giỏ). Không tạo đơn, giỏ giữ nguyên ACTIVE.
+    if (lines.length > MAX_CART_LINES) {
+      throw new InvalidCartError("Giỏ hàng tối đa 50 dòng sản phẩm.");
+    }
+    const badQty = lines.find(
+      (line) => !Number.isInteger(line.quantity) || line.quantity < 1 || line.quantity > MAX_QTY,
+    );
+    if (badQty) {
+      throw new InvalidCartError("Số lượng trong giỏ không hợp lệ.");
+    }
     const unavailable = lines
       .filter((line) => !line.product.isActive || !line.product.inStock)
       .map((line) => line.product.name);

@@ -69,6 +69,8 @@ export default function Toast() {
         {
           message: detail.message,
           actionLabel: detail.actionLabel,
+          linkHref: detail.linkHref,
+          linkLabel: detail.linkLabel,
           tone: detail.tone ?? "success",
           testId: "admin-toast",
         },

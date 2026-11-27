@@ -102,6 +102,21 @@ async function touchCart(cartId: string): Promise<void> {
   });
 }
 
+// Số dòng hiện có trong giỏ (Ngày 17 S8: giới hạn ≤ 50 dòng).
+export async function countCartLines(cartId: string): Promise<number> {
+  return db.cartItem.count({ where: { cartId } });
+}
+
+// Sản phẩm đã có trong giỏ chưa (để giới hạn 50 dòng chỉ chặn THÊM
+// dòng mới, không chặn tăng số lượng dòng đã có).
+export async function hasCartLine(cartId: string, productId: number): Promise<boolean> {
+  const line = await db.cartItem.findUnique({
+    where: { cartId_productId: { cartId, productId } },
+    select: { id: true },
+  });
+  return line !== null;
+}
+
 // Thêm món: MỘT câu SQL nguyên tử (chịu được nhiều yêu cầu song song).
 // Số lượng kẹp tối đa MAX_QTY ngay trong SQL.
 export async function addItem(

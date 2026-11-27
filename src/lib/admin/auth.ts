@@ -13,6 +13,15 @@ import { verifyAdminPassword } from "./password";
 
 export const ADMIN_SESSION_COOKIE = "admin_session";
 export const ADMIN_SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 giờ tuyệt đối
+// Hết hạn không hoạt động (Ngày 17 S2): phiên admin bị hủy khi
+// không có request nào trong 30 phút (lastSeenAt là lần dùng gần
+// nhất; getAdminSession cập nhật nó mỗi lần dùng được).
+export const ADMIN_SESSION_IDLE_MS = 30 * 60 * 1000; // 30 phút
+
+// Thuần, để test được: true khi phiên đã quá thời gian không hoạt động.
+export function isSessionIdle(lastSeenAt: Date, now: Date = new Date()): boolean {
+  return now.getTime() - lastSeenAt.getTime() > ADMIN_SESSION_IDLE_MS;
+}
 
 export class AdminNotConfiguredError extends Error {
   constructor() {
@@ -76,6 +85,7 @@ export async function createAdminSession(): Promise<string> {
 
 // Đọc phiên từ cookie; null khi không có cookie, sai token, hoặc hết
 // hạn (dòng hết hạn bị xóa). Cập nhật lastSeenAt mỗi lần dùng được.
+// Phiên quá 30 phút không hoạt động (idle) cũng bị hủy (Ngày 17 S2).
 export async function getAdminSession() {
   const store = await cookies();
   const token = store.get(ADMIN_SESSION_COOKIE)?.value;
@@ -85,7 +95,14 @@ export async function getAdminSession() {
   });
   if (!session) return null;
   if (session.expiresAt.getTime() <= Date.now()) {
-    await db.adminSession.delete({ where: { id: session.id } });
+    // deleteMany (không ném khi 0 dòng): layout + trang gọi
+    // requireAdmin() song song nên hai lần xóa cùng dòng không được
+    // ném P2025 (Ngày 17 S2 — hết hạn trả 500 thay vì 307).
+    await db.adminSession.deleteMany({ where: { id: session.id } });
+    return null;
+  }
+  if (isSessionIdle(session.lastSeenAt)) {
+    await db.adminSession.deleteMany({ where: { id: session.id } });
     return null;
   }
   await db.adminSession.update({

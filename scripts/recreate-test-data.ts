@@ -61,6 +61,7 @@ async function main(): Promise<void> {
         sku: "TEST-001",
         inStock: true,
         sortOrder: 99,
+        source: "manual",
       },
     });
     console.log("[recreate-test-data] Đã tạo SP 21 (TEST-001).");

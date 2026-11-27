@@ -1,9 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  MAX_IMAGE_DIMENSION,
   UPLOAD_NAME_RE,
   checkUploadContentLength,
   detectImageType,
+  imageDimensions,
   uploadFileName,
 } from "./uploads";
 
@@ -52,16 +54,16 @@ describe("checkUploadContentLength (K-2)", () => {
     assert.equal(checkUploadContentLength("abc")?.status, 411);
     assert.equal(checkUploadContentLength("-5")?.status, 411);
   });
-  it("> 5,5 MB → 413", () => {
-    assert.deepEqual(checkUploadContentLength(String(6 * 1024 * 1024)), {
+  it("> 2,5 MB → 413 (Ngày 17 S5: ảnh sản phẩm tối đa 2 MB)", () => {
+    assert.deepEqual(checkUploadContentLength(String(3 * 1024 * 1024)), {
       status: 413,
-      error: "File quá lớn (tối đa 5 MB/ảnh).",
+      error: "File quá lớn (tối đa 2 MB/ảnh).",
     });
   });
   it("trong giới hạn → null (qua kiểm tra)", () => {
     assert.equal(checkUploadContentLength("0"), null);
     assert.equal(checkUploadContentLength("1024"), null);
-    assert.equal(checkUploadContentLength(String(5 * 1024 * 1024)), null);
+    assert.equal(checkUploadContentLength(String(2 * 1024 * 1024)), null);
   });
 });
 
@@ -82,5 +84,59 @@ describe("uploadFileName / UPLOAD_NAME_RE", () => {
     assert.equal(UPLOAD_NAME_RE.test("0123456789ab.jpeg"), false);
     assert.equal(UPLOAD_NAME_RE.test("0123456789ab.gif"), false);
     assert.equal(UPLOAD_NAME_RE.test("0123456789ab.jpg"), true);
+  });
+});
+
+describe("imageDimensions (Ngày 17 S5)", () => {
+  // PNG 1×1 tối thiểu: signature + IHDR (width/height BE).
+  function pngBuf(width: number, height: number): Buffer {
+    const b = Buffer.alloc(24);
+    b.writeUInt8(0x89, 0);
+    b.write("PNG\r\n\x1a\n", 1, "ascii");
+    b.writeUInt32BE(13, 8);
+    b.write("IHDR", 12, "ascii");
+    b.writeUInt32BE(width, 16);
+    b.writeUInt32BE(height, 20);
+    return b;
+  }
+  function webpVp8xBuf(width: number, height: number): Buffer {
+    const b = Buffer.alloc(30);
+    b.write("RIFF", 0, "ascii");
+    b.write("WEBP", 8, "ascii");
+    b.write("VP8X", 12, "ascii");
+    b.writeUIntLE(width - 1, 24, 3);
+    b.writeUIntLE(height - 1, 27, 3);
+    return b;
+  }
+  function jpegSofBuf(width: number, height: number): Buffer {
+    // FFD8 + SOF0 (FFC0, len 17) + precision/height/width + FFD9.
+    const b = Buffer.alloc(2 + 2 + 2 + 15 + 2);
+    b[0] = 0xff;
+    b[1] = 0xd8;
+    b[2] = 0xff;
+    b[3] = 0xc0;
+    b.writeUInt16BE(17, 4);
+    b.writeUInt8(8, 6);
+    b.writeUInt16BE(height, 7);
+    b.writeUInt16BE(width, 9);
+    return b;
+  }
+  it("PNG đọc width/height từ IHDR", () => {
+    assert.deepEqual(imageDimensions(pngBuf(800, 600)), { width: 800, height: 600 });
+  });
+  it("PNG 7000×100 → vượt giới hạn 6000 (route từ chối)", () => {
+    const d = imageDimensions(pngBuf(7000, 100))!;
+    assert.ok(d.width > MAX_IMAGE_DIMENSION);
+  });
+  it("WebP VP8X đọc width/height (cộng 1)", () => {
+    assert.deepEqual(imageDimensions(webpVp8xBuf(1200, 900)), { width: 1200, height: 900 });
+  });
+  it("JPEG SOF0 đọc width/height", () => {
+    assert.deepEqual(imageDimensions(jpegSofBuf(640, 480)), { width: 640, height: 480 });
+  });
+  it("file cắt ngang / không phải ảnh → null", () => {
+    assert.equal(imageDimensions(Buffer.alloc(0)), null);
+    assert.equal(imageDimensions(Buffer.from("hello world", "ascii")), null);
+    assert.equal(imageDimensions(pngBuf(10, 10).subarray(0, 10)), null);
   });
 });

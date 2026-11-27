@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import AdminShell from "@/components/admin/AdminShell";
+import { requireAdmin } from "@/lib/admin/auth";
 import { getAdminDashboardStats } from "@/lib/admin/dashboard";
 
 export const dynamic = "force-dynamic";
@@ -10,8 +11,10 @@ export const metadata: Metadata = {
 };
 
 // Layout quản trị RIÊNG (Ngày 7 §2): không Header/Footer của shop,
-// không truy vấn giỏ. Layout KHÔNG kiểm tra đăng nhập — mỗi trang và
-// action tự gọi requireAdmin() ở câu lệnh đầu tiên.
+// không truy vấn giỏ. Layout KIỂM TRA đăng nhập trước khi đọc số
+// liệu (Ngày 17 S1 — trước đây layout gọi getAdminDashboardStats()
+// mà không requireAdmin: tuy trang con cũng kiểm tra và redirect
+// thắng, layout vẫn truy vấn dữ liệu admin trước khi xác thực).
 //
 // THIẾT KẾ LẠI LẦN 2, 25/11 (đúng màu/style ảnh mẫu của Henry):
 // sidebar navy #0f1e33 + thanh trên trắng có ô tìm kiếm + chuông
@@ -22,14 +25,8 @@ export const metadata: Metadata = {
 // Layout lấy số đơn cần xử lý để truyền cho chuông ở AdminShell
 // (hàm dashboard sẵn có; trang tổng quan cũng gọi hàm này —
 // trùng một lượt đếm rẻ, không cache để khỏi làm test:db sai do
-// memo xuyên test). Layout KHÔNG kiểm tra đăng nhập — mỗi trang
-// tự gọi requireAdmin() và chuyển về /login nếu chưa đăng nhập,
-// nên số này không lộ ra ngoài khi chưa đăng nhập.
-//
-// Slot `modal` (25/11): intercepting route @modal — thêm/sửa sản
-// phẩm mở dạng popup trên nền danh sách thay vì chuyển trang.
-// Vào trực tiếp URL /admin/products/new (hoặc /[id]) thì slot
-// không khớp, hiện trang form đầy đủ như cũ.
+// memo xuyên test). requireAdmin() ở đây là cửa chính; mỗi trang
+// vẫn tự gọi requireAdmin() ở câu lệnh đầu tiên.
 export default async function AdminLayout({
   children,
   modal,
@@ -37,9 +34,14 @@ export default async function AdminLayout({
   children: React.ReactNode;
   modal: React.ReactNode;
 }) {
+  await requireAdmin();
   const stats = await getAdminDashboardStats();
   return (
-    <AdminShell pendingCount={stats.pendingCount} modal={modal}>
+    <AdminShell
+      pendingCount={stats.pendingCount}
+      latestPendingCode={stats.latestPendingCode}
+      modal={modal}
+    >
       {children}
     </AdminShell>
   );

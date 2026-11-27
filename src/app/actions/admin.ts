@@ -21,8 +21,10 @@ import {
   createAdminProduct,
   getAdminProduct,
   setProductActive,
+  setProductsActiveBulk,
   updateAdminProduct,
 } from "@/lib/admin/products";
+import { parseBulkToggleInput } from "@/lib/admin/bulk-products";
 import {
   validateCategoryForm,
   type CategoryFormErrors,
@@ -168,6 +170,39 @@ export async function toggleProductAction(
   revalidatePath("/", "layout");
   revalidatePath("/admin/products");
   return { ok: true, error: null };
+}
+
+export type BulkToggleProductsState = {
+  ok: boolean;
+  error: string | null;
+  updated: number;
+  missing: number[];
+};
+
+// Ẩn/hiện HÀNG LOẠT sản phẩm (Ngày 17 P3): có hộp xác nhận ở giao
+// diện (BulkProductActions), máy chủ kiểm lại id + giới hạn 50,
+// ghi nhật ký từng sản phẩm đổi thật (P5, xem setProductsActiveBulk).
+export async function bulkToggleProductsAction(
+  prevState: BulkToggleProductsState,
+  formData: FormData,
+): Promise<BulkToggleProductsState> {
+  await requireAdmin();
+  const parsed = parseBulkToggleInput(formData.getAll("productIds"), formData.get("isActive"));
+  if (parsed.error) {
+    return { ok: false, error: parsed.error, updated: 0, missing: [] };
+  }
+  const result = await setProductsActiveBulk(parsed.ids, parsed.isActive);
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/products");
+  return {
+    ok: true,
+    error:
+      result.missing.length > 0
+        ? `Không tìm thấy ${result.missing.length} sản phẩm.`
+        : null,
+    updated: result.updated,
+    missing: result.missing,
+  };
 }
 
 // ---- Danh mục (25/11 — trang quản lý Danh mục) ----

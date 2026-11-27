@@ -5,6 +5,7 @@
 
 import type { Prisma } from "@prisma/client";
 import { formatVND } from "@/lib/format";
+import { maskPhone } from "@/lib/phone-mask";
 
 export type OrderWithItems = Prisma.OrderGetPayload<{ include: { items: true } }>;
 
@@ -60,7 +61,7 @@ export default function OrderDetails({ order }: { order: OrderWithItems }) {
         <div className="flex justify-between gap-3">
           <dt className="text-ink-soft">Người nhận</dt>
           <dd className="text-right font-bold text-ink">
-            {order.receiverName} ({order.receiverPhone})
+            {order.receiverName} ({maskPhone(order.receiverPhone)})
           </dd>
         </div>
         <div className="flex justify-between gap-3">

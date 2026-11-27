@@ -9,6 +9,11 @@
 
 import { db } from "../db";
 import type { ZoneFormValues } from "./zone-validation";
+import {
+  changedFieldAudits,
+  lifecycleAuditRow,
+  writeCatalogAudits,
+} from "./catalog-audit";
 
 export type AdminZoneRow = {
   id: number;
@@ -60,14 +65,20 @@ export async function createAdminZone(
       conflict: { field: "name", message: "Tên khu vực này đã dùng cho một khu vực khác." },
     };
   }
-  const created = await db.shippingZone.create({
-    data: {
-      name: values.name,
-      fee: values.fee,
-      sortOrder: values.sortOrder,
-      isActive: values.isActive,
-    },
-    select: { id: true },
+  const created = await db.$transaction(async (tx) => {
+    const row = await tx.shippingZone.create({
+      data: {
+        name: values.name,
+        fee: values.fee,
+        sortOrder: values.sortOrder,
+        isActive: values.isActive,
+      },
+      select: { id: true },
+    });
+    await writeCatalogAudits(tx, [
+      lifecycleAuditRow(`zone:${row.id}`, null, "created"),
+    ]);
+    return row;
   });
   return { id: created.id };
 }
@@ -76,10 +87,7 @@ export async function updateAdminZone(
   id: number,
   values: ZoneFormValues,
 ): Promise<{ id: number } | { conflict: ZoneSaveConflict } | null> {
-  const existing = await db.shippingZone.findUnique({
-    where: { id },
-    select: { id: true },
-  });
+  const existing = await db.shippingZone.findUnique({ where: { id } });
   if (!existing) return null;
   const nameClash = await db.shippingZone.findFirst({
     where: { name: { equals: values.name, mode: "insensitive" }, id: { not: id } },
@@ -90,29 +98,62 @@ export async function updateAdminZone(
       conflict: { field: "name", message: "Tên khu vực này đã dùng cho một khu vực khác." },
     };
   }
-  await db.shippingZone.update({
-    where: { id },
-    data: {
-      name: values.name,
-      fee: values.fee,
-      sortOrder: values.sortOrder,
-      isActive: values.isActive,
+  const prefix = `zone:${id}`;
+  const fieldRows = changedFieldAudits(prefix, [
+    { field: "name", oldValue: existing.name, newValue: values.name },
+    { field: "fee", oldValue: existing.fee, newValue: values.fee },
+    { field: "sortOrder", oldValue: existing.sortOrder, newValue: values.sortOrder },
+    {
+      field: "isActive",
+      oldValue: existing.isActive ? "Đang bật" : "Đã tắt",
+      newValue: values.isActive ? "Đang bật" : "Đã tắt",
     },
+  ]);
+  const auditRows =
+    fieldRows.length > 0
+      ? fieldRows
+      : [lifecycleAuditRow(prefix, existing.name, "updated")];
+  await db.$transaction(async (tx) => {
+    await tx.shippingZone.update({
+      where: { id },
+      data: {
+        name: values.name,
+        fee: values.fee,
+        sortOrder: values.sortOrder,
+        isActive: values.isActive,
+      },
+    });
+    await writeCatalogAudits(tx, auditRows);
   });
   return { id };
 }
 
 // Đổi trạng thái bật/tắt (đặt đúng giá trị đích — không cần xác
 // nhận, kèm toast Hoàn tác ở phía giao diện, theo mẫu
-// setProductActive/ToggleActiveButton của sản phẩm).
+// setProductActive/ToggleActiveButton của sản phẩm). Ghi nhật ký
+// zone:<id>.isActive ("Đang bật" ↔ "Đã tắt", P5); bấm lại cùng
+// trạng thái thì không ghi dòng thừa.
 export async function setAdminZoneActive(id: number, isActive: boolean): Promise<boolean> {
-  const existing = await db.shippingZone.findUnique({
-    where: { id },
-    select: { id: true },
+  return db.$transaction(async (tx) => {
+    const existing = await tx.shippingZone.findUnique({
+      where: { id },
+      select: { id: true, name: true, isActive: true },
+    });
+    if (!existing) return false;
+    if (existing.isActive === isActive) return true;
+    await tx.shippingZone.update({ where: { id }, data: { isActive } });
+    await writeCatalogAudits(
+      tx,
+      changedFieldAudits(`zone:${id}`, [
+        {
+          field: "isActive",
+          oldValue: existing.isActive ? "Đang bật" : "Đã tắt",
+          newValue: isActive ? "Đang bật" : "Đã tắt",
+        },
+      ]),
+    );
+    return true;
   });
-  if (!existing) return false;
-  await db.shippingZone.update({ where: { id }, data: { isActive } });
-  return true;
 }
 
 // Xóa: chỉ khi khu vực chưa có đơn (kiểm lại số đơn ngay trong
@@ -129,6 +170,9 @@ export async function deleteAdminZone(
     const orderCount = await tx.order.count({ where: { area: zone.name } });
     if (orderCount > 0) return "has-orders";
     await tx.shippingZone.delete({ where: { id } });
+    await writeCatalogAudits(tx, [
+      lifecycleAuditRow(`zone:${id}`, zone.name, "deleted"),
+    ]);
     return "ok";
   });
 }

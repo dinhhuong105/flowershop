@@ -48,6 +48,8 @@ type BaseParams = {
   method: string;
   exclude: string;
   date: string;
+  // Ngày 17 N3: giữ lọc quá hạn khi đổi tab/trang (như exclude).
+  overdue: boolean;
 };
 
 function tabHref(base: BaseParams, tab: OrderTab): string {
@@ -57,6 +59,7 @@ function tabHref(base: BaseParams, tab: OrderTab): string {
   if (base.method !== "all") parts.push(`method=${encodeURIComponent(base.method)}`);
   if (base.exclude !== "") parts.push(`exclude=${encodeURIComponent(base.exclude)}`);
   if (base.date !== "") parts.push(`date=${encodeURIComponent(base.date)}`);
+  if (base.overdue) parts.push("overdue=1");
   return `/admin/orders?${parts.join("&")}`;
 }
 
@@ -68,19 +71,36 @@ function pageHref(base: BaseParams, page: number): string {
   if (base.method !== "all") parts.push(`method=${encodeURIComponent(base.method)}`);
   if (base.exclude !== "") parts.push(`exclude=${encodeURIComponent(base.exclude)}`);
   if (base.date !== "") parts.push(`date=${encodeURIComponent(base.date)}`);
+  if (base.overdue) parts.push("overdue=1");
   if (page > 1) parts.push(`page=${page}`);
   return parts.length > 0 ? `/admin/orders?${parts.join("&")}` : "/admin/orders";
 }
 
 // Link bỏ bộ lọc loại trạng thái (mục 3 verdict Ngày 10): giống
 // pageHref nhưng KHÔNG giữ exclude — giữ nguyên tab, tìm kiếm,
-// thanh toán, phương thức, ngày giao và trang hiện tại.
+// thanh toán, phương thức, ngày giao, quá hạn và trang hiện tại.
 function clearExcludeHref(base: BaseParams, page: number): string {
   const parts: string[] = [];
   if (base.tab !== "pending") parts.push(`tab=${encodeURIComponent(base.tab)}`);
   if (base.q !== "") parts.push(`q=${encodeURIComponent(base.q)}`);
   if (base.payment !== "all") parts.push(`payment=${encodeURIComponent(base.payment)}`);
   if (base.method !== "all") parts.push(`method=${encodeURIComponent(base.method)}`);
+  if (base.date !== "") parts.push(`date=${encodeURIComponent(base.date)}`);
+  if (base.overdue) parts.push("overdue=1");
+  if (page > 1) parts.push(`page=${page}`);
+  return parts.length > 0 ? `/admin/orders?${parts.join("&")}` : "/admin/orders";
+}
+
+// Link bỏ lọc quá hạn (Ngày 17 N3): giống pageHref nhưng KHÔNG giữ
+// overdue — giữ nguyên tab, tìm kiếm, thanh toán, phương thức, ngày
+// giao, loại trạng thái và trang hiện tại.
+function clearOverdueHref(base: BaseParams, page: number): string {
+  const parts: string[] = [];
+  if (base.tab !== "pending") parts.push(`tab=${encodeURIComponent(base.tab)}`);
+  if (base.q !== "") parts.push(`q=${encodeURIComponent(base.q)}`);
+  if (base.payment !== "all") parts.push(`payment=${encodeURIComponent(base.payment)}`);
+  if (base.method !== "all") parts.push(`method=${encodeURIComponent(base.method)}`);
+  if (base.exclude !== "") parts.push(`exclude=${encodeURIComponent(base.exclude)}`);
   if (base.date !== "") parts.push(`date=${encodeURIComponent(base.date)}`);
   if (page > 1) parts.push(`page=${page}`);
   return parts.length > 0 ? `/admin/orders?${parts.join("&")}` : "/admin/orders";
@@ -96,6 +116,7 @@ export default async function AdminOrdersPage({
     method?: string;
     exclude?: string;
     date?: string;
+    overdue?: string;
     page?: string;
   }>;
 }) {
@@ -124,6 +145,8 @@ export default async function AdminOrdersPage({
       : "";
   const date = (params.date ?? "").trim();
   const page = Math.max(1, Number(params.page) || 1);
+  // Ngày 17 N3: chỉ nhận đúng "1" (giá trị khác coi như không lọc).
+  const overdue = params.overdue === "1";
   const list = await listAdminOrders({
     tab,
     q,
@@ -131,9 +154,10 @@ export default async function AdminOrdersPage({
     method,
     exclude: exclude === "" ? undefined : exclude,
     date,
+    overdue: overdue ? true : undefined,
     page,
   });
-  const base: BaseParams = { tab, q, payment, method, exclude, date };
+  const base: BaseParams = { tab, q, payment, method, exclude, date, overdue };
   const now = new Date();
 
   return (
@@ -161,6 +185,22 @@ export default async function AdminOrdersPage({
             className="inline-flex min-h-11 items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 text-sm font-bold text-blue-700 transition-colors hover:opacity-90"
           >
             Không tính đơn {orderStatusLabel(exclude).toLowerCase()} ✕
+          </Link>
+        </p>
+      ) : null}
+
+      {/* Chip báo đang lọc quá hạn (Ngày 17 N3): từ thẻ tổng quan
+          sang với overdue=1 — bấm ✕ để bỏ lọc và hiện lại tất cả
+          các đơn cần xử lý (kể cả đơn chưa quá hạn). */}
+      {overdue ? (
+        <p className="mt-3">
+          <Link
+            href={clearOverdueHref(base, list.page)}
+            data-testid="overdue-chip"
+            aria-label="Bỏ lọc chỉ đơn quá hạn giao — hiện lại tất cả các đơn"
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 text-sm font-bold text-red-700 transition-colors hover:opacity-90"
+          >
+            Chỉ đơn quá hạn giao ✕
           </Link>
         </p>
       ) : null}

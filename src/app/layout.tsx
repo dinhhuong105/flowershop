@@ -10,6 +10,7 @@ import {
   validateTitleTemplate,
 } from "@/lib/title-template";
 import { toAbsoluteImageUrl } from "@/lib/storage";
+import { escapeJsonForScript } from "@/lib/security-headers";
 import { listFooterPages } from "@/lib/admin/pages";
 import { getLegacyReplacements } from "@/lib/admin/pages";
 import TopBar from "@/components/layout/TopBar";
@@ -107,6 +108,10 @@ export default async function RootLayout({
   // mật; xác thực do requireAdmin() ở từng trang/action.)
   const h = await headers();
   const isAdminArea = h.get("x-admin-area") === "1";
+  // Nonce CSP do middleware sinh mỗi request (Ngày 17 S10); khi
+  // chạy không qua middleware (vd test render trực tiếp) thì nonce
+  // rỗng — thẻ script vẫn render (CSP khi đó không có nonce để khớp).
+  const nonce = h.get("x-nonce") ?? "";
   const categories = isAdminArea ? [] : await getNavCategories();
   const cartCount = isAdminArea ? 0 : await getCartCount();
   // Cài đặt shop (Ngày 11 B5): tên/logo/hotline/Zalo/địa chỉ/giờ
@@ -125,6 +130,7 @@ export default async function RootLayout({
     <html lang="vi">
       {/* Gắn class `js` để hiệu ứng reveal không giấu nội dung khi tắt JS. */}
       <script
+        nonce={nonce === "" ? undefined : nonce}
         dangerouslySetInnerHTML={{
           __html: "document.documentElement.classList.add('js')",
         }}
@@ -150,8 +156,11 @@ export default async function RootLayout({
         {isAdminArea || !settings ? null : (
           <script
             type="application/ld+json"
+            nonce={nonce === "" ? undefined : nonce}
             dangerouslySetInnerHTML={{
-              __html: JSON.stringify(organizationJsonLd(settings)),
+              // Thoát <, > và & (Ngày 17 S3): tên shop chứa
+              // "</script>" không được thoát khỏi thẻ script.
+              __html: escapeJsonForScript(JSON.stringify(organizationJsonLd(settings))),
             }}
           />
         )}

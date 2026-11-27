@@ -45,21 +45,93 @@ function isExternalUrl(rawUrl: string): boolean {
 // (để `*` không bị quy tắc nghiêng ăn mất trong href) và "`".
 const LINK_URL_RE = /^[A-Za-z0-9\-._~:/?#@!$&'()+,;=%]+$/;
 
+function renderLinks(escapedText: string): string {
+  // Quét tuyến tính thay cho regex (Ngày 17 S3 — ReDoS): regex cũ
+  // /\[([^\]]+)\]\(((?:[^()\s]+|\([^()\s]*\))+)\)/g backtrack hàm mũ
+  // trên chuỗi "[a](https://x.test/" lặp lại (5,7 KB → 2,8 giây).
+  // Quét này chỉ tiến về trước, mỗi ký tự xét tối đa một lần.
+  // Ngữ nghĩa giữ nguyên: [chữ](url), url được phép chứa một cấp
+  // ngoặc tròn cân bằng; url không hợp lệ → chỉ hiện chữ.
+  let out = "";
+  let i = 0;
+  while (i < escapedText.length) {
+    const open = escapedText.indexOf("[", i);
+    if (open === -1) {
+      out += escapedText.slice(i);
+      break;
+    }
+    const closeBracket = escapedText.indexOf("]", open + 1);
+    if (closeBracket === -1) {
+      // Không còn "]" nào nữa → không thể có link nào sau đây.
+      out += escapedText.slice(i);
+      break;
+    }
+    if (closeBracket === open + 1) {
+      out += escapedText.slice(i, open + 1);
+      i = open + 1;
+      continue;
+    }
+    if (escapedText[closeBracket + 1] !== "(") {
+      // "]" này không mở link: mọi "[" trước nó đều có "]" đầu
+      // tiên là chính "]" này nên cũng không thành link — chép
+      // nguyên đoạn tới hết "]" rồi nhảy qua (giữ quét tuyến tính).
+      out += escapedText.slice(i, closeBracket + 1);
+      i = closeBracket + 1;
+      continue;
+    }
+    // Tìm ")" đóng, cho một cấp ngoặc lồng; khoảng trắng kết thúc URL.
+    let j = closeBracket + 2;
+    let depth = 0;
+    let end = -1;
+    let hitEnd = false;
+    while (j < escapedText.length) {
+      const c = escapedText[j]!;
+      if (c === "(") depth += 1;
+      else if (c === ")") {
+        if (depth === 0) {
+          end = j;
+          break;
+        }
+        depth -= 1;
+      } else if (/\s/.test(c)) {
+        break;
+      }
+      j += 1;
+    }
+    if (j >= escapedText.length && end === -1) hitEnd = true;
+    if (end === -1) {
+      // Không có ")" đóng sau đây: nếu đã quét tới cuối chuỗi thì
+      // không link nào sau này đóng được nữa → chép phần còn lại.
+      if (hitEnd) {
+        out += escapedText.slice(i);
+        break;
+      }
+      out += escapedText.slice(i, open + 1);
+      i = open + 1;
+      continue;
+    }
+    const text = escapedText.slice(open + 1, closeBracket);
+    const url = escapedText.slice(closeBracket + 2, end);
+    // URL không hợp lệ (ký tự lạ hoặc scheme cấm) → chỉ hiện chữ,
+    // giống hành vi regex cũ.
+    if (!LINK_URL_RE.test(url) || !isAllowedLinkUrl(unescapeHtml(url))) {
+      out += escapedText.slice(i, open);
+      out += text;
+      i = end + 1;
+      continue;
+    }
+    const rawUrl = unescapeHtml(url);
+    const rel = isExternalUrl(rawUrl) ? ' rel="noopener noreferrer"' : "";
+    out += escapedText.slice(i, open);
+    out += `<a href="${url}"${rel}>${text}</a>`;
+    i = end + 1;
+  }
+  return out;
+}
+
 function renderInline(escapedText: string): string {
-  // Liên kết trước: [chữ](url). URL được phép chứa một cấp dấu
-  // ngoặc tròn cân bằng (vd javascript:alert(1)) để phần còn lại
-  // của URL không rớt ra ngoài thành ký tự lẻ. URL không hợp lệ
-  // → chỉ hiện chữ (không tạo thẻ <a>).
-  let out = escapedText.replace(
-    /\[([^\]]+)\]\(((?:[^()\s]+|\([^()\s]*\))+)\)/g,
-    (_match, text: string, url: string) => {
-      if (!LINK_URL_RE.test(url)) return text;
-      const rawUrl = unescapeHtml(url);
-      if (!isAllowedLinkUrl(rawUrl)) return text;
-      const rel = isExternalUrl(rawUrl) ? ' rel="noopener noreferrer"' : "";
-      return `<a href="${url}"${rel}>${text}</a>`;
-    },
-  );
+  // Liên kết trước, rồi đậm, rồi nghiêng.
+  let out = renderLinks(escapedText);
   // Đậm rồi nghiêng (đậm trước để **x** không bị ăn thành nghiêng).
   out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   out = out.replace(/\*([^*]+)\*/g, "<em>$1</em>");

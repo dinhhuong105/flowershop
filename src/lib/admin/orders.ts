@@ -7,6 +7,7 @@
 import { Prisma, type OrderStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { deliveryConfig } from "@/config/delivery";
+import { vnDayBounds } from "@/lib/admin/dashboard";
 import { EXPRESS_SLOT_LABEL, sameDaySlotLabel } from "@/lib/delivery-rules";
 import { orderStatusLabel } from "@/lib/order-labels";
 import { sendTelegramForOrder } from "@/lib/telegram";
@@ -187,6 +188,11 @@ export type ListAdminOrdersOpts = {
   exclude?: OrderStatus;
   date?: string; // YYYY-MM-DD
   page?: number;
+  // Chỉ đơn quá hạn giao (Ngày 17 N3): ngày giao trước hôm nay
+  // theo giờ VN. Dùng chung cho danh sách VÀ số đếm từng tab (qua
+  // buildOrderFilters) nên số trên thẻ tổng quan khớp đúng danh
+  // sách đích (bài học Ngày 10: số thẻ = số trong danh sách).
+  overdue?: boolean;
 };
 
 // Điều kiện lọc chung (trừ tab trạng thái) — dùng chung cho danh sách
@@ -231,6 +237,17 @@ function buildOrderFilters(opts: ListAdminOrdersOpts): Prisma.Sql[] {
   }
   if (opts.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date)) {
     conditions.push(Prisma.sql`o."deliveryDate" = ${opts.date}::date`);
+  }
+  if (opts.overdue) {
+    // Quá hạn = ngày giao trước hôm nay theo giờ VN (cột
+    // deliveryDate lưu dạng date, mốc là ngày VN hiện tại) VÀ đơn
+    // chưa giao/chưa hủy — đơn COMPLETED/CANCELLED giao ngày cũ
+    // không phải "quá hạn" (định nghĩa N3), nên lọc này tự nó đã
+    // giới hạn trạng thái cần xử lý, bất kể tab đang xem.
+    const { day } = vnDayBounds(new Date());
+    conditions.push(
+      Prisma.sql`o."deliveryDate" < ${day}::date AND o."status" IN ('NEW', 'CONFIRMED', 'DELIVERING')`,
+    );
   }
   return conditions;
 }
@@ -282,11 +299,14 @@ export async function listAdminOrders(
       : Prisma.sql``;
   // "Cần xử lý": ngày giao rồi giờ bắt đầu giao dạng số (CASE theo
   // nhãn khung giờ — xem slotStartMinutes); các tab còn lại: mới nhất
-  // trước.
+  // trước. Khóa phụ id (Ngày 17): hai đơn cùng ngày giao + khung giờ
+  // + createdAt (tạo cùng lúc) phải có thứ tự toàn phần ổn định —
+  // không có khóa phụ, Postgres được trả hàng theo thứ tự tùy ý và
+  // danh sách có thể "nhảy" giữa hai lần tải.
   const orderBy =
     tab === "pending"
-      ? Prisma.sql`ORDER BY o."deliveryDate" ASC, ${slotStartCaseSql()} ASC, o."createdAt" DESC`
-      : Prisma.sql`ORDER BY o."createdAt" DESC`;
+      ? Prisma.sql`ORDER BY o."deliveryDate" ASC, ${slotStartCaseSql()} ASC, o."createdAt" DESC, o."id" DESC`
+      : Prisma.sql`ORDER BY o."createdAt" DESC, o."id" DESC`;
   const rows = await db.$queryRaw<
     Array<{
       code: string;

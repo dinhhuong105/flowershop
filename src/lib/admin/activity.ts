@@ -15,6 +15,12 @@ export const ACTIVITY_AREAS = [
   "telegram",
   "seo",
   "page",
+  // Nhật ký sản phẩm/danh mục/khu vực (Ngày 17 P5 = E2): khóa
+  // "product:<id>[.<trường>]", "category:<id>[.<trường>]",
+  // "zone:<id>[.<trường>]".
+  "product",
+  "category",
+  "zone",
 ] as const;
 
 export type ActivityArea = (typeof ACTIVITY_AREAS)[number];
@@ -26,6 +32,9 @@ export const ACTIVITY_AREA_LABELS: Record<ActivityArea, string> = {
   telegram: "Telegram",
   seo: "SEO",
   page: "Trang tĩnh",
+  product: "Sản phẩm",
+  category: "Danh mục",
+  zone: "Khu vực",
 };
 
 export function isActivityArea(value: string): value is ActivityArea {
@@ -34,9 +43,14 @@ export function isActivityArea(value: string): value is ActivityArea {
 
 // Khu vực của một khóa nhật ký, suy từ tiền tố khóa (C0):
 // "general.*" → Chung, "contact.*" → Liên hệ, "bank.*" (+ "bank.notify") → Ngân hàng,
-// "telegram.*" → Telegram, "seo.*" → SEO, "page:<slug>" → Trang tĩnh.
+// "telegram.*" → Telegram, "seo.*" → SEO, "page:<slug>" → Trang tĩnh,
+// "product:<id>[.<trường>]" → Sản phẩm, "category:<id>[.<trường>]" → Danh mục,
+// "zone:<id>[.<trường>]" → Khu vực (Ngày 17 P5).
 export function activityAreaOf(key: string): ActivityArea {
   if (key.startsWith("page:")) return "page";
+  if (key.startsWith("product:")) return "product";
+  if (key.startsWith("category:")) return "category";
+  if (key.startsWith("zone:")) return "zone";
   const prefix = key.split(".")[0];
   switch (prefix) {
     case "general":
@@ -173,9 +187,15 @@ export async function listActivity(filters: ActivityFilters = {}): Promise<Activ
   const page = filters.page !== undefined && filters.page >= 1 ? filters.page : 1;
   const where: Prisma.SettingsAuditWhereInput = {};
   if (filters.area) {
+    // Khu vực dạng "xxx:" (trang tĩnh, sản phẩm, danh mục, khu vực)
+    // lọc theo tiền tố có dấu hai chấm; các nhóm cài đặt ("xxx.")
+    // lọc theo tiền tố có dấu chấm.
     where.key =
-      filters.area === "page"
-        ? { startsWith: "page:" }
+      filters.area === "page" ||
+      filters.area === "product" ||
+      filters.area === "category" ||
+      filters.area === "zone"
+        ? { startsWith: `${filters.area}:` }
         : { startsWith: `${filters.area}.` };
   }
   const q = (filters.q ?? "").trim();

@@ -256,16 +256,39 @@ export default function PageForm({
               {showPreview ? "Ẩn xem trước" : "Xem trước"}
             </button>
           </div>
-          <textarea
-            id="pf-content"
-            name="content"
-            rows={12}
-            value={contentValue}
-            onChange={(e) => setContentValue(e.target.value)}
-            aria-invalid={err("content") ? true : undefined}
-            aria-describedby={err("content") ? "content-error" : undefined}
-            className={`${inputClass} py-2`}
-          />
+          {/* B6 (Ngày 17): xem trước Markdown 2 cột — từ 1280 px
+              (breakpoint xl) soạn và xem trước nằm cạnh nhau; dưới
+              1280 px xếp dọc như cũ. Trong popup (tối đa 768 px) mỗi
+              cột ~350 px, vẫn đủ đọc; ở trang trực tiếp rộng hơn. */}
+          <div
+            className={
+              showPreview
+                ? "mt-1 grid items-start gap-3 xl:grid-cols-2"
+                : "mt-1"
+            }
+          >
+            <textarea
+              id="pf-content"
+              name="content"
+              rows={12}
+              value={contentValue}
+              onChange={(e) => setContentValue(e.target.value)}
+              aria-invalid={err("content") ? true : undefined}
+              aria-describedby={err("content") ? "content-error" : undefined}
+              className={`${inputClass} py-2`}
+            />
+            {showPreview ? (
+              <div
+                aria-label="Xem trước nội dung"
+                className="max-w-none rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-900 [&_a]:font-bold [&_a]:text-green-800 [&_a]:underline [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-bold [&_h4]:text-sm [&_h4]:font-bold [&_ol]:mt-2 [&_ol_li]:list-decimal [&_ol_li]:ml-5 [&_p]:mt-2 [&_ul]:mt-2 [&_ul_li]:list-disc [&_ul_li]:ml-5"
+                dangerouslySetInnerHTML={{
+                  __html:
+                    renderMarkdown(contentValue) ||
+                    '<p class="text-slate-500">Chưa có nội dung.</p>',
+                }}
+              />
+            ) : null}
+          </div>
           {fieldError("content")}
           <p className="mt-1 text-sm text-slate-500">
             {contentValue.length.toLocaleString("vi-VN")} /{" "}
@@ -273,17 +296,6 @@ export default function PageForm({
             ###), <strong>đậm</strong>, <em>nghiêng</em>, danh sách, liên kết. Không cho
             HTML thô, không ảnh.
           </p>
-          {showPreview ? (
-            <div
-              aria-label="Xem trước nội dung"
-              className="mt-3 max-w-none rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-900 [&_a]:font-bold [&_a]:text-green-800 [&_a]:underline [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-bold [&_h4]:text-sm [&_h4]:font-bold [&_ol]:mt-2 [&_ol_li]:list-decimal [&_ol_li]:ml-5 [&_p]:mt-2 [&_ul]:mt-2 [&_ul_li]:list-disc [&_ul_li]:ml-5"
-              dangerouslySetInnerHTML={{
-                __html:
-                  renderMarkdown(contentValue) ||
-                  '<p class="text-slate-500">Chưa có nội dung.</p>',
-              }}
-            />
-          ) : null}
         </div>
 
         <div>

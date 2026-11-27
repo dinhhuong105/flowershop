@@ -1,21 +1,23 @@
 // Tải logo/favicon/ảnh OG lên (Ngày 11 B3, Ngày 13 C1 thêm "og"):
 // POST multipart (purpose = logo|favicon|og + file). Chỉ quản trị.
 // Logo tối đa 1 MB, favicon tối đa 256 KB, ảnh OG tối đa 1 MB;
-// nhận JPEG/PNG/WebP (magic bytes) + SVG tĩnh cho logo/favicon
-// (isSafeSvgText — SVG chứa mã bị từ chối vì phục vụ cùng origin
-// với shop). Ảnh OG KHÔNG nhận SVG (đặc tả C1: chỉ jpg/png/webp).
-// Lưu qua storage.saveImage nên trả URL TUYỆT ĐỐI
-// (Blob trên Vercel, /uploads/... gắn domain shop ở local).
-// Lỗi ghi (vd chưa có BLOB_READ_WRITE_TOKEN trên Vercel) trả 500
-// với thông báo rõ ràng, không crash máy chủ.
+// CHỈ nhận JPEG/PNG/WebP (magic bytes). Từ Ngày 17 S5 KHÔNG nhận
+// SVG nữa (logo/favicon dùng png/webp; logo SVG đã tải trước đây
+// vẫn hiển thị bằng thẻ <img>, không bao giờ nội tuyến).
+// Mỗi chiều ≤ 6000 px (chống bom giải nén). Lưu qua
+// storage.saveImage nên trả URL TUYỆT ĐỐI (Blob trên Vercel,
+// /uploads/... gắn domain shop ở local). Lỗi ghi (vd chưa có
+// BLOB_READ_WRITE_TOKEN trên Vercel) trả 500 với thông báo rõ ràng,
+// không crash máy chủ.
 import { NextResponse } from "next/server";
 import { AdminNotConfiguredError, requireAdmin } from "@/lib/admin/auth";
 import {
   MAX_FAVICON_BYTES,
+  MAX_IMAGE_DIMENSION,
   MAX_LOGO_BYTES,
   checkUploadContentLength,
   detectImageType,
-  isSafeSvgText,
+  imageDimensions,
 } from "@/lib/admin/upload-rules";
 import { StorageWriteError, saveImage } from "@/lib/storage";
 
@@ -125,44 +127,35 @@ export async function POST(request: Request): Promise<Response> {
   }
   const buf = Buffer.from(await file.arrayBuffer());
   const type = detectImageType(buf);
-  if (type) {
-    try {
-      const url = await saveImage(buf, type);
-      return NextResponse.json({ ok: true, url });
-    } catch (error) {
-      if (error instanceof StorageWriteError) {
-        return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-      }
-      return NextResponse.json(
-        { ok: false, error: "Không lưu được ảnh, vui lòng thử lại." },
-        { status: 500 },
-      );
-    }
-  }
-  // Không khớp magic bytes JPEG/PNG/WebP — thử SVG tĩnh (trừ ảnh
-  // OG: đặc tả C1 chỉ nhận jpg/png/webp).
-  if (purpose === "og") {
+  if (!type) {
     return NextResponse.json(
-      { ok: false, error: "Ảnh OG chỉ nhận JPEG, PNG hoặc WebP." },
+      { ok: false, error: "Chỉ nhận ảnh JPEG, PNG hoặc WebP." },
       { status: 400 },
     );
   }
-  if (isSafeSvgText(buf.toString("utf8"))) {
-    try {
-      const url = await saveImage(buf, "svg");
-      return NextResponse.json({ ok: true, url });
-    } catch (error) {
-      if (error instanceof StorageWriteError) {
-        return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-      }
-      return NextResponse.json(
-        { ok: false, error: "Không lưu được ảnh, vui lòng thử lại." },
-        { status: 500 },
-      );
-    }
+  const dims = imageDimensions(buf);
+  if (!dims) {
+    return NextResponse.json(
+      { ok: false, error: "Không đọc được kích thước ảnh." },
+      { status: 400 },
+    );
   }
-  return NextResponse.json(
-    { ok: false, error: "Chỉ nhận ảnh JPEG, PNG, WebP hoặc SVG tĩnh." },
-    { status: 400 },
-  );
+  if (dims.width > MAX_IMAGE_DIMENSION || dims.height > MAX_IMAGE_DIMENSION) {
+    return NextResponse.json(
+      { ok: false, error: "Ảnh quá lớn (tối đa 6000×6000 điểm ảnh)." },
+      { status: 400 },
+    );
+  }
+  try {
+    const url = await saveImage(buf, type);
+    return NextResponse.json({ ok: true, url });
+  } catch (error) {
+    if (error instanceof StorageWriteError) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+    return NextResponse.json(
+      { ok: false, error: "Không lưu được ảnh, vui lòng thử lại." },
+      { status: 500 },
+    );
+  }
 }

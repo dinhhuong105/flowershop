@@ -13,10 +13,12 @@ export {
   checkUploadContentLength,
   contentTypeForImage,
   detectImageType,
+  imageDimensions,
 } from "./upload-rules";
 export type { ImageType } from "./upload-rules";
 export {
   MAX_IMAGES_PER_PRODUCT,
+  MAX_IMAGE_DIMENSION,
   MAX_UPLOAD_BYTES,
   MAX_UPLOAD_CONTENT_LENGTH,
 } from "./upload-rules";

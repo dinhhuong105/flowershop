@@ -1,6 +1,18 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import type { ProductFormValues } from "./product-validation";
+import {
+  changedFieldAudits,
+  lifecycleAuditRow,
+  writeCatalogAudits,
+} from "./catalog-audit";
+import { BULK_PRODUCTS_MAX } from "./bulk-products";
+import {
+  isProductSource,
+  type ProductSource,
+} from "./product-source";
+
+export { BULK_PRODUCTS_MAX };
 
 // Truy vấn và ghi sản phẩm phía quản trị (Ngày 7 §3). Danh sách gồm
 // cả sản phẩm đã ẩn; tìm theo tên/SKU dùng vi_unaccent; 20/trang.
@@ -20,6 +32,10 @@ export type AdminProductRow = {
   isActive: boolean;
   inStock: boolean;
   sortOrder: number;
+  // Nguồn dữ liệu (Ngày 17 P1): seed mẫu / nhập tay / nhập file.
+  // Giữ chuỗi thô (giá trị lạ trong DB hiện "Không rõ" qua
+  // productSourceLabel, không tự nhận là seed).
+  source: string;
 };
 
 export type AdminProductList = {
@@ -33,6 +49,8 @@ export type ListAdminProductsOpts = {
   q?: string;
   categoryId?: number | null;
   status?: "all" | "active" | "hidden";
+  // Lọc theo nguồn (Ngày 17 P2): chỉ nhận đúng 3 giá trị, lạ → bỏ qua.
+  source?: ProductSource | null;
   page?: number;
 };
 
@@ -56,6 +74,9 @@ export async function listAdminProducts(
   } else if (opts.status === "hidden") {
     conditions.push(Prisma.sql`p."isActive" = false`);
   }
+  if (opts.source !== undefined && opts.source !== null && isProductSource(opts.source)) {
+    conditions.push(Prisma.sql`p."source" = ${opts.source}`);
+  }
   const where =
     conditions.length > 0
       ? Prisma.sql`WHERE ${Prisma.join(conditions, " AND ")}`
@@ -74,12 +95,13 @@ export async function listAdminProducts(
       isActive: boolean;
       inStock: boolean;
       sortOrder: number;
+      source: string;
       total: bigint;
     }>
   >(Prisma.sql`
     SELECT p."id", p."name", p."slug", p."sku", p."categoryId",
       c."name" AS "categoryName", p."price", p."salePrice", p."images",
-      p."isActive", p."inStock", p."sortOrder", COUNT(*) OVER() AS "total"
+      p."isActive", p."inStock", p."sortOrder", p."source", COUNT(*) OVER() AS "total"
     FROM "products" AS p
     JOIN "categories" AS c ON c."id" = p."categoryId"
     ${where}
@@ -101,6 +123,7 @@ export async function listAdminProducts(
       isActive: r.isActive,
       inStock: r.inStock,
       sortOrder: r.sortOrder,
+      source: r.source,
     })),
     total,
     totalPages: total === 0 ? 0 : Math.ceil(total / ADMIN_PAGE_SIZE),
@@ -197,25 +220,35 @@ export async function createAdminProduct(
       return { conflict: { field: "sku", message: "SKU này đã dùng cho một sản phẩm khác." } };
     }
   }
-  const created = await db.product.create({
-    data: {
-      name: values.name,
-      slug: values.slug,
-      sku: values.sku,
-      categoryId: values.categoryId,
-      price: values.price,
-      salePrice: values.salePrice,
-      description: values.description,
-      tags: values.tags,
-      images: values.images,
-      sortOrder: values.sortOrder,
-      isActive: values.isActive,
-      inStock: values.inStock,
-      isFastDelivery: values.isFastDelivery,
-      seoTitle: values.seoTitle,
-      seoDescription: values.seoDescription,
-    },
-    select: { id: true },
+  // Nguồn "manual": tạo trong admin (Ngày 17 P1). Tạo + ghi nhật ký
+  // vòng đời trong cùng transaction (P5): lỗi ghi nhật ký thì sản
+  // phẩm cũng không được tạo.
+  const created = await db.$transaction(async (tx) => {
+    const page = await tx.product.create({
+      data: {
+        name: values.name,
+        slug: values.slug,
+        sku: values.sku,
+        categoryId: values.categoryId,
+        price: values.price,
+        salePrice: values.salePrice,
+        description: values.description,
+        tags: values.tags,
+        images: values.images,
+        sortOrder: values.sortOrder,
+        isActive: values.isActive,
+        inStock: values.inStock,
+        isFastDelivery: values.isFastDelivery,
+        seoTitle: values.seoTitle,
+        seoDescription: values.seoDescription,
+        source: "manual",
+      },
+      select: { id: true },
+    });
+    await writeCatalogAudits(tx, [
+      lifecycleAuditRow(`product:${page.id}`, null, "created"),
+    ]);
+    return page;
   });
   return { id: created.id };
 }
@@ -224,7 +257,9 @@ export async function updateAdminProduct(
   id: number,
   values: ProductFormValues,
 ): Promise<{ id: number } | { conflict: ProductSaveConflict } | null> {
-  const existing = await db.product.findUnique({ where: { id }, select: { id: true } });
+  // Đọc đủ bản ghi cũ để ghi nhật ký từng trường đã đổi (P5):
+  // chỉ ghi các trường thay đổi thật (giá đổi → product:<id>.price).
+  const existing = await db.product.findUnique({ where: { id } });
   if (!existing) return null;
   const category = await db.category.findUnique({ where: { id: values.categoryId } });
   if (!category) {
@@ -251,34 +286,147 @@ export async function updateAdminProduct(
       return { conflict: { field: "sku", message: "SKU này đã dùng cho một sản phẩm khác." } };
     }
   }
-  await db.product.update({
-    where: { id },
-    data: {
-      name: values.name,
-      slug: values.slug,
-      sku: values.sku,
-      categoryId: values.categoryId,
-      price: values.price,
-      salePrice: values.salePrice,
-      description: values.description,
-      tags: values.tags,
-      images: values.images,
-      sortOrder: values.sortOrder,
-      isActive: values.isActive,
-      inStock: values.inStock,
-      isFastDelivery: values.isFastDelivery,
-      seoTitle: values.seoTitle,
-      seoDescription: values.seoDescription,
+  const oldCategory = await db.category.findUnique({
+    where: { id: existing.categoryId },
+    select: { name: true },
+  });
+  const prefix = `product:${id}`;
+  const fieldRows = changedFieldAudits(prefix, [
+    { field: "name", oldValue: existing.name, newValue: values.name },
+    { field: "slug", oldValue: existing.slug, newValue: values.slug },
+    { field: "sku", oldValue: existing.sku, newValue: values.sku },
+    {
+      field: "categoryId",
+      oldValue: oldCategory?.name ?? String(existing.categoryId),
+      newValue: category.name,
     },
+    { field: "price", oldValue: existing.price, newValue: values.price },
+    { field: "salePrice", oldValue: existing.salePrice, newValue: values.salePrice },
+    { field: "description", oldValue: existing.description, newValue: values.description },
+    { field: "tags", oldValue: existing.tags, newValue: values.tags },
+    { field: "images", oldValue: existing.images, newValue: values.images },
+    { field: "sortOrder", oldValue: existing.sortOrder, newValue: values.sortOrder },
+    {
+      field: "isActive",
+      oldValue: existing.isActive ? "Đang bán" : "Đã ẩn",
+      newValue: values.isActive ? "Đang bán" : "Đã ẩn",
+    },
+    {
+      field: "inStock",
+      oldValue: existing.inStock ? "Còn hàng" : "Hết hàng",
+      newValue: values.inStock ? "Còn hàng" : "Hết hàng",
+    },
+    {
+      field: "isFastDelivery",
+      oldValue: existing.isFastDelivery ? "Bật giao nhanh" : "Tắt giao nhanh",
+      newValue: values.isFastDelivery ? "Bật giao nhanh" : "Tắt giao nhanh",
+    },
+    { field: "seoTitle", oldValue: existing.seoTitle, newValue: values.seoTitle },
+    { field: "seoDescription", oldValue: existing.seoDescription, newValue: values.seoDescription },
+  ]);
+  // Sửa mà không đổi trường nào: vẫn ghi một dòng "updated" (theo
+  // mẫu trang tĩnh) để lần sửa có dấu vết, thay vì im lặng.
+  const auditRows =
+    fieldRows.length > 0
+      ? fieldRows
+      : [lifecycleAuditRow(prefix, existing.name, "updated")];
+  await db.$transaction(async (tx) => {
+    await tx.product.update({
+      where: { id },
+      data: {
+        name: values.name,
+        slug: values.slug,
+        sku: values.sku,
+        categoryId: values.categoryId,
+        price: values.price,
+        salePrice: values.salePrice,
+        description: values.description,
+        tags: values.tags,
+        images: values.images,
+        sortOrder: values.sortOrder,
+        isActive: values.isActive,
+        inStock: values.inStock,
+        isFastDelivery: values.isFastDelivery,
+        seoTitle: values.seoTitle,
+        seoDescription: values.seoDescription,
+      },
+    });
+    await writeCatalogAudits(tx, auditRows);
   });
   return { id };
 }
 
 // Ẩn/hiện sản phẩm (đổi isActive). Không có xóa cứng.
+// Ghi nhật ký product:<id>.isActive ("Đang bán" ↔ "Đã ẩn") trong
+// cùng transaction (P5); bấm lại cùng trạng thái thì không ghi
+// dòng thừa.
 export async function setProductActive(id: number, isActive: boolean): Promise<boolean> {
-  const result = await db.product.updateMany({
-    where: { id },
-    data: { isActive },
+  return db.$transaction(async (tx) => {
+    const existing = await tx.product.findUnique({
+      where: { id },
+      select: { id: true, name: true, isActive: true },
+    });
+    if (!existing) return false;
+    if (existing.isActive === isActive) return true;
+    await tx.product.update({ where: { id }, data: { isActive } });
+    await writeCatalogAudits(
+      tx,
+      changedFieldAudits(`product:${id}`, [
+        {
+          field: "isActive",
+          oldValue: existing.isActive ? "Đang bán" : "Đã ẩn",
+          newValue: isActive ? "Đang bán" : "Đã ẩn",
+        },
+      ]),
+    );
+    return true;
   });
-  return result.count > 0;
+}
+
+// Thao tác hàng loạt (Ngày 17 P3): ẩn/hiện NHIỀU sản phẩm cùng lúc.
+// CHỈ cho phép ẩn/hiện — không có xóa hàng loạt (sản phẩm không có
+// đường xóa cứng: đơn hàng tham chiếu tới sản phẩm; xóa sẽ làm mất
+// gốc tra cứu). Tối đa 50 id/lần (BULK_PRODUCTS_MAX, xem
+// bulk-products.ts); id không tồn tại được báo lại
+// (missing) thay vì lỗi 500; mỗi sản phẩm đổi thật đều có một dòng
+// nhật ký product:<id>.isActive (P5). Toàn bộ trong một transaction.
+export type BulkProductsResult = {
+  updated: number;
+  missing: number[];
+};
+
+export async function setProductsActiveBulk(
+  ids: number[],
+  isActive: boolean,
+): Promise<BulkProductsResult> {
+  const uniqueIds = [...new Set(ids.filter((n) => Number.isInteger(n) && n > 0))].slice(
+    0,
+    BULK_PRODUCTS_MAX,
+  );
+  return db.$transaction(async (tx) => {
+    const rows = await tx.product.findMany({
+      where: { id: { in: uniqueIds } },
+      select: { id: true, name: true, isActive: true },
+    });
+    const found = new Set(rows.map((r) => r.id));
+    const missing = uniqueIds.filter((id) => !found.has(id));
+    const toChange = rows.filter((r) => r.isActive !== isActive);
+    if (toChange.length > 0) {
+      await tx.product.updateMany({
+        where: { id: { in: toChange.map((r) => r.id) } },
+        data: { isActive },
+      });
+      const auditRows = toChange.flatMap((r) =>
+        changedFieldAudits(`product:${r.id}`, [
+          {
+            field: "isActive",
+            oldValue: r.isActive ? "Đang bán" : "Đã ẩn",
+            newValue: isActive ? "Đang bán" : "Đã ẩn",
+          },
+        ]),
+      );
+      await writeCatalogAudits(tx, auditRows);
+    }
+    return { updated: toChange.length, missing };
+  });
 }

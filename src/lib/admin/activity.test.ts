@@ -3,6 +3,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  ACTIVITY_AREAS,
+  ACTIVITY_AREA_LABELS,
   ACTIVITY_VALUE_MAX,
   activityAreaOf,
   displayActivityValue,
@@ -147,5 +149,25 @@ describe("formatVnActivityTime", () => {
       formatVnActivityTime(new Date("2026-11-25T16:30:00Z")),
       "25/11/2026 23:30",
     );
+  });
+});
+
+describe("activityAreaOf — khu vực sản phẩm/danh mục/khu vực (Ngày 17 P5)", () => {
+  it("product:/category:/zone: → đúng khu vực; lọc theo khu vực không lẫn", () => {
+    assert.equal(activityAreaOf("product:12"), "product");
+    assert.equal(activityAreaOf("product:12.price"), "product");
+    assert.equal(activityAreaOf("category:3"), "category");
+    assert.equal(activityAreaOf("category:3.name"), "category");
+    assert.equal(activityAreaOf("zone:2"), "zone");
+    assert.equal(activityAreaOf("zone:2.fee"), "zone");
+    assert.equal(activityAreaOf("page:gioi-thieu"), "page");
+  });
+  it("ACTIVITY_AREAS có đủ 3 khu vực mới với nhãn Việt", () => {
+    assert.ok((ACTIVITY_AREAS as readonly string[]).includes("product"));
+    assert.ok((ACTIVITY_AREAS as readonly string[]).includes("category"));
+    assert.ok((ACTIVITY_AREAS as readonly string[]).includes("zone"));
+    assert.equal(ACTIVITY_AREA_LABELS.product, "Sản phẩm");
+    assert.equal(ACTIVITY_AREA_LABELS.category, "Danh mục");
+    assert.equal(ACTIVITY_AREA_LABELS.zone, "Khu vực");
   });
 });

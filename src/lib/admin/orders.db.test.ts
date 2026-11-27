@@ -28,6 +28,7 @@ if (dbHost !== "localhost" && dbHost !== "127.0.0.1" && dbHost !== "::1") {
 
 import { db } from "../db";
 import {
+  getAdminOrder,
   listAdminOrders,
   transitionOrder,
 } from "./orders";
@@ -496,5 +497,113 @@ describe("số liệu cột phải dashboard (thiết kế lại admin 25/11)", 
     } finally {
       await db.order.deleteMany({ where: { code: CODE_H } });
     }
+  });
+});
+
+describe("xử lý một đơn không làm 'nhảy thứ tự' các đơn còn lại (Ngày 17, lỗi (b))", () => {
+  // 4 đơn cùng ngày giao + cùng khung giờ + cùng createdAt (tạo cùng
+  // lúc): chỉ khóa phụ id mới cho thứ tự toàn phần ổn định. Không có
+  // khóa phụ, Postgres được trả hàng theo thứ tự tùy ý và danh sách
+  // có thể đổi thứ tự giữa hai lần tải (hồi quy Ngày 17).
+  // q="DBTST0001" chỉ khớp 4 mã này (không khớp DBTST00001..07).
+  const CODE_H = "DBTST00011";
+  const CODE_I = "DBTST00012";
+  const CODE_J = "DBTST00013";
+  const CODE_K = "DBTST00014";
+  const ORDER_CODES = [CODE_H, CODE_I, CODE_J, CODE_K];
+  const SAME_CREATED_AT = new Date("2026-11-27T10:00:00.000Z");
+  const FAR_DELIVERY = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+  async function createSameTimeOrder(code: string) {
+    const product = await db.product.findFirst({
+      where: { id: 1 },
+      select: { id: true, name: true, salePrice: true, price: true },
+    });
+    assert.ok(product, "cần sản phẩm id 1 (chạy seed gốc trước)");
+    const unitPrice = product.salePrice ?? product.price;
+    return db.order.create({
+      data: {
+        code,
+        senderName: "DB Test",
+        senderPhone: "0900000011",
+        senderEmail: null,
+        receiverName: "Người Nhận DB",
+        receiverPhone: "0900000012",
+        address: "1 đường DB Test",
+        area: "Khu vực trung tâm",
+        deliveryDate: FAR_DELIVERY,
+        deliverySlot: "08:00 – 10:00",
+        deliveryMethod: "SCHEDULED",
+        deliverySurcharge: 0,
+        subtotal: unitPrice,
+        shippingFee: 25000,
+        total: unitPrice + 25000,
+        paymentMethod: "COD",
+        paymentStatus: "UNPAID",
+        paidAt: null,
+        status: "NEW",
+        createdAt: SAME_CREATED_AT,
+        items: {
+          create: [
+            {
+              productId: product.id,
+              name: product.name,
+              price: unitPrice,
+              quantity: 1,
+              image: null,
+            },
+          ],
+        },
+      },
+    });
+  }
+
+  async function pendingCodes(): Promise<string[]> {
+    const list = await listAdminOrders({ tab: "pending", q: "DBTST0001" });
+    return list.orders.map((o) => o.code);
+  }
+
+  before(async () => {
+    await db.order.deleteMany({ where: { code: { in: ORDER_CODES } } });
+    for (const code of ORDER_CODES) await createSameTimeOrder(code);
+  });
+
+  after(async () => {
+    await db.order.deleteMany({ where: { code: { in: ORDER_CODES } } });
+  });
+
+  it("thứ tự ổn định khi tải lại + xử lý đơn đầu/giữa/cuối/xóa, đơn còn lại giữ nguyên", async () => {
+    // createdAt giống hệt nhau → khóa phụ id DESC: đơn tạo sau (id
+    // lớn hơn) đứng trước.
+    const initial = await pendingCodes();
+    assert.deepEqual(initial, [CODE_K, CODE_J, CODE_I, CODE_H]);
+    assert.deepEqual(await pendingCodes(), initial, "tải lại phải ra cùng thứ tự");
+
+    // Đơn đầu (K): xử lý hết luồng NEW → CONFIRMED → DELIVERING →
+    // COMPLETED (rời tab "Cần xử lý"); 3 đơn còn lại giữ nguyên thứ tự.
+    assert.equal((await transitionOrder(CODE_K, "CONFIRMED", "NEW")).ok, true);
+    assert.equal((await transitionOrder(CODE_K, "DELIVERING", "CONFIRMED")).ok, true);
+    assert.equal((await transitionOrder(CODE_K, "COMPLETED", "DELIVERING")).ok, true);
+    assert.deepEqual(await pendingCodes(), [CODE_J, CODE_I, CODE_H]);
+
+    // Đơn giữa (I): hủy với lý do (rời tab); 2 đơn còn lại giữ nguyên.
+    const reason = "Khách đổi ý — hoàn tiền chuyển khoản";
+    assert.equal(
+      (await transitionOrder(CODE_I, "CANCELLED", "NEW", { reason })).ok,
+      true,
+    );
+    assert.deepEqual(await pendingCodes(), [CODE_J, CODE_H]);
+
+    // Đơn cuối (H): xóa trực tiếp khỏi DB; đơn còn lại (J) đứng yên.
+    await db.order.delete({ where: { code: CODE_H } });
+    assert.equal(await getAdminOrder(CODE_H), null);
+    assert.deepEqual(await pendingCodes(), [CODE_J]);
+
+    // Lý do hủy của đơn giữa ghi đúng vào nhật ký (lỗi (c)).
+    const detailI = await getAdminOrder(CODE_I);
+    const cancelEvent = detailI?.events.find(
+      (e) => e.type === "STATUS_CHANGE" && e.toStatus === "CANCELLED",
+    );
+    assert.equal(cancelEvent?.note, reason);
   });
 });

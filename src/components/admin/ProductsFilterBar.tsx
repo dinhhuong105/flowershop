@@ -7,16 +7,20 @@
 "use client";
 
 import { FilterSearchInput, FilterSelect, useFilterNavigation } from "./filter-controls";
+import { PRODUCT_SOURCES, PRODUCT_SOURCE_LABELS } from "@/lib/admin/product-source";
 
 export default function ProductsFilterBar({
   q,
   category,
   status,
+  source,
   categories,
 }: {
   q: string;
   category: string;
   status: string;
+  // Nguồn (Ngày 17 P2): "" = tất cả, còn lại đúng 3 giá trị.
+  source: string;
   categories: Array<{ id: number; name: string }>;
 }) {
   const { updateFilter } = useFilterNavigation();
@@ -51,6 +55,17 @@ export default function ProductsFilterBar({
         ]}
         value={status}
         onChange={(value) => updateFilter("status", value)}
+      />
+      <FilterSelect
+        id="admin-source"
+        label="Nguồn"
+        name="source"
+        options={[
+          { value: "", label: "Tất cả" },
+          ...PRODUCT_SOURCES.map((s) => ({ value: s, label: PRODUCT_SOURCE_LABELS[s] })),
+        ]}
+        value={source}
+        onChange={(value) => updateFilter("source", value)}
       />
     </div>
   );

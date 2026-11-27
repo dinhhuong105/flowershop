@@ -152,7 +152,7 @@ export default function ProductForm({
       return;
     }
     if (file.size > MAX_UPLOAD_BYTES) {
-      setUploadError("File quá lớn (tối đa 5 MB/ảnh).");
+      setUploadError("File quá lớn (tối đa 2 MB/ảnh).");
       return;
     }
     setUploading(true);
@@ -377,7 +377,7 @@ export default function ProductForm({
       <section aria-label="Ảnh sản phẩm" className="rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="text-base font-bold text-slate-900">Ảnh sản phẩm</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Ảnh đầu tiên là ảnh chính. Chỉ nhận JPEG, PNG, WebP, tối đa 5 MB/ảnh, tối đa 6 ảnh.
+          Ảnh đầu tiên là ảnh chính. Chỉ nhận JPEG, PNG, WebP, tối đa 2 MB/ảnh, tối đa 6 ảnh.
         </p>
         {images.length === 0 ? (
           <p className="mt-3 text-sm text-slate-500">Chưa có ảnh nào.</p>

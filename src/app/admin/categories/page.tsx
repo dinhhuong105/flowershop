@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { requireAdmin } from "@/lib/admin/auth";
 import { listAdminCategoriesWithCounts } from "@/lib/admin/categories";
+import { isProductSource, productSourceLabel } from "@/lib/admin/product-source";
 import AdminIconButton, { PencilIcon } from "@/components/admin/AdminIconButton";
 import DeleteCategoryButton from "@/components/admin/DeleteCategoryButton";
+import CategoriesFilterBar from "@/components/admin/CategoriesFilterBar";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +21,18 @@ export const metadata: Metadata = {
 // Từ 768 px là bảng, dưới 768 px là thẻ. Danh mục còn sản phẩm
 // thì nút xóa bị khóa (xóa chỉ cho phép khi trống).
 
-export default async function AdminCategoriesPage() {
+export default async function AdminCategoriesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ source?: string }>;
+}) {
   await requireAdmin();
-  const categories = await listAdminCategoriesWithCounts();
+  const params = await searchParams;
+  const sourceRaw = params.source ?? "";
+  const source = isProductSource(sourceRaw) ? sourceRaw : "";
+  const categories = await listAdminCategoriesWithCounts({
+    source: source === "" ? null : source,
+  });
 
   return (
     <div>
@@ -37,6 +49,10 @@ export default async function AdminCategoriesPage() {
         Tìm thấy {categories.length} danh mục
       </p>
 
+      <Suspense>
+        <CategoriesFilterBar source={source} />
+      </Suspense>
+
       {categories.length === 0 ? (
         <p className="mt-6 rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
           Chưa có danh mục nào.
@@ -51,6 +67,7 @@ export default async function AdminCategoriesPage() {
                   <th scope="col" className="px-4 py-3 font-semibold">Tên</th>
                   <th scope="col" className="px-4 py-3 font-semibold">Đường dẫn (slug)</th>
                   <th scope="col" className="px-4 py-3 font-semibold">Số sản phẩm</th>
+                  <th scope="col" className="px-4 py-3 font-semibold">Nguồn</th>
                   <th scope="col" className="px-4 py-3 font-semibold">Thứ tự</th>
                   <th scope="col" className="px-4 py-3 font-semibold">
                     <span className="sr-only">Thao tác</span>
@@ -71,6 +88,7 @@ export default async function AdminCategoriesPage() {
                       </Link>
                     </td>
                     <td className="px-4 py-3">{c.productCount}</td>
+                    <td className="px-4 py-3">{productSourceLabel(c.source)}</td>
                     <td className="px-4 py-3">{c.sortOrder}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -102,7 +120,7 @@ export default async function AdminCategoriesPage() {
                   {c.name}
                 </Link>
                 <p className="mt-1 text-sm text-slate-500">
-                  /{c.slug} · {c.productCount} sản phẩm · Thứ tự {c.sortOrder}
+                  /{c.slug} · {c.productCount} sản phẩm · Nguồn: {productSourceLabel(c.source)} · Thứ tự {c.sortOrder}
                 </p>
                 <div className="mt-3 flex gap-2">
                   <AdminIconButton

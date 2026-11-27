@@ -5,6 +5,9 @@
 export type AdminToastDetail = {
   message: string;
   actionLabel?: string;
+  /** Liên kết trong toast (vd: toast đơn mới → danh sách đơn). */
+  linkHref?: string;
+  linkLabel?: string;
   /** Thời gian toast hiện (ms). Mặc định 5000 cho toast hoàn tác. */
   durationMs?: number;
   /** Gọi khi bấm nút hành động (vd: Hoàn tác). */

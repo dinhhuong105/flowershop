@@ -13,7 +13,7 @@ export default function SettingsImageField({
   initialUrl,
   hint,
   previewClass,
-  accept = "image/jpeg,image/png,image/webp,.svg",
+  accept = "image/jpeg,image/png,image/webp",
   onUrlChange,
 }: {
   label: string;
@@ -22,7 +22,7 @@ export default function SettingsImageField({
   initialUrl: string;
   hint: string;
   previewClass: string;
-  /** Kiểu file cho phép chọn (mặc định nhận thêm .svg cho logo/favicon; ảnh OG truyền riêng). */
+  /** Kiểu file cho phép chọn — chỉ JPEG/PNG/WebP (Ngày 17 S5: không nhận SVG mới). */
   accept?: string;
   /** Gọi mỗi khi URL thay đổi (tải lên/gỡ) — để form cha đồng bộ xem trước. */
   onUrlChange?: (url: string) => void;

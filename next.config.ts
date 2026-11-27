@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Không lộ "X-Powered-By: Next.js" (Ngày 17 S10).
+  poweredByHeader: false,
   // Đảm bảo query engine của Prisma được đưa vào bản standalone.
   outputFileTracingIncludes: {
     "/**": ["./node_modules/.prisma/client/**/*"],
@@ -17,6 +19,8 @@ const nextConfig: NextConfig = {
     /Mediapartners-Google|Slurp|DuckDuckBot|baiduspider|yandex|sogou|bitlybot|tumblr|vkShare|quora link preview|redditbot|ia_archiver|Bingbot|BingPreview|applebot|facebookexternalhit|facebookcatalog|Twitterbot|LinkedInBot|Slackbot|Discordbot|WhatsApp|SkypeUriPreview|Chrome-Lighthouse/i,
   // Trang đơn hàng chứa thông tin cá nhân: không cho cache (mục 7 Ngày 5).
   // Trang quản trị đơn cũng vậy (Ngày 8 D8-11).
+  // Ngày 17 S1: no-store cho TOÀN BỘ khu vực quản trị + /login
+  // (trước đây chỉ /admin, /admin/orders, /admin/orders/*).
   async headers() {
     return [
       {
@@ -24,15 +28,17 @@ const nextConfig: NextConfig = {
         headers: [{ key: "Cache-Control", value: "no-store" }],
       },
       {
-        source: "/admin",
+        source: "/login",
         headers: [{ key: "Cache-Control", value: "no-store" }],
       },
       {
-        source: "/admin/orders",
+        source: "/admin/:path*",
         headers: [{ key: "Cache-Control", value: "no-store" }],
       },
       {
-        source: "/admin/orders/:path*",
+        // Ngày 17 N1: route kiểm tra đơn mới cũng là dữ liệu quản
+        // trị (route tự đặt header no-store; đây là lớp thứ hai).
+        source: "/api/admin/:path*",
         headers: [{ key: "Cache-Control", value: "no-store" }],
       },
     ];

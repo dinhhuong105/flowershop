@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { AdminNotConfiguredError, requireAdmin } from "@/lib/admin/auth";
 import {
   MAX_IMAGES_PER_PRODUCT,
+  MAX_IMAGE_DIMENSION,
   MAX_UPLOAD_BYTES,
   checkUploadContentLength,
   detectImageType,
+  imageDimensions,
 } from "@/lib/admin/uploads";
 import { StorageWriteError, saveImage } from "@/lib/storage";
 import { db } from "@/lib/db";
@@ -70,7 +72,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   // K-2 (Ngày 8): thiếu hoặc không phải số → 411 (không đọc body
-  // chunked vào RAM); > 5,5 MB → 413. Kiểm trước khi đọc body.
+  // chunked vào RAM); > 2,5 MB → 413. Kiểm trước khi đọc body.
   const lengthCheck = checkUploadContentLength(
     request.headers.get("content-length"),
   );
@@ -123,7 +125,7 @@ export async function POST(request: Request): Promise<Response> {
   }
   if (file.size > MAX_UPLOAD_BYTES) {
     return NextResponse.json(
-      { ok: false, error: "File quá lớn (tối đa 5 MB/ảnh)." },
+      { ok: false, error: "File quá lớn (tối đa 2 MB/ảnh)." },
       { status: 400 },
     );
   }
@@ -132,6 +134,21 @@ export async function POST(request: Request): Promise<Response> {
   if (!type) {
     return NextResponse.json(
       { ok: false, error: "Chỉ nhận ảnh JPEG, PNG hoặc WebP." },
+      { status: 400 },
+    );
+  }
+  // Chống bom giải nén (Ngày 17 S5): mỗi chiều ≤ 6000 px; header
+  // kích thước không đọc được → từ chối (file có thể đã hỏng).
+  const dims = imageDimensions(buf);
+  if (!dims) {
+    return NextResponse.json(
+      { ok: false, error: "Không đọc được kích thước ảnh." },
+      { status: 400 },
+    );
+  }
+  if (dims.width > MAX_IMAGE_DIMENSION || dims.height > MAX_IMAGE_DIMENSION) {
+    return NextResponse.json(
+      { ok: false, error: "Ảnh quá lớn (tối đa 6000×6000 điểm ảnh)." },
       { status: 400 },
     );
   }

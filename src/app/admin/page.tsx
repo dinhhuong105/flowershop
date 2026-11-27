@@ -136,6 +136,10 @@ export default async function AdminDashboardPage() {
     linkLabel: string;
     icon: React.ReactNode;
     iconClass: string;
+    // Ngày 17 N3: dòng phụ dưới thẻ (vd "N đơn đã quá hạn giao")
+    // kèm link lọc đúng số trên dòng (số thẻ = số danh sách đích).
+    subText?: string;
+    subHref?: string;
   }> = [
     {
       label: "Đơn cần xử lý",
@@ -145,6 +149,8 @@ export default async function AdminDashboardPage() {
       linkLabel: "Xem danh sách →",
       icon: ICON_CLIPBOARD,
       iconClass: "bg-blue-100 text-blue-600",
+      subText: `${stats.overduePendingCount} đơn đã quá hạn giao`,
+      subHref: "/admin/orders?tab=pending&overdue=1",
     },
     {
       label: "Đơn giao hôm nay",
@@ -215,6 +221,21 @@ export default async function AdminDashboardPage() {
               {c.value}
             </p>
             <p className="mt-1 text-sm text-slate-500">{c.hint}</p>
+            {c.subText && c.subHref ? (
+              <p className="mt-1">
+                <Link
+                  href={c.subHref}
+                  data-testid="dashboard-overdue"
+                  className="inline-flex min-h-11 items-center text-sm font-bold text-red-600 hover:underline"
+                >
+                  {c.subText}
+                  {/* Mũi tên dính với từ cuối bằng khoảng trắng không
+                      ngắt (thẻ hẹp ở 1440 px: "→" rớt xuống dòng riêng
+                      nếu để khoảng trắng thường). */}
+                  {" →"}
+                </Link>
+              </p>
+            ) : null}
             <p className="mt-3">
               <Link
                 href={c.href}

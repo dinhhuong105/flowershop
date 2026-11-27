@@ -28,6 +28,13 @@ export type AdminDashboardStats = {
   revenueToday: number;
   revenue7Days: number;
   todayVn: string; // YYYY-MM-DD theo giờ VN
+  // Ngày 17 N3: đơn cần xử lý đã quá hạn giao (ngày giao trước hôm
+  // nay theo giờ VN, chưa giao/chưa hủy) — thẻ tổng quan hiện dòng
+  // "N đơn đã quá hạn giao" kèm link lọc đúng số này.
+  overduePendingCount: number;
+  // Ngày 17 N1: mã đơn cần xử lý mới nhất (để trình duyệt so sánh
+  // với lần hỏi trước; null khi không có đơn cần xử lý).
+  latestPendingCode: string | null;
 };
 
 // Ranh giới ngày theo giờ VN (00:00 VN = 17:00 UTC hôm trước).
@@ -54,7 +61,7 @@ export async function getAdminDashboardStats(
 ): Promise<AdminDashboardStats> {
   const { day, start, end } = vnDayBounds(now);
   const weekStart = new Date(start.getTime() - 6 * 24 * 60 * 60 * 1000);
-  const [pendingCount, todayDeliveryCount, unpaidBankTransferCount, completedToday, completedWeek] =
+  const [pendingCount, todayDeliveryCount, unpaidBankTransferCount, completedToday, completedWeek, overduePendingCount, latestPending] =
     await Promise.all([
       db.order.count({
         where: { status: { in: ["NEW", "CONFIRMED", "DELIVERING"] } },
@@ -88,6 +95,20 @@ export async function getAdminDashboardStats(
         },
         select: { orderId: true, order: { select: { total: true } } },
       }),
+      // N3: quá hạn = ngày giao trước hôm nay (giờ VN), còn cần xử lý.
+      db.order.count({
+        where: {
+          status: { in: ["NEW", "CONFIRMED", "DELIVERING"] },
+          deliveryDate: { lt: new Date(`${day}T00:00:00Z`) },
+        },
+      }),
+      // N1: đơn cần xử lý mới nhất (createdAt rồi id — thứ tự ổn
+      // định như listAdminOrders).
+      db.order.findFirst({
+        where: { status: { in: ["NEW", "CONFIRMED", "DELIVERING"] } },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { code: true },
+      }),
     ]);
   // Cộng doanh thu theo ĐƠN (distinct theo orderId), không cộng theo
   // sự kiện (sửa 12 mục verdict Ngày 9, mục 10): một đơn hoàn tất,
@@ -109,6 +130,8 @@ export async function getAdminDashboardStats(
     revenueToday: sumDistinct(completedToday),
     revenue7Days: sumDistinct(completedWeek),
     todayVn: day,
+    overduePendingCount,
+    latestPendingCode: latestPending?.code ?? null,
   };
 }
 
@@ -158,7 +181,9 @@ export type RecentAdminOrder = {
 // cột trái dashboard, dưới 5 thẻ số liệu).
 export async function getRecentOrders(limit = 5): Promise<RecentAdminOrder[]> {
   const rows = await db.order.findMany({
-    orderBy: { createdAt: "desc" },
+    // Khóa phụ id (Ngày 17): như listAdminOrders — createdAt trùng
+    // nhau phải cho thứ tự ổn định, không "nhảy" giữa hai lần tải.
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: limit,
     select: {
       code: true,

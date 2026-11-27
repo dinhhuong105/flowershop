@@ -46,6 +46,9 @@ model Category {
   // SEO riêng (Ngày 14 D1): rỗng = dùng tên/mô tả mặc định như trước.
   seoTitle       String   @default("")
   seoDescription String   @default("")
+  // Nguồn dữ liệu (Ngày 17 P1): seed mẫu / nhập tay / nhập file.
+  // Dữ liệu cũ nhận mặc định 'seed' (migration day17_product_source).
+  source        String   @default("seed")
   products    Product[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -72,6 +75,8 @@ model Product {
   // SEO riêng (Ngày 14 D1): rỗng = dùng tên/mô tả mặc định như trước.
   seoTitle       String     @default("")
   seoDescription String     @default("")
+  // Nguồn dữ liệu (Ngày 17 P1): như Category.source.
+  source         String     @default("seed")
   cartItems      CartItem[]
   orderItems     OrderItem[]
   createdAt      DateTime   @default(now())
@@ -269,4 +274,19 @@ model AdminLoginAttempt {
 
   @@index([ipHash, createdAt])
   @@map("admin_login_attempts")
+}
+
+// Sự kiện dùng cho giới hạn tốc độ dùng chung (Ngày 17 S9): một
+// hàng = một lần dùng của một khóa (vd "login:ip:<hash>",
+// "order:ip:<hash>", "lookup:ip:<hash>", "search:ip:<hash>").
+// Cửa sổ trượt đếm số hàng trong khoảng [now - window, now]; hàng
+// cũ được dọn định kỳ (pruneRateLimitEvents). Không lưu IP thô,
+// chỉ khóa đã băm/chuẩn hóa ở tầng gọi (xem src/lib/rate-limit.ts).
+model RateLimitEvent {
+  id        Int      @id @default(autoincrement())
+  key       String
+  createdAt DateTime @default(now())
+
+  @@index([key, createdAt])
+  @@map("rate_limit_events")
 }

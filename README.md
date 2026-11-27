@@ -3,6 +3,8 @@
 Website bán hoa (tên tạm: Hoa Tươi Demo), xây bằng Next.js + TypeScript +
 Tailwind CSS + Prisma + PostgreSQL 16, chạy bằng Docker.
 
+Link deploy (production, Vercel): https://flowershop-steel.vercel.app/
+
 Ngày 1 chỉ làm khung dự án và dữ liệu mẫu: trang chủ tối thiểu hiển thị tên
 shop, danh mục và sản phẩm lấy từ cơ sở dữ liệu.
 
@@ -26,7 +28,87 @@ docker compose --profile tools run --rm seed
 
 Mở http://localhost:3000.
 
-## Xem cơ sở dữ liệu bằng Adminer
+## Chạy local không dùng Docker (Ngày 17)
+
+```powershell
+npm install
+Copy-Item .env.example .env   # rồi điền DATABASE_URL, ADMIN_PASSWORD_HASH...
+npx prisma migrate deploy
+npm run db:seed
+npm run dev                   # http://localhost:3000
+```
+
+PostgreSQL 16 phải đang chạy local (vd `pg_ctlcluster 16 main start`
+trên máy dev). Bản production-like: `npm run build` rồi
+`bash scripts/start-standalone.sh` (xem mục "Chạy bản standalone").
+
+## Biến môi trường (Ngày 17)
+
+Đầy đủ trong `.env.example` (chỉ tên biến, không giá trị thật — KHÔNG
+commit `.env`). Các biến chính:
+
+| Biến | Ý nghĩa |
+|---|---|
+| `DATABASE_URL` | PostgreSQL, vd `postgresql://hoa:<mật-khẩu>@localhost:5432/hoa_shop` |
+| `SITE_URL` | URL công khai của shop (dùng cho canonical, sitemap, JSON-LD) |
+| `SHOP_NAME` | Tên shop hiển thị |
+| `HOTLINE`, `ZALO_PHONE`, `SHOP_ADDRESS`, `OPEN_HOURS` | Liên hệ hiển thị ở footer/trang liên hệ |
+| `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH` | Tài khoản quản trị (`scrypt$<saltHex>$<hashHex>`, tạo bằng `scripts/hash-admin-password.ts`) |
+| `ADMIN_COOKIE_SECURE` | `false` chỉ để thử qua HTTP; không tắt trên VPS thật |
+| `TRUSTED_PROXY_HOPS` | Số proxy đáng tin trong `X-Forwarded-For` (mặc định 1) |
+| `BLOB_READ_WRITE_TOKEN` | Có thì ảnh lưu Vercel Blob, không thì lưu đĩa (`UPLOAD_DIR`, mặc định `./public/uploads`) |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Báo đơn qua Telegram (không bắt buộc; thiếu thì đơn vẫn tạo) |
+| `BANK_BIN`, `BANK_NAME`, `BANK_ACCOUNT`, `BANK_ACCOUNT_NAME` | Ngân hàng nhận chuyển khoản — thiếu thì ẩn lựa chọn "Chuyển khoản" (từ Ngày 12 cấu hình trong `/admin/settings/bank` thay vì chỉ `.env`) |
+
+## Kiểm thử và CI (Ngày 17)
+
+Phân loại test: unit (`npm test`), test có DB thật (`npm run test:db`),
+test bảo mật (`npm run test:security`).
+
+```powershell
+npm test                  # unit: 386 ca, không cần DB
+npm run test:db           # 92 ca trên Postgres thật — đúng trình tự:
+npx tsx scripts/recreate-test-data.ts   # 1. tạo dữ liệu test (SP TEST-001 + 3 đơn mẫu)
+npm run test:db                         # 2. chạy test
+npx tsx scripts/clean-test-data.ts --delete  # 3. dọn sạch dữ liệu test
+npm run test:security     # bảo mật S1–S12: unit bảo mật + quét tĩnh + kiểm động trên server standalone local (tự khởi động server :3000 nếu chưa chạy; KHÔNG đụng production)
+npm run typecheck         # 0 lỗi
+npm run lint              # 0 lỗi (2 warning <img> có từ trước)
+```
+
+`test:db` và các script dữ liệu test CHỈ chạy khi `DATABASE_URL` trỏ
+localhost và `NODE_ENV` khác production — không bao giờ chạy lên DB
+production. Smoke sau deploy: `bash scripts/smoke-live.sh <base-url>`
+(20/21 PASS trên local là đạt; FAIL duy nhất là sitemap-localhost, kỳ
+vọng khi `SITE_URL` là localhost).
+
+**CI — GitHub Actions (`.github/workflows/ci.yml`):** jobs `lint`,
+`typecheck`, `test` (unit), `test-db` (Postgres 16 service, migrate +
+seed + recreate → test:db → clean) và `security` (`test:security` trên
+server standalone). Chạy trên mọi push/PR lên `main` và hằng đêm lúc
+**02:00 giờ Việt Nam** (cron `0 19 * * *` UTC). Quy tắc: CI đang chạy
+KHÔNG chặn deploy; CI báo đỏ thì CHẶN deploy cho tới khi sửa xong và
+CI xanh lại. Chưa từng chạy thật trên GitHub — lần đầu chạy cần xem
+log CI để xác nhận job `test-db`/`security` xanh (xem mục "Còn thiếu"
+trong `docs/reports/ngay-17.md`).
+
+**Ngân sách hiệu năng (Ngày 17 §3, chế độ cảnh báo — không chặn
+deploy):** trang chủ tải trong 2,5 giây trên mạng 4G chậm, dưới 100 KB
+JavaScript, điểm Lighthouse trên 90. Số đo Ngày 17: TTFB local trang
+chủ ~41 ms, danh mục ~38 ms, sản phẩm ~52 ms (trung bình 3 lần,
+server standalone local); First Load JS `/` = 115 kB (vượt ngân sách
+100 kB — giữ nguyên theo quyết định Ngày 17, không tối ưu thêm trong
+đợt này). Lighthouse chưa đo trên máy này (không có Chrome Lighthouse
+CLI đáng tin) — xem `docs/reports/ngay-17.md`.
+
+## Sao lưu/khôi phục và vận hành (Ngày 17)
+
+Xem `docs/van-hanh.md` (tiếng Việt): quản lý đơn/sản phẩm, cài đặt,
+sao lưu/khôi phục, xử lý sự cố, theo dõi đơn mới khi không có thông
+báo đẩy. Tóm tắt: nhánh Neon snapshot `snapshot-2026-11-26` đã tạo
+(Henry tạo 26/11); sao lưu tự động 2h sáng + giữ 7 ngày và cảnh báo
+lỗi 500 là việc vận hành trên Neon/Vercel, CHƯA tự động hóa trong repo
+(xem báo cáo Ngày 17).
 
 ```powershell
 docker compose --profile tools up -d adminer
@@ -259,8 +341,21 @@ nhập sai 20 lần cũng khóa được Henry tối đa 15 phút.
   `public/uploads` trong source — local và sau này trên VPS, nơi ổ
   đĩa bền). Chưa có token trên Vercel thì upload lỗi ghi đĩa với
   thông báo rõ ràng, không mất lặng.
+- Mọi chỗ tải ảnh (ảnh sản phẩm, logo, favicon) đều qua một module
+  duy nhất `src/lib/storage.ts` — giao diện `saveImage` /
+  `deleteImage`; URL lưu/trả về luôn TUYỆT ĐỐI (đường dẫn tương đối
+  được gắn domain shop, URL đã có domain giữ nguyên, không gắn 2
+  lần — hàm `toAbsoluteImageUrl`).
+- Hai adapter qua cùng giao diện, chọn theo biến môi trường: có
+  `BLOB_READ_WRITE_TOKEN` thì dùng **Vercel Blob** (production trên
+  Vercel — Henry tạo store trong Vercel dashboard, Vercel tự thêm
+  token vào env vars), không thì dùng **đĩa** (thư mục
+  `public/uploads` trong source — local và sau này trên VPS, nơi ổ
+  đĩa bền). Chưa có token trên Vercel thì upload lỗi ghi đĩa với
+  thông báo rõ ràng, không mất lặng.
 - Tải lên qua `POST /api/admin/upload` (ảnh sản phẩm: chỉ
-  JPEG/PNG/WebP theo magic bytes, ≤ 5 MB/ảnh, ≤ 6 ảnh/sản phẩm) và
+  JPEG/PNG/WebP theo magic bytes, ≤ 2 MB/ảnh, ≤ 6 ảnh/sản phẩm, mỗi
+  chiều ≤ 6000 px — giới hạn Ngày 17 S5; KHÔNG nhận SVG) và
   `POST /api/admin/settings/upload` (logo ≤ 1 MB, favicon ≤ 256 KB;
   nhận thêm SVG tĩnh — SVG chứa mã bị từ chối vì phục vụ cùng
   origin với shop). Tên file do máy chủ sinh (`<12 ký tự đầu
@@ -320,7 +415,9 @@ ghi vào `settings_audit` (giá trị cũ/mới, ai, lúc nào). Mặt shop
 Liên hệ) đọc từ cài đặt; trường trống thì ẩn dòng đó, không hiện
 "Đang cập nhật." từng dòng. JSON-LD, sitemap, robots và canonical
 vẫn lấy từ env (`SITE_URL`), không đổi. Ngân hàng & QR, Khu vực &
-phí, Telegram vẫn "Sắp có" (Ngày 12+).
+phí, Telegram đã có trang quản trị riêng từ Ngày 12
+(`/admin/settings/bank`, `/admin/shipping-zones`,
+`/admin/settings/telegram`).
 
 ## Chạy bản standalone (không dùng Docker)
 

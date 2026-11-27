@@ -6,6 +6,12 @@
 
 import { db } from "../db";
 import type { CategoryFormValues } from "./category-validation";
+import {
+  changedFieldAudits,
+  lifecycleAuditRow,
+  writeCatalogAudits,
+} from "./catalog-audit";
+import { isProductSource, type ProductSource } from "./product-source";
 
 export type AdminCategoryRow = {
   id: number;
@@ -13,6 +19,8 @@ export type AdminCategoryRow = {
   slug: string;
   sortOrder: number;
   productCount: number;
+  // Nguồn dữ liệu (Ngày 17 P1) — chuỗi thô, xem products.ts.
+  source: string;
 };
 
 export type AdminCategoryDetail = {
@@ -25,14 +33,21 @@ export type AdminCategoryDetail = {
   seoDescription: string;
 };
 
-export async function listAdminCategoriesWithCounts(): Promise<AdminCategoryRow[]> {
+export async function listAdminCategoriesWithCounts(
+  opts: { source?: ProductSource | null } = {},
+): Promise<AdminCategoryRow[]> {
   const rows = await db.category.findMany({
+    where:
+      opts.source !== undefined && opts.source !== null && isProductSource(opts.source)
+        ? { source: opts.source }
+        : undefined,
     orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
     select: {
       id: true,
       name: true,
       slug: true,
       sortOrder: true,
+      source: true,
       _count: { select: { products: true } },
     },
   });
@@ -41,6 +56,7 @@ export async function listAdminCategoriesWithCounts(): Promise<AdminCategoryRow[
     name: r.name,
     slug: r.slug,
     sortOrder: r.sortOrder,
+    source: r.source,
     productCount: r._count.products,
   }));
 }
@@ -107,15 +123,24 @@ export async function createAdminCategory(
   }
   const pageClash = await findPageSlugClash(values.slug);
   if (pageClash) return { conflict: pageClash };
-  const created = await db.category.create({
-    data: {
-      name: values.name,
-      slug: values.slug,
-      sortOrder: values.sortOrder,
-      seoTitle: values.seoTitle,
-      seoDescription: values.seoDescription,
-    },
-    select: { id: true },
+  // Nguồn "manual" (P1) + nhật ký vòng đời "created" (P5), cùng
+  // transaction với tạo danh mục.
+  const created = await db.$transaction(async (tx) => {
+    const row = await tx.category.create({
+      data: {
+        name: values.name,
+        slug: values.slug,
+        sortOrder: values.sortOrder,
+        seoTitle: values.seoTitle,
+        seoDescription: values.seoDescription,
+        source: "manual",
+      },
+      select: { id: true },
+    });
+    await writeCatalogAudits(tx, [
+      lifecycleAuditRow(`category:${row.id}`, null, "created"),
+    ]);
+    return row;
   });
   return { id: created.id };
 }
@@ -124,10 +149,7 @@ export async function updateAdminCategory(
   id: number,
   values: CategoryFormValues,
 ): Promise<{ id: number } | { conflict: CategorySaveConflict } | null> {
-  const existing = await db.category.findUnique({
-    where: { id },
-    select: { id: true },
-  });
+  const existing = await db.category.findUnique({ where: { id } });
   if (!existing) return null;
   const slugClash = await db.category.findFirst({
     where: { slug: values.slug, id: { not: id } },
@@ -143,15 +165,30 @@ export async function updateAdminCategory(
   }
   const pageClash = await findPageSlugClash(values.slug);
   if (pageClash) return { conflict: pageClash };
-  await db.category.update({
-    where: { id },
-    data: {
-      name: values.name,
-      slug: values.slug,
-      sortOrder: values.sortOrder,
-      seoTitle: values.seoTitle,
-      seoDescription: values.seoDescription,
-    },
+  const prefix = `category:${id}`;
+  const fieldRows = changedFieldAudits(prefix, [
+    { field: "name", oldValue: existing.name, newValue: values.name },
+    { field: "slug", oldValue: existing.slug, newValue: values.slug },
+    { field: "sortOrder", oldValue: existing.sortOrder, newValue: values.sortOrder },
+    { field: "seoTitle", oldValue: existing.seoTitle, newValue: values.seoTitle },
+    { field: "seoDescription", oldValue: existing.seoDescription, newValue: values.seoDescription },
+  ]);
+  const auditRows =
+    fieldRows.length > 0
+      ? fieldRows
+      : [lifecycleAuditRow(prefix, existing.name, "updated")];
+  await db.$transaction(async (tx) => {
+    await tx.category.update({
+      where: { id },
+      data: {
+        name: values.name,
+        slug: values.slug,
+        sortOrder: values.sortOrder,
+        seoTitle: values.seoTitle,
+        seoDescription: values.seoDescription,
+      },
+    });
+    await writeCatalogAudits(tx, auditRows);
   });
   return { id };
 }
@@ -163,11 +200,12 @@ export type DeleteCategoryResult =
 
 // Xóa danh mục — chỉ khi không còn sản phẩm nào. Kiểm số sản phẩm
 // ngay trong action (không tin con số từ giao diện): nếu vừa có
-// sản phẩm mới thì từ chối, tránh xóa nhầm.
+// sản phẩm mới thì từ chối, tránh xóa nhầm. Ghi nhật ký vòng đời
+// "deleted" (P5) trong cùng transaction với xóa.
 export async function deleteAdminCategory(id: number): Promise<DeleteCategoryResult> {
   const existing = await db.category.findUnique({
     where: { id },
-    select: { id: true, _count: { select: { products: true } } },
+    select: { id: true, name: true, _count: { select: { products: true } } },
   });
   if (!existing) return { ok: false, reason: "not-found" };
   if (existing._count.products > 0) {
@@ -177,6 +215,11 @@ export async function deleteAdminCategory(id: number): Promise<DeleteCategoryRes
       productCount: existing._count.products,
     };
   }
-  await db.category.delete({ where: { id } });
+  await db.$transaction(async (tx) => {
+    await tx.category.delete({ where: { id } });
+    await writeCatalogAudits(tx, [
+      lifecycleAuditRow(`category:${id}`, existing.name, "deleted"),
+    ]);
+  });
   return { ok: true };
 }

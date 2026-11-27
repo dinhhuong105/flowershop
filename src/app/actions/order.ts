@@ -6,13 +6,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { db } from "@/lib/db";
 import { CART_COOKIE } from "@/config/cart";
 import { deliveryConfig } from "@/config/delivery";
 import { getValidCartId } from "@/lib/cart";
+import { hashIp } from "@/lib/admin/rate-limit";
+import { clientIpFromHeaders } from "@/lib/admin/ip";
+import { checkRateLimit } from "@/lib/rate-limit";
 import {
   effectiveReceiver,
   validateCheckoutForm,
@@ -24,6 +27,7 @@ import {
   createOrder,
   DuplicateOrderError,
   EmptyCartError,
+  InvalidCartError,
   RateLimitError,
   UnavailableProductsError,
 } from "@/lib/order";
@@ -111,6 +115,29 @@ export async function placeOrder(
   }
 
   const receiver = effectiveReceiver(values);
+
+  // Ngày 17 S8: giới hạn đặt hàng theo IP — 10 lần/10 phút, dùng
+  // module rate-limit chung (S9). Kiểm SAU khi form hợp lệ (form
+  // sai không tính vào quota) và TRƯỚC khi tạo đơn. Chỉ đếm IP đã
+  // băm (hashIp), không lưu IP thô. Lỗi DB của bộ đếm thì cho qua
+  // (fail-open, có log) để không chặn khách vì lỗi bộ đếm.
+  try {
+    const ip = clientIpFromHeaders(await headers());
+    const limited = await checkRateLimit({
+      key: `order:ip:${hashIp(ip)}`,
+      limit: 10,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (!limited.allowed) {
+      return fail(values, {}, "Bạn đã đặt quá nhiều đơn trong thời gian ngắn, vui lòng thử lại sau.");
+    }
+  } catch (error) {
+    console.error(
+      "[placeOrder] Lỗi kiểm tra giới hạn tốc độ, cho qua:",
+      error instanceof Error ? error.message : error,
+    );
+  }
+
   let order;
   try {
     order = await createOrder({
@@ -147,6 +174,9 @@ export async function placeOrder(
       );
     }
     if (error instanceof RateLimitError) {
+      return fail(values, {}, error.message);
+    }
+    if (error instanceof InvalidCartError) {
       return fail(values, {}, error.message);
     }
     if (error instanceof EmptyCartError) {

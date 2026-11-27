@@ -145,7 +145,7 @@ async function main() {
     const record = await prisma.category.upsert({
       where: { slug: category.slug },
       update: {},
-      create: category,
+      create: { ...category, source: "seed" },
     });
     categoryIds[category.slug] = record.id;
   }
@@ -175,6 +175,7 @@ async function main() {
         sortOrder: product.sortOrder,
         sku,
         inStock: true,
+        source: "seed",
       },
     });
   }

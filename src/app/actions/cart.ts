@@ -3,13 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { BUY_NOW_REDIRECT } from "@/config/cart";
+import { BUY_NOW_REDIRECT, MAX_CART_LINES } from "@/config/cart";
 import { isValidQuantity } from "@/lib/cart-rules";
 import {
   addItem,
+  countCartLines,
   ensureCartId,
   getCartCount,
   getValidCartId,
+  hasCartLine,
   removeItem as removeCartItem,
   updateItemQuantity,
 } from "@/lib/cart";
@@ -53,6 +55,12 @@ export async function addToCart(formData: FormData): Promise<CartActionResult> {
     return { ok: false, error: "Sản phẩm hiện không còn bán." };
   }
   const cartId = await ensureCartId();
+  // Ngày 17 S8: giỏ tối đa 50 dòng — chỉ chặn THÊM dòng mới, tăng
+  // số lượng dòng đã có vẫn cho. createOrder chặn lại lần nữa trong
+  // giao dịch (phòng hai yêu cầu song song cùng thêm dòng mới).
+  if (!(await hasCartLine(cartId, productId)) && (await countCartLines(cartId)) >= MAX_CART_LINES) {
+    return { ok: false, error: "Giỏ hàng tối đa 50 dòng sản phẩm." };
+  }
   await addItem(cartId, productId, qty);
   revalidatePath("/", "layout");
   return { ok: true, count: await getCartCount() };
@@ -98,6 +106,11 @@ export async function buyNow(formData: FormData): Promise<never> {
     redirect("/cart");
   }
   const cartId = await ensureCartId();
+  // Ngày 17 S8: như addToCart — giỏ đầy thì về trang giỏ (cùng hành
+  // vi lỗi chung của buyNow: redirect về /cart).
+  if (!(await hasCartLine(cartId, productId)) && (await countCartLines(cartId)) >= MAX_CART_LINES) {
+    redirect("/cart");
+  }
   await addItem(cartId, productId, qty);
   revalidatePath("/", "layout");
   redirect(BUY_NOW_REDIRECT);
