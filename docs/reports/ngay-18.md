@@ -232,7 +232,7 @@ Chi tiết ca mới:
   về gốc (rỗng, enabled false, mẫu `DH {ORDER_CODE}`). Server
   local đã dừng sau kiểm chứng.
 
-## 9. File đổi (1 commit duy nhất trên c75e60f, không push)
+## 9. File đổi (1 commit trên c75e60f; đã đẩy dạng 04d8801, trừ ci.yml — xem §10)
 
 Như §8, cộng thêm sửa H2 ở `src/components/admin/NewOrderPoller.tsx`
 trong cùng commit. Probe scripts (`~/workspace/day18-shots/`) không
@@ -265,3 +265,22 @@ Sửa: `prisma/schema.prisma`, `src/lib/reserved-slugs.ts`,
 `scripts/security-scan.mjs`, `scripts/security-live-check.ts`,
 `scripts/test-security.mjs`, `.github/workflows/ci.yml`
 (job audit, file vẫn local-only).
+
+## 10. Đã đẩy lên live (bổ sung sau khi đẩy, 27/11/2026 ~22:3x)
+
+- Remote HEAD: **`04d8801`** (Ngày 18). Mã commit đổi so với §9
+  (f162469 → 04d8801) vì tách `.github/workflows/ci.yml` (job audit)
+  ra commit riêng local-only `8503773` — token GitHub hiện tại không
+  có quyền `workflow` nên không đẩy được file CI (như Ngày 17). Nội
+  dung code không đổi, chỉ thiếu đúng file ci.yml; đã xác minh
+  tree(8503773) == tree(f162469).
+- **Đính chính:** dòng đầu báo cáo ghi "Toàn bộ thay đổi UNCOMMITTED"
+  là mẫu cũ chưa cập nhật — thực tế đã commit và đẩy (trừ ci.yml).
+- Kiểm live (Pi Em tự kiểm sau đẩy): smoke production **21/21**;
+  F2 exit 0, **6 PASS** (home-jsonld PASS — xác nhận sửa mẫu F2 có
+  tác dụng); `/tin-tuc` live hiện trạng thái trống, sitemap có
+  `/tin-tuc`; TTFB live home 1,28–1,37 s, danh mục 1,54–2,77 s,
+  `/tin-tuc` 1,13–1,70 s — tương đương nền Ngày 17, không cải thiện
+  (phạm vi nonce chưa đổi, chờ Claude quyết).
+- Báo cáo Ngày 18 gửi Claude: Claude Free hết lượt tới 1:50 sáng
+  28/11 → gửi sáng 28/11.
