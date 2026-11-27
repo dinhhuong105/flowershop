@@ -152,8 +152,8 @@ describe("nhật ký hoạt động (Ngày 15 C1/C2)", () => {
     const list = await listActivity({ area: "bank", q: MARK, page: 1 });
     const stkRow = list.rows.find((r) => r.key === `bank.${MARK}-stk`);
     assert.ok(stkRow, "phải có dòng STK");
-    const shownOld = displayActivityValue(stkRow.oldValue);
-    const shownNew = displayActivityValue(stkRow.newValue);
+    const shownOld = displayActivityValue(stkRow.oldValue, stkRow.key);
+    const shownNew = displayActivityValue(stkRow.newValue, stkRow.key);
     assert.ok(!shownOld.includes("123456789012"), "không được lộ STK đầy đủ");
     assert.equal(shownOld, "****9012");
     assert.equal(shownNew, "****9012");

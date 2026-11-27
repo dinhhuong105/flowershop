@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { requireAdmin } from "@/lib/admin/auth";
 import {
-  ACTIVITY_AREAS,
   ACTIVITY_AREA_LABELS,
   activityAreaOf,
   displayActivityValue,
+  formatActivityChange,
   isActivityArea,
   listActivity,
 } from "@/lib/admin/activity";
+import ActivityFilterBar from "@/components/admin/ActivityFilterBar";
 import { formatVnActivityTime } from "@/lib/vn-datetime";
 
 export const dynamic = "force-dynamic";
@@ -68,7 +70,6 @@ export default async function AdminActivityPage({
     page,
   });
   const base: BaseParams = { area, q, from, to };
-  const hasFilter = area !== "" || q !== "" || from !== "" || to !== "";
 
   return (
     <div>
@@ -78,73 +79,9 @@ export default async function AdminActivityPage({
         đủ; giá trị dài được cắt ngắn.
       </p>
 
-      <form method="get" action="/admin/activity" className="mt-6 space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="block text-sm font-semibold text-slate-900">
-            Khu vực
-            <select
-              name="area"
-              defaultValue={area}
-              data-testid="activity-area-filter"
-              className="mt-1 block min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-base text-slate-900"
-            >
-              <option value="">Tất cả khu vực</option>
-              {ACTIVITY_AREAS.map((a) => (
-                <option key={a} value={a}>
-                  {ACTIVITY_AREA_LABELS[a]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block grow text-sm font-semibold text-slate-900">
-            Tìm theo khóa hoặc người thay đổi
-            <input
-              name="q"
-              type="search"
-              defaultValue={q}
-              placeholder="vd bank.accountNumber hoặc admin"
-              data-testid="activity-search"
-              className="mt-1 block min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-base text-slate-900"
-            />
-          </label>
-        </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="block text-sm font-semibold text-slate-900">
-            Từ ngày
-            <input
-              name="from"
-              type="date"
-              defaultValue={from}
-              data-testid="activity-from"
-              className="mt-1 block min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-base text-slate-900"
-            />
-          </label>
-          <label className="block text-sm font-semibold text-slate-900">
-            Đến ngày
-            <input
-              name="to"
-              type="date"
-              defaultValue={to}
-              data-testid="activity-to"
-              className="mt-1 block min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-base text-slate-900"
-            />
-          </label>
-          <button
-            type="submit"
-            className="flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-5 text-sm font-bold text-white transition-opacity hover:opacity-90"
-          >
-            Lọc
-          </button>
-          {hasFilter ? (
-            <Link
-              href="/admin/activity"
-              className="flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-5 text-sm font-bold text-slate-900 transition-colors hover:bg-slate-100"
-            >
-              Xóa lọc
-            </Link>
-          ) : null}
-        </div>
-      </form>
+      <Suspense>
+        <ActivityFilterBar area={area} q={q} from={from} to={to} />
+      </Suspense>
 
       <p role="status" className="mt-4 text-sm text-slate-500">
         Tìm thấy {list.total} dòng
@@ -186,9 +123,17 @@ export default async function AdminActivityPage({
                       {row.key}
                     </td>
                     <td className="px-4 py-3 break-words text-slate-900">
-                      <span className="text-slate-500">{displayActivityValue(row.oldValue)}</span>
-                      {" → "}
-                      <span className="font-medium">{displayActivityValue(row.newValue)}</span>
+                      {formatActivityChange(row.oldValue, row.newValue) ?? (
+                        <>
+                          <span className="text-slate-500">
+                            {displayActivityValue(row.oldValue, row.key)}
+                          </span>
+                          {" → "}
+                          <span className="font-medium">
+                            {displayActivityValue(row.newValue, row.key)}
+                          </span>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -210,9 +155,17 @@ export default async function AdminActivityPage({
                 </p>
                 <p className="mt-1 break-words font-mono text-[13px] text-slate-900">{row.key}</p>
                 <p className="mt-1 break-words text-slate-900">
-                  <span className="text-slate-500">{displayActivityValue(row.oldValue)}</span>
-                  {" → "}
-                  <span className="font-medium">{displayActivityValue(row.newValue)}</span>
+                  {formatActivityChange(row.oldValue, row.newValue) ?? (
+                    <>
+                      <span className="text-slate-500">
+                        {displayActivityValue(row.oldValue, row.key)}
+                      </span>
+                      {" → "}
+                      <span className="font-medium">
+                        {displayActivityValue(row.newValue, row.key)}
+                      </span>
+                    </>
+                  )}
                 </p>
                 <p className="mt-1 text-slate-500">Người: {row.updatedBy ?? "—"}</p>
               </li>

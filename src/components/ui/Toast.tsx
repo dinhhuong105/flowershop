@@ -118,9 +118,13 @@ export default function Toast() {
       role="status"
       data-testid={payload.testId}
       style={placement === "top" ? { top } : undefined}
-      // Một hàng trên cả mobile (Ngày 9 D9-7): trước đây flex-wrap đẩy
-      // nút ✕ xuống dòng riêng, tạo khoảng trống lớn. Nội dung không
-      // xuống dòng; nút ✕ giữ 44 px trên mobile (chuẩn chạm).
+      // Một hàng trên cả mobile (Ngày 9 D9-7): flex-nowrap giữ nút ✕
+      // trên cùng một hàng với nội dung, không bị đẩy xuống dòng riêng.
+      // Nội dung ĐƯỢC xuống dòng (Ngày 16): trước đây span này có
+      // whitespace-nowrap nên thông báo lỗi dài (vd lỗi va chạm slug
+      // 60 ký tự) tràn khỏi hộp max-w-md và bị cắt cụt ở mép phải màn
+      // hình — probe CDP Ngày 16 bắt được. Thông báo ngắn (vd "Đã thêm
+      // vào giỏ hàng") vẫn một dòng như cũ.
       // C3 (Ngày 11): trang quản trị → góc dưới-phải (bottom-4);
       // mặt shop → dưới header, góc phải (như cũ).
       className={`toast-slide-in fixed z-[70] flex min-h-11 flex-nowrap items-center gap-2 rounded-[3px] border border-line bg-white px-3 py-2 text-sm font-medium text-ink shadow-[0_12px_28px_rgba(8,56,42,0.14)] sm:gap-3 sm:px-4 ${
@@ -139,7 +143,7 @@ export default function Toast() {
       >
         {payload.tone === "error" ? "✕" : "✓"}
       </span>
-      <span className="whitespace-nowrap leading-snug">{payload.message}</span>
+      <span className="min-w-0 leading-snug">{payload.message}</span>
       {payload.linkHref && payload.linkLabel ? (
         <Link
           href={payload.linkHref}

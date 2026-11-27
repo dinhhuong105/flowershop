@@ -15,12 +15,12 @@
 // exclude=CANCELLED) và bookmark vẫn chạy; trạng thái lọc trên UI
 // lấy từ URL khi tải trang (server truyền xuống qua props).
 //
-// Lưu ý: đọc param hiện tại từ window.location.search (luôn mới
-// nhất) thay vì snapshot của useSearchParams — tránh mất một lần
-// đổi lọc khi người dùng đổi 2 lọc liên tiếp trước khi trang kịp
-// render lại. Chỉ gọi trong event handler (phía client) nên
-// window luôn có. Lọc cần JavaScript (admin vốn đã cần JS cho
-// dialog, toggle, tooltip).
+// Lưu ý: đọc param hiện tại từ window.location.search thay vì
+// snapshot của useSearchParams, NHƯNG window.location.search vẫn
+// lag một lần replace chưa commit — xem pendingRef trong
+// useFilterNavigation (Ngày 16). Chỉ gọi trong event handler
+// (phía client) nên window luôn có. Lọc cần JavaScript (admin vốn
+// đã cần JS cho dialog, toggle, tooltip).
 
 "use client";
 
@@ -30,12 +30,34 @@ import { usePathname, useRouter } from "next/navigation";
 export function useFilterNavigation() {
   const router = useRouter();
   const pathname = usePathname();
+  // Param của lần replace chưa commit: router.replace là bất đồng bộ —
+  // window.location.search chỉ đổi SAU khi điều hướng commit (vài
+  // chục–vài trăm ms). Hai lần đổi lọc liên tiếp trong khoảng đó mà
+  // cùng đọc window.location.search thì lần sau đè mất lần trước
+  // (Ngày 16, probe CDP: đặt from rồi to ngay → URL chỉ còn to).
+  // Nên giữ lại param của lần replace chưa commit và gộp lần đổi sau
+  // vào đó; chỉ dùng khi lần replace đó xuất phát đúng từ URL hiện
+  // tại (from khớp) và còn mới (< 2 s — điều hướng thường commit
+  // trong < 500 ms). Sau 2 s thì bỏ param chờ và đọc lại URL.
+  // Giới hạn còn lại: bấm Back về đúng URL cũ rồi đổi lọc trong 2 s
+  // sau một lần đổi lọc có thể làm param cũ hiện lại — cửa sổ hẹp,
+  // param hiện rõ trên URL và xóa được bằng cách xóa lọc.
+  const pendingRef = useRef<{ from: string; params: URLSearchParams; at: number } | null>(null);
   const updateFilter = useCallback(
     (key: string, value: string) => {
-      const params = new URLSearchParams(window.location.search);
+      const currentSearch = window.location.search;
+      let base: URLSearchParams;
+      const pending = pendingRef.current;
+      if (pending && pending.from === currentSearch && Date.now() - pending.at < 2000) {
+        base = pending.params;
+      } else {
+        base = new URLSearchParams(currentSearch);
+      }
+      const params = new URLSearchParams(base);
       if (value === "") params.delete(key);
       else params.set(key, value);
       params.delete("page");
+      pendingRef.current = { from: currentSearch, params, at: Date.now() };
       const query = params.toString();
       router.replace(query === "" ? pathname : `${pathname}?${query}`);
     },
@@ -60,6 +82,7 @@ export function FilterSelect({
   options,
   value,
   onChange,
+  testId,
 }: {
   id: string;
   label: string;
@@ -67,6 +90,7 @@ export function FilterSelect({
   options: FilterSelectOption[];
   value: string;
   onChange: (value: string) => void;
+  testId?: string;
 }) {
   return (
     <div className="min-w-48">
@@ -78,6 +102,7 @@ export function FilterSelect({
           id={id}
           name={name}
           value={value}
+          data-testid={testId}
           onChange={(e) => onChange(e.target.value)}
           className="mt-1 block min-h-11 w-full appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-9 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/30"
         >
@@ -164,12 +189,14 @@ export function FilterSearchInput({
   placeholder,
   initialValue,
   onSearch,
+  testId,
 }: {
   id: string;
   label: string;
   placeholder: string;
   initialValue: string;
   onSearch: (value: string) => void;
+  testId?: string;
 }) {
   const [value, setValue] = useState(initialValue);
   const onSearchRef = useRef(onSearch);
@@ -205,6 +232,7 @@ export function FilterSearchInput({
         type="search"
         value={value}
         placeholder={placeholder}
+        data-testid={testId}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") {

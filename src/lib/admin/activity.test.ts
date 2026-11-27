@@ -6,6 +6,7 @@ import {
   ACTIVITY_VALUE_MAX,
   activityAreaOf,
   displayActivityValue,
+  formatActivityChange,
   maskSensitiveForDisplay,
   truncateActivityValue,
 } from "./activity";
@@ -45,8 +46,42 @@ describe("maskSensitiveForDisplay", () => {
     assert.ok(!masked.includes("123456789"), "không được lộ dãy số đầu token");
     assert.ok(masked.includes("****6789"));
   });
-  it("số điện thoại 10 số cũng bị che (dãy số dài)", () => {
+  it("không biết khóa (mặc định): số điện thoại 10 số vẫn bị che (quét dãy số)", () => {
     assert.equal(maskSensitiveForDisplay("0886706338"), "****6338");
+  });
+  it("Ngày 16 #2: contact.hotline và contact.zalo KHÔNG che (thông tin công khai)", () => {
+    assert.equal(maskSensitiveForDisplay("0886706338", "contact.hotline"), "0886706338");
+    assert.equal(maskSensitiveForDisplay("0900123456", "contact.hotline"), "0900123456");
+    assert.equal(maskSensitiveForDisplay("0900123456", "contact.zalo"), "0900123456");
+  });
+  it("Ngày 16 #2: số tài khoản vẫn che (quét dãy số)", () => {
+    assert.equal(maskSensitiveForDisplay("123456789012", "bank.accountNumber"), "****9012");
+    assert.equal(maskSensitiveForDisplay("1234 5678 9012", "bank.accountNumber"), "****9012");
+  });
+  it("Ngày 16 #2: khóa chứa token/password/secret → che toàn bộ", () => {
+    assert.equal(maskSensitiveForDisplay("123456789:AAEabc123", "telegram.botToken"), "********");
+    assert.equal(maskSensitiveForDisplay("mat-khau-bi-mat", "admin.password"), "********");
+    assert.equal(maskSensitiveForDisplay("abc123XYZ", "api.clientSecret"), "********");
+  });
+  it("Ngày 16 #2: khóa lạ vẫn quét dãy số (phòng thủ)", () => {
+    assert.equal(maskSensitiveForDisplay("123456789012", "khong-biet"), "****9012");
+  });
+});
+
+describe("formatActivityChange", () => {
+  it("vòng đời trang: created/deleted/updated → nhãn Việt", () => {
+    assert.equal(formatActivityChange(null, "created"), "Đã tạo");
+    assert.equal(formatActivityChange("Giới thiệu", "deleted"), "Đã xóa");
+    assert.equal(formatActivityChange("Tiêu đề cũ", "updated"), "Cập nhật");
+  });
+  it("xuất bản/nháp: draft ↔ published → nhãn Việt có mũi tên", () => {
+    assert.equal(formatActivityChange("draft", "published"), "Nháp → Đã xuất bản");
+    assert.equal(formatActivityChange("published", "draft"), "Đã xuất bản → Nháp");
+  });
+  it("giá trị khác → null (hiển thị cặp thô như cũ)", () => {
+    assert.equal(formatActivityChange("0886706338", "0900123456"), null);
+    assert.equal(formatActivityChange(null, "sent"), null);
+    assert.equal(formatActivityChange("", "Hoa Tươi Demo"), null);
   });
 });
 

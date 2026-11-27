@@ -35,6 +35,7 @@ export default function TogglePageButton({
   });
   const submittedWasPublished = useRef<boolean | null>(null);
   const lastToasted = useRef<TogglePageState | null>(null);
+  const lastErrorToasted = useRef<TogglePageState | null>(null);
 
   useEffect(() => {
     if (!state.ok || state === lastToasted.current) return;
@@ -81,6 +82,23 @@ export default function TogglePageButton({
     );
   }, [state, isPublished, pageId, router]);
 
+  // Lỗi bật/tắt xuất bản (Ngày 16 #1): hiện bằng toast lỗi ở góc
+  // dưới-phải thay vì nhét vào ô thao tác (cột chữ hẹp làm dòng
+  // bảng cao bất thường). Chỉ toast một lần cho mỗi lần bấm lỗi.
+  useEffect(() => {
+    if (!state.error || state === lastErrorToasted.current) return;
+    lastErrorToasted.current = state;
+    window.dispatchEvent(
+      new CustomEvent<AdminToastDetail>("admin:toast", {
+        detail: {
+          message: state.error,
+          tone: "error",
+          durationMs: 5000,
+        },
+      }),
+    );
+  }, [state]);
+
   const label = isPublished ? "Chuyển trang về nháp" : "Xuất bản trang";
   return (
     <div>
@@ -99,11 +117,6 @@ export default function TogglePageButton({
           className="border border-slate-200 bg-white text-slate-900 hover:border-blue-600 hover:text-blue-600"
         />
       </form>
-      {state.error ? (
-        <p role="alert" className="mt-1 text-xs font-medium text-danger">
-          {state.error}
-        </p>
-      ) : null}
     </div>
   );
 }

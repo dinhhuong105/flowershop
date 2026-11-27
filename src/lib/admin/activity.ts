@@ -54,12 +54,32 @@ export function activityAreaOf(key: string): ActivityArea {
   }
 }
 
+// Khóa KHÔNG che khi hiển thị (Ngày 16 #2): hotline/Zalo là thông
+// tin công khai trên shop — che đi thì không ai biết đổi từ số nào
+// sang số nào.
+const ACTIVITY_EXEMPT_KEYS = new Set(["contact.hotline", "contact.zalo"]);
+
 // Che lại khi HIỂN THỊ (phòng thủ thêm — STK đã che lúc ghi, chỉ
-// giữ 4 số cuối): dãy ≥ 8 chữ số (kể cả có khoảng trắng/gạch nối
-// xen giữa, như STK nhập có dấu cách) → chỉ giữ 4 số cuối. Dãy
-// ngắn hơn (vd mã đơn, năm) giữ nguyên. Giá trị null → "—".
-export function maskSensitiveForDisplay(value: string | null): string {
+// giữ 4 số cuối):
+// - khóa miễn (hotline/Zalo): hiện đầy đủ, không che;
+// - khóa chứa token/password/secret: che toàn bộ thành "********";
+// - khóa còn lại (số tài khoản bank.accountNumber + khóa lạ): quét
+//   dãy ≥ 8 chữ số (kể cả có khoảng trắng/gạch nối xen giữa, như
+//   STK nhập có dấu cách) → chỉ giữ 4 số cuối. Dãy ngắn hơn
+//   (vd mã đơn, năm) giữ nguyên. Giá trị null → "—".
+// Tham số key mặc định "" (không biết khóa) → quét dãy số như cũ,
+// để code cũ gọi không kèm key vẫn an toàn.
+export function maskSensitiveForDisplay(value: string | null, key = ""): string {
   if (value === null) return "—";
+  if (ACTIVITY_EXEMPT_KEYS.has(key)) return value;
+  const lowerKey = key.toLowerCase();
+  if (
+    lowerKey.includes("token") ||
+    lowerKey.includes("password") ||
+    lowerKey.includes("secret")
+  ) {
+    return "********";
+  }
   return value.replace(/\d[\d\s-]{6,}\d/g, (run) => {
     const digits = run.replace(/\D/g, "");
     if (digits.length < 8) return run;
@@ -76,9 +96,27 @@ export function truncateActivityValue(value: string | null): string {
   return `${value.slice(0, ACTIVITY_VALUE_MAX - 1)}…`;
 }
 
-// Giá trị hiển thị: che nhạy cảm trước, rồi cắt ngắn.
-export function displayActivityValue(value: string | null): string {
-  return truncateActivityValue(maskSensitiveForDisplay(value));
+// Giá trị hiển thị: che nhạy cảm trước, rồi cắt ngắn. Truyền key
+// để quy tắc che theo khóa (Ngày 16 #2) áp dụng đúng.
+export function displayActivityValue(value: string | null, key = ""): string {
+  return truncateActivityValue(maskSensitiveForDisplay(value, key));
+}
+
+// Nhãn tiếng Việt cho cột "Thay đổi" (Ngày 16 #3): các giá trị
+// vòng đời trang / hành động ghi bằng tiếng Anh thô (created,
+// deleted, updated, draft ↔ published) đổi thành nhãn Việt.
+// Trả null khi không khớp mẫu nào → trang hiển thị cặp giá trị
+// thô (đã che + cắt) như cũ.
+export function formatActivityChange(
+  oldValue: string | null,
+  newValue: string | null,
+): string | null {
+  if (newValue === "created") return "Đã tạo";
+  if (newValue === "deleted") return "Đã xóa";
+  if (newValue === "updated") return "Cập nhật";
+  if (oldValue === "draft" && newValue === "published") return "Nháp → Đã xuất bản";
+  if (oldValue === "published" && newValue === "draft") return "Đã xuất bản → Nháp";
+  return null;
 }
 
 // Ngày "yyyy-MM-dd" (từ <input type="date">, hiểu theo giờ VN)
