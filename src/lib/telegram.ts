@@ -184,15 +184,18 @@ export async function isTelegramConfigured(): Promise<boolean> {
 }
 
 // Gửi một tin nhắn văn bản thuần qua Telegram (D2 gửi thử, B3 báo
-// đổi ngân hàng). Trả { ok, error? } — error đã làm sạch (chỉ mã
+// đổi ngân hàng). Trả { ok, error?, skipped? } — error đã làm sạch (chỉ mã
 // HTTP hoặc tên lỗi), KHÔNG BAO GIỜ chứa token hay URL. Không throw.
+// skipped = true khi chưa cấu hình token/chat id (không phải lỗi gửi:
+// không có tin nào được gửi đi, chỉ là bỏ qua) — phía gọi dùng cờ này
+// để ghi nhật ký "skipped" thay vì "failed" (Ngày 16 fixup 2).
 export async function sendTelegramMessage(
   text: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; skipped?: boolean }> {
   const token = getTelegramToken();
   const chatId = await getTelegramChatId();
   if (!token || !chatId) {
-    return { ok: false, error: "Chưa cấu hình token bot hoặc chat id Telegram." };
+    return { ok: false, error: "Chưa cấu hình token bot hoặc chat id Telegram.", skipped: true };
   }
   const base = (process.env.TELEGRAM_API_BASE ?? "https://api.telegram.org").replace(/\/$/, "");
   try {
@@ -229,13 +232,28 @@ export async function sendTelegramMessage(
 
 // Báo chủ shop khi nhóm bank đổi (B3, B5 Ngày 14): chỉ báo giờ đổi
 // + số đơn chuyển khoản chưa thu bị ảnh hưởng (nếu có), KHÔNG kèm
-// số tài khoản hay số đầy đủ nào.
+// số tài khoản hay số đầy đủ nào. Trả lại đúng kết quả của
+// sendTelegramMessage (kèm cờ skipped khi chưa cấu hình).
 export async function sendBankChangeNotification(
   unpaidCount = 0,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; skipped?: boolean }> {
   const affected =
     unpaidCount > 0 ? ` ${unpaidCount} đơn chưa thu bị ảnh hưởng.` : "";
   return sendTelegramMessage(
     `Thông tin ngân hàng vừa được thay đổi lúc ${formatVnDateTime(new Date())}.${affected}`,
   );
+}
+
+// Giá trị ghi vào nhật ký cho khóa "bank.notify" (Ngày 16 fixup 2):
+// chưa cấu hình Telegram → "skipped: chưa cấu hình" (bỏ qua, không
+// phải lỗi gửi); gửi được → "sent"; gửi lỗi → "failed: <lỗi>".
+// Hàm thuần để test được trực tiếp.
+export function bankNotifyAuditValue(notify: {
+  ok: boolean;
+  error?: string;
+  skipped?: boolean;
+}): string {
+  if (notify.ok) return "sent";
+  if (notify.skipped) return "skipped: chưa cấu hình";
+  return `failed: ${notify.error ?? "unknown"}`;
 }

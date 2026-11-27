@@ -26,7 +26,11 @@ import {
   validateTelegramValues,
 } from "@/lib/settings";
 import { getSettings } from "@/lib/settings-cache";
-import { sendBankChangeNotification, sendTelegramMessage } from "@/lib/telegram";
+import {
+  bankNotifyAuditValue,
+  sendBankChangeNotification,
+  sendTelegramMessage,
+} from "@/lib/telegram";
 import { countUnpaidBankTransferOrders } from "@/lib/admin/orders";
 import { bankSaveSuccessMessage } from "@/lib/admin/bank-warning";
 import { formatVnDateTime } from "@/lib/vn-datetime";
@@ -138,7 +142,7 @@ export async function saveBankSettingsAction(
     await recordSettingsAudit(
       "bank.notify",
       null,
-      notify.ok ? "sent" : `failed: ${notify.error ?? "unknown"}`,
+      bankNotifyAuditValue(notify),
       "admin",
     );
     // B4 (Ngày 15): chỉ tắt "Bật thanh toán chuyển khoản" thì câu

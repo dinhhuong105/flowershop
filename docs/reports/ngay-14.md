@@ -95,12 +95,12 @@ Căn cứ: mặt public live (sitemap/robots/head, kiểm lúc viết báo cáo)
 | Tên shop khác mặc định | ✗ "Hoa Tươi Demo" (mặc định) | Henry nhập tên shop thật ở Cài đặt chung |
 | Hotline/Zalo/địa chỉ không còn giá trị mẫu | ✗ Giá trị mẫu | Henry nhập ở Cài đặt liên hệ |
 | Ngân hàng đã cấu hình + bật | ✗ Chưa cấu hình (checkout live chỉ có COD) | Henry nhập tài khoản ở Ngân hàng & QR (không gửi qua chat) |
-| Telegram có token + bật | ✗ Chưa có token | Henry đặt token vào env Vercel + chat id trong admin, rồi "Gửi thử" |
+| Telegram có token + bật | — Telegram không dùng | Henry quyết 27/11: không cần Telegram; không còn là mục chờ |
 | Khu vực + phí đã thay giá trị mẫu | ✗ 4 khu vực mẫu 25k/35k/50k/70k | Henry nhập khu vực + phí thật |
 | Sản phẩm có ảnh thật (so với "Ảnh mẫu") | ✗ 0/20 — tất cả dùng `/images/placeholder.svg` | Henry nhập sản phẩm + ảnh thật (cần A1 Blob Public trước) |
 | Ba trang chính sách đã xuất bản | ✗ 0/3 trang xuất bản (cả 3 seed đều nháp) | Henry viết nội dung thật + xuất bản (giới thiệu, giao hàng/thanh toán, đổi trả); đọc lại /policy hiện tại |
 | Mẫu tiêu đề SEO / mô tả mặc định / ảnh OG | ✗ Mẫu mặc định (`%s \| {siteName}`), mô tả mặc định, chưa có ảnh OG | Henry đặt mô tả mặc định thật + ảnh OG (jpg/png/webp ≤ 1 MB) |
-| Trạng thái lập chỉ mục | ✗ ĐANG TẮT (đúng chủ đích hiện tại) | Henry bật cuối cùng sau khi 1–5 đạt (bước 6 checklist) |
+| Trạng thái lập chỉ mục | ✗ ĐANG TẮT (đúng chủ đích hiện tại) | Henry bật cuối cùng sau khi 1–6 đạt (bước 7 checklist) |
 
 ## Mục chưa làm + lý do
 
