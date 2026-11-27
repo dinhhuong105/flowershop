@@ -109,6 +109,41 @@ riêng `test:security` của subagent exit 1 do đúng lỗi dòng 447 đã sử
 6. Server local đang chạy bản mới trên :3000 (PID 60966) để Pi Em kiểm
    tiếp; live chưa động vào.
 
+## 8. Đã đẩy lên live (bổ sung sau khi đẩy, 27/11/2026 ~21:2x)
+
+- Remote HEAD: **`3e5696f`** (Ngày 17 `cffb9f3` + prep `3e5696f`).
+  Lưu ý mã commit đã đổi so với mục trên (0fdfafa → cffb9f3,
+  095e411 → 3e5696f) vì phải tách file CI ra khỏi đợt đẩy — xem dưới.
+  Nội dung code không đổi, chỉ thiếu đúng file `.github/workflows/ci.yml`.
+- **Token GitHub không có quyền `workflow`:** lần đẩy đầu bị GitHub từ
+  chối — "refusing to allow a Personal Access Token to create or update
+  workflow `.github/workflows/ci.yml` without `workflow` scope". Đã tách
+  ci.yml ra commit riêng `f94bb77`, ở lại local, chờ token mới có quyền
+  workflow (gắn với S0 thu hồi token cũ). Vì vậy **chưa có lần chạy CI
+  đầu để theo dõi** — CI chưa từng chạy thật.
+- Kiểm live (Pi Em tự kiểm sau đẩy): smoke production **21/21**; F2
+  exit 0 (**5 PASS**, các INFO là kỳ vọng: chưa có OG image, indexing
+  TẮT); header CSP đã có trên live. CSP kiểm bằng trình duyệt thật trên
+  7 trang (chủ, danh mục, sản phẩm, giỏ, thanh toán, đăng nhập admin,
+  tổng quan, popup sản phẩm + upload Blob): **không thấy vi phạm CSP** —
+  lưu ý DevTools Console không mở được trong trình duyệt đó nên kết luận
+  dựa trên bằng chứng chức năng/hiển thị (ảnh/font/tính năng đều chạy,
+  không có gì vỡ). Upload thử để lại 1 file test orphan trong Blob
+  (không lưu sản phẩm, vẫn 20 sản phẩm).
+- **TTFB live (curl):** trang chủ 1,24–1,46 s, danh mục 1,46–2,65 s;
+  đối chứng robots.txt (tĩnh) 0,38 s. Cơ chế đã xác nhận trong code:
+  layout gốc đọc `headers()` để lấy nonce (`layout.tsx:109`) nên mọi
+  trang render động (`Cache-Control: private, no-cache`,
+  `X-Vercel-Cache: MISS`). Chưa có baseline live trước Ngày 17 để so
+  sánh "tăng bao nhiêu". Để Ngày 18 đo đạc và đề xuất; quyết định thu
+  hẹp nonce chỉ admin + /login là của Claude.
+- **Checkout live chỉ có COD** (kiểm lại trực tiếp 21:22): không có
+  "Chuyển khoản", không QR, không thông tin ngân hàng — chuyển khoản
+  vẫn TẮT đúng như đã quyết.
+- **F2 `home-jsonld` INFO là dương tính giả:** JSON-LD Organization CÓ
+  trên live nhưng thẻ script mang thuộc tính `nonce` nên mẫu sed khớp
+  chính xác của F2 không nhận ra — sửa mẫu F2 ở Ngày 18.
+
 ## File đổi trong commit này (1 commit duy nhất trên `0fdfafa`)
 
 | File | Đổi gì |
