@@ -98,7 +98,11 @@ export function truncateActivityValue(value: string | null): string {
 
 // Giá trị hiển thị: che nhạy cảm trước, rồi cắt ngắn. Truyền key
 // để quy tắc che theo khóa (Ngày 16 #2) áp dụng đúng.
+// Giá trị rỗng (null hoặc "") hiện "(trống)" (fixup sau verdict
+// Ngày 16): dòng "0900123456 →" không cho biết đó là thêm hay xóa,
+// còn "0900123456 → (trống)" thì rõ.
 export function displayActivityValue(value: string | null, key = ""): string {
+  if (value === null || value === "") return "(trống)";
   return truncateActivityValue(maskSensitiveForDisplay(value, key));
 }
 

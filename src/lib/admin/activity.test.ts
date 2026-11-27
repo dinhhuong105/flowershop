@@ -101,6 +101,20 @@ describe("displayActivityValue", () => {
   it("che trước rồi cắt: STK dài vẫn chỉ còn **** + 4 số cuối", () => {
     assert.equal(displayActivityValue("123456789012"), "****9012");
   });
+  it("fixup sau verdict Ngày 16: giá trị rỗng → (trống) — thêm/xóa/sửa/cả 2 phía rỗng", () => {
+    // Thêm: cũ rỗng → "(trống)", mới hiện đầy đủ.
+    assert.equal(displayActivityValue("", "contact.hotline"), "(trống)");
+    assert.equal(displayActivityValue("0900123456", "contact.hotline"), "0900123456");
+    // Xóa: cũ hiện đầy đủ, mới rỗng → "(trống)".
+    assert.equal(displayActivityValue("0900123456", "contact.hotline"), "0900123456");
+    assert.equal(displayActivityValue(""), "(trống)");
+    // Sửa: cả 2 phía đều có giá trị → hiện như cũ.
+    assert.equal(displayActivityValue("Hoa Tươi", "general.siteName"), "Hoa Tươi");
+    assert.equal(displayActivityValue("Hoa Tươi Demo", "general.siteName"), "Hoa Tươi Demo");
+    // Cả 2 phía rỗng (null hoặc "").
+    assert.equal(displayActivityValue(null), "(trống)");
+    assert.equal(displayActivityValue(null, "contact.hotline"), "(trống)");
+  });
 });
 
 describe("formatVnActivityTime", () => {
