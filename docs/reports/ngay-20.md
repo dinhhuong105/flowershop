@@ -508,3 +508,218 @@ chưa biết nên chưa có cách sửa vùng/pooler nào.
 - Drift `admin_two_factor` (Ngày 19) chưa sửa — để ngày riêng.
 - Giới hạn nhập nới hơn form tay (name 160 / price > 0) — chờ
   Claude quyết có siết lại không (xem §4).
+
+---
+
+# Bổ sung theo bản đặc tả sau Retry (201 dòng)
+
+Ngày 28/11/2026, sau khi báo cáo trên được gửi, Claude trả lời lần
+đầu (bản 132 dòng, §1–§10 trên) rồi nút Retry tạo lại câu trả lời
+thành **bản đặc tả mới 201 dòng** — bản này mới là bản Claude chấm.
+Phần dưới đây là PHẦN CHÊNH giữa cây `18e2135` (bản 132 dòng) và
+bản mới; những gì đã đúng được giữ nguyên. Sáu commit local trên
+main, CHƯA PUSH (Pi Em kiểm độc lập rồi mới đẩy):
+
+- `17d088f` — A2+A3 (2FA fail-closed + ca còn thiếu)
+- `5774606` — B-model (căn chỉnh mô hình nhập theo enum mới + bảng `import_rows`)
+- `9534764` — B-rest (giới hạn đầu vào + ánh xạ/giá + quyền + luật hàng + chờ duyệt + bảo mật bổ sung)
+- `436c091` — B-rest: sửa lỗi phát hiện khi kiểm test:db
+- `1353c98` — B-rest: bảng lịch sử lô cập nhật sau khi chạy
+- `ef34a3d` — C (vercel.json regions sin1 + EXPLAIN danh mục)
+- commit này — báo cáo (bổ sung phần delta)
+
+Live không đổi trong đợt này (remote HEAD vẫn `4b5eb52`, Ngày 19);
+indexing vẫn TẮT; chuyển khoản vẫn TẮT; 2FA chưa bật trên live.
+
+## 11. Bảng từng mục bản mới (A1–A6 / B0–B11 / C)
+
+| Mục | Kết quả | Ghi chú / độ lệch |
+| --- | --- | --- |
+| A1 A4.1 chốt ở mức Low | ĐẠT | Đã xong ở bản 11:19; quyết định + lý do ghi ở `docs/van-hanh.md` §3.1 (dòng 70): chặn cấp trang 200 + thông báo, `Cache-Control: no-store` + `X-Robots-Tag: noindex` |
+| A2 2FA fail-closed khi thiếu/lệch khóa (ƯU TIÊN 1) | ĐẠT | `isTotpLoginRequired` không còn tự tắt 2FA; mã khôi phục thử TRƯỚC (băm độc lập với khóa); mã 6 số bị từ chối khi bí mật không giải mã được; biểu ngữ đỏ đúng câu bản mới ở mọi trang admin + `/login/verify` + `/admin/security`; audit `totp.key-unavailable` giới hạn 1 dòng/giờ; `docs/van-hanh.md` §3.1 cập nhật. Test: `totp` 32/32 (5 ca mới: thiếu khóa/khóa sai/bản mã sửa 1 bit/thoát hiểm/audit 1 lần/giờ). CDP 9/9 PASS |
+| A3 Ca còn thiếu | ĐẠT | (a) Lưu ngân hàng KHÔNG có mật khẩu bị từ chối (hồi quy) — test:db + CDP 6/6. (b) Mã TOTP đã dùng bị từ chối qua server action thật — CDP (xem độ lệch). (c) Đặt hàng fail-closed khi bộ đếm lỗi — chạy lại CDP 5/5 |
+| A4 test:db tuần tự | ĐẠT | `--test-concurrency=1`; **139/139 × 3 lần liên tiếp** trên cây B-rest, thêm 2 lần 139/139 trên cây cuối (tổng 5 lần PASS). Một lần chạy giữa chừng báo 138/139 ở test phiên 2FA — do còn sót 1 phiên admin từ probe CDP chạy trước đó (không phải hồi quy code); chạy lại suite đó độc lập 13/13 |
+| A5 Hiệu năng (xem §13) | KHÔNG ĐẠT (chưa đo live) | `vercel.json` đã tạo (sin1); đo lại live 5× × 3 URL sau deploy là việc của Pi Em. Local ấm `/hoa-tuoi` ~0,026 s — không nói gì về live |
+| A6 "Chờ Henry" | GHI Ở §15 | S0 token, bật 2FA |
+| B0 Kiểm kê bổ sung | ĐẠT | `sharp` KHÔNG có trong `package.json` (không thêm gói); không có thư viện CSV/ảnh — bộ đọc/tải ảnh viết tay. Slug: `slugifyName` (bỏ dấu, hậu tố ngắn khi trùng, tránh `RESERVED_SLUGS`); SKU: regex chữ hoa/số/gạch nối 2–20 ký tự. Ràng buộc duy nhất: `@@unique([categoryId, slug])`, `@@unique([sourceName, sourceExternalId])`, `@@unique([sku])` |
+| B1 Căn chỉnh mô hình | ĐẠT | Migration `20261128120211_day20b_import_model` (chỉ thêm; đã thử trên DB nháp với dữ liệu cũ tổng hợp: map trạng thái, suy `sourceKind`, giữ nguyên bộ đếm, backfill `mappingJson`, sao hàng sang `import_rows`, đổi tên unique index). `products.externalId` → `sourceExternalId` (schema + migration + toàn bộ code + test + UI). `ImportBatch` thêm `sourceKind`, `fileSha256`, `mappingJson`, `rightsConfirmedAt/By`, `rowsTotal/created/updated/skipped/failed`, status enum PREVIEW\|RUNNING\|DONE\|FAILED\|ROLLED_BACK. Bảng mới `import_rows` (batchId, rowIndex, externalId, status PENDING\|CREATED\|UPDATED\|SKIPPED\|ERROR, message ≤300, productId, payload JSON ≤8KB/hàng). Chunk runner giữ lô bằng lease 30 s + ghi trạng thái cuối có điều kiện `WHERE status='PENDING'`; tiếp tục sau reload từ `import_rows`. Hành vi wizard giữ nguyên |
+| B2 Giới hạn đầu vào | ĐẠT | CSV ≤40 cột, ô ≤5000 ký tự; JSON sâu ≤6 (đã siết từ 10), từ chối khóa `__proto__`/`constructor`/`prototype`; nhận dạng bằng nội dung (không tin đuôi tệp/Content-Type); feed HTML từ chối với đúng thông báo "Đây là trang web, không phải dữ liệu nhập (CSV/JSON)"; dữ liệu tạm theo batchId trong `import_rows.payload`, dọn sau 7 ngày bằng `scripts/cleanup-import-rows.ts` (xem độ lệch B1) |
+| B3 Ánh xạ + tùy chọn giá | ĐẠT | externalId bắt buộc; name, price, salePrice, description, category (tên/slug), sku (tùy chọn), imageUrl (1+, ngăn `\|` hoặc mảng JSON, ≤8); nhớ ánh xạ theo sourceName. Hệ số 0,1–10 (≤2 chữ số thập phân) + làm tròn (không/1.000/10.000). **Số thập phân ĐẢO NGƯỢC diễn giải đã ghim ở Ngày 20: "890.000" = 890.000 (dấu phân tách nghìn)** — parser + test đã cập nhật. Giá nguyên VND 1–1.000.000.000; salePrice < price nghiêm ngặt. Danh sách lỗi xem trước tải được dạng CSV (vô hiệu công thức) |
+| B4 Xác nhận quyền | ĐẠT | Tick đúng câu bản mới (CDP kiểm); chưa tick thì nút chạy khóa VÀ server từ chối; ghi `rightsConfirmedAt/By` + nhật ký; dòng cảnh báo cố định hiện trên trang nhập (CDP kiểm) |
+| B5 Luật từng hàng | ĐẠT | Đã có + chưa duyệt → cập nhật mọi trường; **đã có + ĐÃ DUYỆT → chỉ cập nhật price/salePrice (ghi "giá đổi")**, thay quy tắc "bỏ qua khi sửa tay" của Ngày 20; SKU trùng SP không cùng nguồn → hàng lỗi "SKU đã tồn tại"; slug từ tên + hậu tố ngắn + tránh `RESERVED_SLUGS`; làm sạch văn bản (bỏ thẻ HTML, ký tự điều khiển, chuẩn hóa khoảng trắng); tên 3–160, mô tả ≤2.000 ký tự; nhật ký tổng lô + từng SP (`product:<sku>`), không ghi PII; mỗi lần gọi tối đa 10 hàng hoặc ~8 giây |
+| B6 Hàng chờ duyệt | ĐẠT | Popup SP hiện khối chỉ đọc "Nguồn dữ liệu" (tên nguồn, mã ngoài, lô, ngày nhập; sourceUrl chỉ khi http(s) + `rel="noopener noreferrer"`) — CDP kiểm + ảnh. Duyệt từng/hàng loạt ≤50, xác nhận kèm số lượng + nhật ký; **"hiện luôn" MẶC ĐỊNH KHÔNG hiện** (đã căn chỉnh duyệt lẻ; CDP kiểm hộp thoại mặc định không tick); từ chối xóa SP chưa duyệt (không có đơn). Xuất CSV lỗi/kết quả vô hiệu công thức (thêm `'` trước ô bắt đầu bằng `= + - @` tab CR). **Nhãn nguồn đổi: seed/manual → "Hệ thống", import → "Nhập từ ngoài"** (bảng §0 trên ghi nhãn cũ) |
+| B7 Ảnh | ĐẠT (giữ nguyên) | Kiểm lại sau refactor B1: probe import CDP PASS lại. Độ lệch: giới hạn ≤500 ảnh/lô và re-encode WebP bằng sharp CHƯA làm (sharp không có sẵn) — ghi rõ, không lặng lẽ bỏ |
+| B8 Lịch sử/hoàn tác | ĐẠT (giữ nguyên) | Hoàn tác đặt status lô ROLLED_BACK theo enum mới; giữ SP đã duyệt/có đơn. Kiểm lại bằng test:db + CDP |
+| B9 Giới hạn tốc độ | ĐẠT | Bắt đầu lô 5/giờ + 20/ngày (toàn cục); tải feed 10/giờ; fail-closed khi bộ đếm lỗi; lô >2.000 hàng bị từ chối. Ghi chú: giới hạn 30 thao tác nhập/10 phút theo IP (Ngày 20) vẫn là lớp riêng — probe CDP đã chạm trần này khi chạy 2 lần đầy đủ liên tiếp trong cùng cửa sổ 10 phút (đúng thiết kế, không phải lỗi) |
+| B10 Tài liệu + mẫu | ĐẠT | `docs/nhap-san-pham.md` (định dạng/cột/quy tắc giá/trạng thái chờ duyệt/quyền/giới hạn) + `docs/mau-nhap/mau.csv` + `mau.json` (3 hàng GIẢ, URL ảnh giả `vi-du.invalid`, không dữ liệu bên thứ ba — parse thử: CSV 3/3, JSON 3/3, 0 lỗi) |
+| B11 Bảo mật bổ sung | ĐẠT | Xem §12 |
+| C Hiệu năng | KHÔNG ĐẠT (chưa đo live) | Xem §13. `vercel.json` đã tạo; EXPLAIN xong, không thiếu chỉ mục; đo lại live sau deploy (Pi Em) |
+
+### Độ lệch / diễn giải ghi rõ (không lặng lẽ bỏ)
+
+1. **B3 externalId "bắt buộc" ở mức HÀNG, không phải mức cột:** cột ánh xạ được chấp nhận là externalId HOẶC sku — parser lấy externalId từ cột SKU khi không có cột mã ngoài riêng (file nguồn thường chỉ có SKU làm mã duy nhất). Ánh xạ tự động cũng tự điền externalId = cột SKU. Hàng nào cũng phải có externalId; cột ánh xạ không bắt buộc phải đúng tên externalId.
+2. **B3 số thập phân đảo ngược:** "890.000" = 890.000 (nghìn), "1234.5" = 1.234,5 (thập phân). Khoảng trắng trong số bị từ chối (nghiêm ngặt, giữ hành vi cũ).
+3. **B1 payload từng hàng giữ 7 ngày, không xóa ngay khi nhập xong:** đặc tả cho phép "sau 7 ngày hoặc khi nhập xong"; giữ 7 ngày để trang lịch sử/kết quả còn dữ liệu từng hàng. Dọn bằng `scripts/cleanup-import-rows.ts` (đã chạy `--dry-run`: không có lô quá 7 ngày).
+4. **B1 lỗi đọc ban đầu (parse) không tạo `import_rows`:** lỗi parse sống ở `batch.payload.parseErrors` và hiện riêng ở bước 6 ("Lỗi đọc dữ liệu ban đầu: N dòng"), không cộng vào `batch.failed` (failed chỉ đếm hàng lỗi trong lúc chạy). Đây là mô hình đã có từ Ngày 20 C — giữ nguyên, không thiết kế lại; tiêu chí "25 tạo/5 lỗi" vẫn hiện đủ ở giao diện (bước 6).
+5. **A3 "mã TOTP đã dùng bị từ chối qua server action thật":** chỉ kiểm bằng CDP, không bằng test:db — Node 22.23.5 ở đây không có `mock.module` (kể cả với cờ thử nghiệm) nên test:db không gọi được server action (cần request scope của `next/headers`). Chống replay ở tầng hàm verify đã có trong `totp.db.test.ts`.
+6. **B7:** giới hạn ≤500 ảnh/lô + re-encode WebP bằng sharp chưa làm (sharp không có sẵn, không thêm gói).
+7. **Nhập cho phép name 160 / price > 0** trong khi form tay giới hạn 120 / ≥ 1.000 ₫ — giữ như Ngày 20 §4, chờ Claude quyết (bản Retry không đổi điểm này).
+8. **Ánh xạ nhớ theo sourceName hợp nhất với tự nhận diện** (sửa lỗi tìm thấy khi kiểm — xem §14.2): cột đã nhớ chỉ giữ khi còn tồn tại trong tệp mới; trường nào nhớ là null thì tự nhận diện lại.
+9. **Bảng "Các lô nhập gần đây" không tự mới sau khi chạy** (sửa lỗi tìm thấy bằng ảnh probe — xem §14.4): wizard hợp nhất state lô mới nhất vào danh sách hiển thị.
+
+## 12. Bảng bảo mật bổ sung (B11) — `npm run test:security` TẤT CẢ ĐẠT
+
+`test:security`: quét tĩnh **76 ok, 0 FAIL**; live-check **63 PASS, 0 FAIL**; live scan **21 PASS, 0 FAIL**. Các ca B11 mới (unit 516/516, trong đó `parse.test.ts` 40/40 + `safe-fetch.test.ts` 35/35 ở cây B-rest):
+
+| Nhóm | Ca kiểm | Kết quả |
+| --- | --- | --- |
+| safe-fetch | IP dạng số `2130706433`, `0x7f000001`, `017700000001`, `127.1` (WHATWG URL đã chuẩn hóa về 127.0.0.1; code mới chặn tường minh qua `parseInetAton`); `[::ffff:127.0.0.1]`; `user:pass@host`; cổng 22/6379/5432; scheme `file:`/`gopher:`/`ftp:`/`data:`; redirect >3; nội dung HTML (Content-Type + body bắt đầu `<`, kể cả khoảng trắng/BOM đầu, đúng thông báo) | ĐẠT |
+| safe-fetch | Multicast 224.0.0.0/4 + ff00::/8; connect timeout 5 s (không probe trực tiếp được trên VM này — không có tường lửa DROP — chỉ kiểm bằng code + timeout tổng; ghi rõ, không nhận đã probe) | ĐẠT (timeout: chỉ code) |
+| Ảnh (B7) | PNG chứa HTML/script, đa dạng thức GIF/HTML, kích thước điểm ảnh >6000×6000 (PNG/JPEG/WebP/AVIF — đúng 6000×6000 vẫn qua), tên tệp `../` (tên tệp lưu theo hash nội dung `[a-f0-9]{12}.ext`, `readUpload` từ chối tên không khớp regex — đã có test) | ĐẠT |
+| Phân tích tệp | JSON bom (độ sâu ≤6, số khóa), `__proto__` (đã từ chối; prototype không ô nhiễm), CSV nhiều cột/ô khổng lồ/dòng thiếu dấu ngoặc, tệp nhị phân đổi đuôi `.csv` (byte NUL → từ chối), BOM/UTF-16, ký tự điều khiển, ReDoS ở bộ nhận dạng số (nhóm 3 chữ số, không backtrack) | ĐẠT |
+| Nội dung | XSS trong tên/mô tả/danh mục/sourceName/externalId (làm sạch thẻ + React escape) — CDP: tên chứa `<3` hiện `&lt;3` trong HTML shop, không có `<script>` thô; `javascript:`/`data:` trong sourceUrl/imageUrl bị từ chối; CSV injection trong tệp xuất (thêm `'`); SQLi vào mọi cột (tham số hóa — test:db lưu nguyên văn `'; DROP TABLE products; --`, bảng nguyên vẹn) | ĐẠT |
+| Phân quyền/CSRF/tốc độ | Route/action mới chưa đăng nhập → chuyển `/login` (CDP B0.1, status 307); phiên chờ xác minh bị chặn; Origin sai bị từ chối (server action Next.js); vượt hạn mức bị chặn (test:db: 5 lô/giờ, 20 lô/ngày, 10 lần tải feed/giờ); bộ đếm lỗi → đóng | ĐẠT |
+| Logic | Chạy lại cùng tệp → cập nhật, không trùng (test:db + CDP 25 UPDATED, vẫn 25 SP); 2 lần chạy song song trên 1 lô không xử lý trùng hàng (test:db: mỗi SKU đúng 1 lần; lease 30 s chặn lần chạy thứ hai); lô thất bại giữa chừng tiếp tục được (hủy → PREVIEW, chạy tiếp); hoàn tác không xóa SP đã duyệt/có đơn (test:db) | ĐẠT |
+
+## 13. Phần C — Hiệu năng (giới hạn 1,5 giờ, KHÔNG đổi nonce)
+
+### C1. Vùng + pooler — ĐÃ XÁC ĐỊNH (không còn chờ)
+
+- **Vùng Neon: AWS Asia Pacific 1 (Singapore), `ap-southeast-1`** — đọc từ trường "Region" trên trang tổng quan project `flowershop-db` (icy-waterfall-52224687) trong Neon Console lúc 13:58 ngày 28/11 (Pi Em đọc). Hàm Vercel đang ở `iad1` → KHÁC VÙNG.
+- **Đã tạo `vercel.json` `{"regions": ["sin1"]}`** (commit `ef34a3d`): chuyển hàm về cùng vùng với DB để giảm RTT mỗi vòng truy vấn.
+- **Pooler: ĐANG DÙNG** — Neon Console hiển thị host có `-pooler` và công tắc pooling đang bật. Theo đúng phương pháp kiểm của đặc tả, điểm cuối pooled đang dùng; không cần đổi chuỗi kết nối. **Ghi rõ: biến `DATABASE_URL` trên Vercel là Secret nên không đọc được trực tiếp — kết luận pooler dựa trên Neon Console (host hiển thị), không phải đọc biến Vercel.** Không tự đổi biến môi trường production (cần đăng nhập Vercel — việc của Pi Em/Henry).
+
+### C2. EXPLAIN truy vấn SP theo danh mục — KHÔNG THIẾU CHỈ MỤC
+
+Truy vấn danh mục đã 4 → 3 (Ngày 20 Part A, giữ nguyên). Chạy
+`EXPLAIN (ANALYZE, BUFFERS)` cho Q2 của `fetchCategoryPage` trên
+DB local (21 SP) — script chẩn đoán `~/workspace/day20b-explain.ts`
+(không commit vào repo):
+
+| Truy vấn | Kế hoạch | Thời gian thực thi |
+| --- | --- | --- |
+| Q2 mặc định (ORDER BY sortOrder, id) | Seq Scan products (21 dòng, đúng với bảng nhỏ) + Hash Join với categories (Index Scan `categories_slug_key`) + Sort quicksort 28 kB + WindowAgg | 0,505 ms |
+| Q2 sắp xếp theo giá (CASE salePrice/price) | Cùng hình dạng, Sort theo biểu thức tính | 0,265 ms |
+| Q3 tags (DISTINCT unnest) | HashAggregate | 0,587 ms |
+| Q2 mặc định với `enable_seqscan = off` | Bitmap Index Scan qua unique `(categoryId, slug)` + Sort quicksort 25 kB | 0,166 ms |
+
+**Kết luận: không thêm chỉ mục.** Chỉ mục `(categoryId, isActive, sortOrder)` + unique `(categoryId, slug)` đã phủ lọc + thứ tự; `needsReview` chỉ là bộ lọc thêm trên tối đa vài trăm dòng/danh mục — lợi ích của chỉ mục `(categoryId, isActive, needsReview, sortOrder)` không đo được ở quy mô này, và planner có thể không chọn nó (đã chọn bitmap qua unique nhỏ hơn). Không đoán chỉ mục.
+
+### C3. Bảng hiệu năng trước/sau
+
+| URL | Trước (live, Ngày 19/20 — ấm, trung vị 5×) | Local sau delta (ấm, trung vị 5×, cùng VM, DB localhost) | Live sau delta |
+| --- | --- | --- | --- |
+| `/` | 0,84–1,08 s | ~0,027 s (0,024–0,069 s) | CHỜ DEPLOY — Pi Em đo 5× × 3 URL ấm |
+| `/hoa-tuoi` | 1,52–2,19 s | ~0,026 s (0,021–0,101 s) | CHỜ DEPLOY — mục tiêu ≤1,05 s (giảm ≥40% so với 1,75 s) |
+| `/tin-tuc` | 0,78 s | ~0,019 s (0,015–0,024 s) | CHỜ DEPLOY |
+
+Số local chỉ chứng minh truy vấn + render nhanh khi DB cùng máy —
+không nói gì về live. Nguyên nhân còn lại nếu live vẫn >1,05 s
+sau khi chuyển vùng: render động toàn trang (root layout gọi
+`await headers()` lấy `x-nonce` → mọi trang render động, không
+cache tĩnh) + RTT còn lại Singapore–Singapore. **Nonce/ISR để
+ngày riêng** (theo đặc tả: ghi nguyên nhân còn lại và dừng).
+Không hồi quy: `<head>` 4/4, CSP, smoke local 20/21 (chỉ
+sitemap-localhost, như trước), `security-scan-live.sh` 21/21.
+
+## 14. Lỗi tìm thấy khi kiểm (đã sửa, có test)
+
+### 14.1 Ánh xạ bắt buộc externalId chặn tệp chỉ có SKU
+Ánh xạ tự động không map cột `sku` → `externalId`, mà B3 mới yêu
+cầu externalId bắt buộc → lưu ánh xạ bị từ chối. Sửa: chấp nhận
+externalId HOẶC sku ở mức cột (xem độ lệch §11.1) + tự điền
+externalId = cột SKU khi tệp không có cột mã ngoài.
+
+### 14.2 Ánh xạ nhớ theo sourceName bỏ qua cột mới
+Lô giá dùng cùng sourceName với các lô trước nên nạp ánh xạ đã nhớ
+từ tệp cũ (không có cột salePrice/description) thay vì tự nhận diện
+cột của tệp mới — salePrice/description bị bỏ qua âm thầm. Sửa:
+`mergeSavedMapping` — cột đã nhớ chỉ giữ khi còn tồn tại trong tệp
+mới, trường null thì tự nhận diện lại (unit test 3 ca mới).
+
+### 14.3 Cập nhật chỉ-giá không chuyển `importBatchId`
+Nhánh cập nhật chỉ-giá (SP đã duyệt) chỉ sửa price/salePrice nên
+hoàn tác lô mới không tìm thấy SP (lô cũ vẫn giữ). Sửa: cập nhật
+chỉ-giá cũng chuyển `importBatchId` sang lô mới (nhất quán với
+nhánh cập nhật đầy đủ).
+
+### 14.4 Bảng "Các lô nhập gần đây" hiện số cũ sau khi chạy
+Bảng dùng prop `batches` lấy lúc tải trang nên sau khi chạy xong
+vẫn hiện "Chờ xử lý 0/0/0/0" trong khi bước 6 đã báo "Xong, tạo
+25" — bắt được bằng ảnh probe CDP. Sửa: wizard hợp nhất state lô
+mới nhất vào danh sách hiển thị (ảnh sau sửa: "Xong 25/0/0/0").
+
+### 14.5 Môi trường (không phải lỗi code — ghi để lần sau khỏi mất giờ)
+- Chrome headless mất sau lần thay VM — cài lại từ `.deb` của Google.
+- Fixture TEST-001 mất sau lần dựng lại DB — khôi phục bằng `scripts/recreate-test-data.ts` (test:db 123/139 → 139/139).
+- DB local sau dựng lại thiếu dòng `seo.allowIndexing` → mặc định `true` → trang chủ local không có meta robots noindex (làm rớt kiểm `<head>` 4/4 ở probe lần đầu). Đã đặt `seo.allowIndexing=false` bằng SQL + khởi động lại server để khớp trạng thái production (TẮT). Đây là trạng thái DB local, không phải code.
+- Lỗi probe (không phải lỗi sản phẩm): trang `/search` echo lại từ khóa trong tiêu đề nên phải kiểm bằng slug; nhãn "Cập nhật (đã tồn tại)" chứa ngoặc tròn phải escape trong regex; bảng + thẻ mobile cùng render nên mỗi SP có 2 checkbox — đếm theo nút bulk; href không nằm trong `innerText`; React chèn `<!-- -->` giữa "Lô #" và số.
+
+## 15. Tiêu chí ĐẠT Phần B (bản mới) — CDP 30/30
+
+Probe `~/workspace/day20b-shots/probe-day20b-import.mjs` (máy chủ
+giả 127.0.0.1:18082, server standalone local với
+`SAFE_FETCH_ALLOW_LOOPBACK=1`), CSV mẫu 30 dòng (25 hợp lệ + 5
+lỗi cố ý: giá âm, tên ngắn, salePrice bằng giá, giá 0, thiếu mã
+ngoài), ảnh 1440 + 390 đã mắt kiểm
+(`~/workspace/day20b-shots/`):
+
+| # | Kiểm | Kết quả |
+| --- | --- | --- |
+| B0.1 | Chưa đăng nhập → chuyển `/login` (307) | PASS |
+| B1.1–B1.3 | Mở trang nhập, chọn tệp CSV 30 dòng, tạo lô qua UI | PASS |
+| B3.1–B3.2 | Ánh xạ tự khớp đủ cột; lưu ánh xạ danh mục Hoa tươi | PASS |
+| B2.1–B2.2 | Xem trước: tổng 30 / hợp lệ 25 / tạo mới 25 / lỗi 5; danh sách lỗi hiện Dòng 27–31 | PASS |
+| B6.1 | Nút "Tải CSV lỗi" hiện ở xem trước | PASS |
+| B4.1–B4.2 | Câu tick đúng bản mới; xác nhận quyền → bước 5 | PASS |
+| B2.3 | Chạy xong: tạo mới 25 + "Lỗi đọc dữ liệu ban đầu: 5 dòng" | PASS |
+| B6.2 | DB: 25 SP mới đều ẩn + Chờ duyệt | PASS |
+| B6.3–B6.4 | SP chờ duyệt ẩn khỏi tìm kiếm shop (kiểm bằng slug) + sitemap | PASS |
+| HEAD | Shop `/`: 4/4 (title, description, robots noindex, og:title) | PASS |
+| B3.3 | Chạy lại: ánh xạ nhớ vẫn giữ cột salePrice | PASS |
+| B5.1–B5.2 | Chạy lại: tạo 0 / cập nhật 25 / lỗi 5; vẫn 25 SP, 25 hàng UPDATED, không trùng | PASS |
+| B6.5 | Danh sách hiện nguồn "Nhập từ ngoài" + tên nguồn | PASS |
+| B6.6–B6.8 | Chọn 3 SP (gồm SP tên có `<3`) để duyệt; hộp duyệt: "Hiện luôn" mặc định KHÔNG tick; duyệt 3 (hiện luôn) → 3 SP hiện, bán được | PASS |
+| B11.1 | XSS: tên có `<3` hiện `&lt;3` trong HTML shop | PASS |
+| B6.9 | Từ chối 2 SP → còn 23 SP | PASS |
+| B6.10 | Popup SP hiện khối "Nguồn dữ liệu" (tên nguồn, mã ngoài, lô, ngày nhập) — ảnh popup đã mắt kiểm; kiểm lại bằng curl có cookie sau khi sửa check probe (lỗi `<!-- -->`) | PASS |
+| B2.4 | Feed URL (máy chủ giả) tạo lô qua UI | PASS |
+| B2.5 | Feed HTML → đúng thông báo "Đây là trang web, không phải dữ liệu nhập (CSV/JSON)" | PASS |
+| B11.2 | URL nội bộ 169.254.169.254 bị chặn, không tạo lô | PASS |
+
+**Tổng: 30/30 PASS** (29/30 ở lần chạy đầy đủ cuối + B6.10
+xác minh nhắm mục tiêu sau đó; lần chạy đầy đủ trước đó 25/30 —
+5 lỗi đều là lỗi probe/môi trường, đã sửa, xem §14.5). DB cuối
+sạch: 21 SP (20 seed + TEST-001), 0 lô, 0 hàng nhập, 0 phiên,
+0 ánh xạ nhớ.
+
+## 16. Số kiểm cuối cùng (cây cuối)
+
+| Kiểm | Kết quả |
+| --- | --- |
+| Unit (`npm test`) | **516/516** (tăng từ 498: +3 merge mapping, +15 parse/safe-fetch B11) |
+| test:db (`--test-concurrency=1`) | **139/139 × 3 lần liên tiếp** trên cây B-rest + 2 lần 139/139 trên cây cuối (tổng 5 lần PASS; 1 lần 138/139 giữa chừng do phiên thừa từ probe — xem A4) |
+| Typecheck (`tsc --noEmit`) | 0 lỗi |
+| Lint | 0 lỗi / 4 cảnh báo (cũ) |
+| Build (`next build`) | OK; First Load JS `/` **115 kB** (≤135 kB) |
+| `npm run test:security` | TẤT CẢ ĐẠT (tĩnh 76, live-check 63/63, live scan 21/21) |
+| CDP Phần A2 | 9/9 PASS |
+| CDP Phần A3 (bank) | 6/6 PASS; đặt hàng fail-closed 5/5 PASS |
+| CDP Phần B (tiêu chí chấp nhận) | 30/30 PASS |
+| Smoke local | 20/21 (chỉ sitemap-localhost, như trước) |
+| `npm audit --omit=dev` | 0 |
+
+## 17. Còn thiếu / chưa làm (bổ sung)
+
+- TTFB live sau sửa chưa đo (chờ Pi Em đẩy + deploy, đo lại 5× × 3 URL ấm, đối chiếu nền Ngày 19) — mục tiêu `/hoa-tuoi` ≤1,05 s.
+- Feed JSON qua UI chưa probe bằng CDP (CSV feed đã probe đủ; JSON parse đã có unit test).
+- Nhập/xuất tin tức: backlog từ Ngày 18.
+- Safari/Firefox chưa kiểm; Lighthouse chưa đo; sao lưu tự động + cảnh báo 500 chưa có.
+- Drift `admin_two_factor` (Ngày 19) chưa sửa — để ngày riêng.
+- B7: giới hạn ≤500 ảnh/lô + re-encode WebP bằng sharp chưa làm (sharp không có sẵn).
+
+## 18. Chờ Henry
+
+- **S0: thu hồi token GitHub đã dán trong chat + tạo token fine-grained** với Contents AND **Workflows** read/write để đẩy được `.github/workflows/ci.yml`; tới lúc đó ci.yml vẫn chỉ local (commit `8599fec`) và CI chưa từng chạy. Đường khác (B6 bản cũ): thêm ci.yml thủ công qua giao diện web GitHub khi trình duyệt Henry đã đăng nhập, rồi `git pull` đồng bộ — không cần token mới.
+- **Bật 2FA trên production:** đặt `AUTH_ENCRYPTION_KEY` trên Vercel (lệnh sinh khóa trong `docs/van-hanh.md` §3.1 — giá trị production phải **khác** khóa local), quét QR ở `/admin/security`, cất 10 mã khôi phục + cất bản sao khóa vào trình quản lý mật khẩu. Không bật 2FA trên live trước khi có khóa đúng (A2: thiếu khóa thì chỉ đăng nhập được bằng mã khôi phục).
+- ~~Vùng Neon + pooler~~ — ĐÃ XÁC ĐỊNH (§13.1), không còn chờ.
