@@ -27,20 +27,20 @@ async function fetchCategoryPage(
   slug: string,
   params: CatalogParams,
 ): Promise<CategoryPageData | null> {
-  // Truy vấn 1: danh mục theo slug.
-  const category = await db.category.findUnique({
-    where: { slug },
-    select: { id: true, name: true, slug: true, seoTitle: true, seoDescription: true },
-  });
-  if (!category) return null;
-
   const range = priceRanges.find((r) => r.slug === params.gia) ?? null;
 
   // Mọi giá trị đi vào SQL đều đã qua allowlist ở catalog-params; dip, min,
   // max, limit, offset đều truyền bằng tham số. Hướng sắp xếp chỉ chọn giữa
   // các đoạn SQL cố định dưới đây, không nối chuỗi từ dữ liệu người dùng.
+  // Danh mục được nối qua JOIN theo slug (c."slug" = $slug) thay vì
+  // categoryId lấy từ truy vấn riêng — nhờ đó cả 3 truy vấn dưới đây
+  // độc lập nhau và chạy song song trong 1 vòng RTT (Ngày 20 A4):
+  //  - Q1: danh mục theo slug (tên + SEO cho metadata/trang).
+  //  - Q2: chi tiết SP đã lọc/sắp xếp/phân trang + tổng số
+  //    (COUNT(*) OVER()) trong MỘT truy vấn — trước đây tách thành
+  //    "lấy id" rồi "lấy chi tiết theo id" (2 vòng nối tiếp).
+  //  - Q3: tag dịp thực sự có trong danh mục (DISTINCT unnest).
   const conditions: Prisma.Sql[] = [
-    Prisma.sql`p."categoryId" = ${category.id}`,
     Prisma.sql`p."isActive" = true`,
   ];
   if (params.dip) conditions.push(Prisma.sql`${params.dip} = ANY(p."tags")`);
@@ -57,70 +57,66 @@ async function fetchCategoryPage(
         ? Prisma.sql`ORDER BY ${currentPriceSql} DESC, p."sortOrder" ASC, p."id" ASC`
         : Prisma.sql`ORDER BY p."sortOrder" ASC, p."id" ASC`;
 
-  // Truy vấn 2: id đã lọc, sắp xếp, phân trang + tổng số (COUNT(*) OVER()).
-  const rows = await db.$queryRaw<Array<{ id: number; total: bigint }>>(Prisma.sql`
-    SELECT p."id", COUNT(*) OVER() AS "total"
-    FROM "products" AS p
-    WHERE ${Prisma.join(conditions, " AND ")}
-    ${orderBy}
-    LIMIT ${PAGE_SIZE} OFFSET ${(params.trang - 1) * PAGE_SIZE}
-  `);
-  const total = rows.length > 0 ? Number(rows[0].total) : 0;
-  const ids = rows.map((r) => r.id);
-
-  // Truy vấn 3+4 chạy song song (Ngày 19 B2): chi tiết sản phẩm theo
-  // id (giữ nguyên thứ tự của ids) và tag dịp thực sự có trong danh
-  // mục (không phụ thuộc bộ lọc) — hai lần đọc độc lập, trước đây
-  // nối tiếp. Không select quan hệ category (Prisma sẽ tốn thêm 1
-  // truy vấn nạp quan hệ): mọi sản phẩm ở đây đều thuộc cùng danh
-  // mục đã lấy ở truy vấn 1.
-  const [found, tagRows] = await Promise.all([
-    ids.length > 0
-      ? db.product.findMany({
-          where: { id: { in: ids } },
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            price: true,
-            salePrice: true,
-            images: true,
-            isFastDelivery: true,
-            inStock: true,
-            sku: true,
-          },
-        })
-      : Promise.resolve([]),
-    db.product.findMany({
-      where: { categoryId: category.id, isActive: true },
-      select: { tags: true },
-    }),
+  type CategoryRow = {
+    id: number;
+    name: string;
+    slug: string;
+    seoTitle: string;
+    seoDescription: string;
+  };
+  type ProductRow = {
+    id: number;
+    name: string;
+    slug: string;
+    price: number;
+    salePrice: number | null;
+    images: string[];
+    isFastDelivery: boolean;
+    inStock: boolean;
+    sku: string | null;
+    total: bigint;
+  };
+  const [category, productRows, tagRows] = await Promise.all([
+    db.category.findUnique({
+      where: { slug },
+      select: { id: true, name: true, slug: true, seoTitle: true, seoDescription: true },
+    }) as Promise<CategoryRow | null>,
+    db.$queryRaw<Array<ProductRow>>(Prisma.sql`
+      SELECT p."id", p."name", p."slug", p."price", p."salePrice",
+        p."images", p."isFastDelivery", p."inStock", p."sku",
+        COUNT(*) OVER() AS "total"
+      FROM "products" AS p
+      JOIN "categories" AS c ON c."id" = p."categoryId"
+      WHERE c."slug" = ${slug}
+        AND ${Prisma.join(conditions, " AND ")}
+      ${orderBy}
+      LIMIT ${PAGE_SIZE} OFFSET ${(params.trang - 1) * PAGE_SIZE}
+    `),
+    db.$queryRaw<Array<{ tag: string }>>(Prisma.sql`
+      SELECT DISTINCT unnest(p."tags") AS "tag"
+      FROM "products" AS p
+      JOIN "categories" AS c ON c."id" = p."categoryId"
+      WHERE c."slug" = ${slug} AND p."isActive" = true
+    `),
   ]);
-  let products: ProductSummary[] = [];
-  if (ids.length > 0) {
-    const byId = new Map(found.map((p) => [p.id, p]));
-    products = ids.flatMap((id) => {
-      const p = byId.get(id);
-      if (!p) return [];
-      return [
-        {
-          id: p.id,
-          name: p.name,
-          slug: p.slug,
-          categorySlug: category.slug,
-          categoryName: category.name,
-          price: p.price,
-          salePrice: p.salePrice,
-          images: p.images,
-          isFastDelivery: p.isFastDelivery,
-          inStock: p.inStock,
-          sku: p.sku,
-        },
-      ];
-    });
-  }
+  if (!category) return null;
 
-  const tagSet = new Set(tagRows.flatMap((r) => r.tags));
+  const total = productRows.length > 0 ? Number(productRows[0].total) : 0;
+  const products: ProductSummary[] = productRows.map((p) => ({
+    id: p.id,
+    name: p.name,
+    slug: p.slug,
+    categorySlug: category.slug,
+    categoryName: category.name,
+    price: p.price,
+    salePrice: p.salePrice,
+    images: p.images,
+    isFastDelivery: p.isFastDelivery,
+    inStock: p.inStock,
+    sku: p.sku,
+  }));
+
+  const tagSet = new Set(tagRows.map((r) => r.tag));
   const availableTags = tagLabels
     .filter((t) => tagSet.has(t.slug))
     .map((t) => t.slug);
