@@ -409,3 +409,36 @@ của điều phối viên:
 - Đẩy: tách ci.yml như Ngày 17/18 (token cũ không có quyền
   workflow); remote HEAD sau đẩy ghi ở dưới sau khi Pi Em xác
   minh bằng ls-remote.
+
+## 12. Đẩy + kiểm live (Pi Em, 28/11 ~11:0x)
+
+- Đẩy: tách ci.yml khỏi 5 commit (chỉ `1797cb2` chạm ci.yml —
+  job audit mới); `git diff 85114ce d08aebb` chỉ còn ci.yml.
+  Push bằng token cũ (lấy lại từ lịch sử chat, askpass tạm,
+  đã xóa ngay sau khi đẩy). **Remote HEAD = `d08aebb`** (xác
+  minh bằng ls-remote). Local main dựng lại: `4ecde6f` (ci.yml
+  local-only, nội dung mới nhất) trên `d08aebb`, cây trùng
+  `85114ce` (diff rỗng).
+- Deploy: `/login/verify` chuyển 404 → 307 sau ~75 s (route
+  mới đã lên).
+- Smoke production **21/21 PASS**. F2 **6 PASS, 0 FAIL**
+  (exit 0). `security-scan-live.sh` **22 PASS, 0 FAIL**.
+  Indexing vẫn TẮT (noindex + robots.txt Disallow: /).
+  `/tin-tuc` có trong sitemap. `/admin/security` và
+  `/login/verify` (chưa đăng nhập) đều 307 về `/login`.
+- TTFB live (curl, cùng VM, trung vị ấm 5 lần):
+  vòng 1 ngay sau deploy RẤT CHẬM (`/` 3,84 s, `/hoa-tuoi`
+  4,46 s — hàm lạnh + Neon vừa thức); vòng 2 khi đã ấm:
+  `/` **0,76 s** (nền 1,33 s → **−43%**, đạt mục tiêu B3),
+  `/hoa-tuoi` **1,47 s** (nền 1,75 s → −16%),
+  `/tin-tuc` **1,06 s** (nền 1,15 s → −8%),
+  `/robots.txt` tĩnh 0,37 s (nền 0,45 s — mạng VM không đổi).
+  Kết luận B3: `/` ĐẠT mục tiêu ≥40%; `/hoa-tuoi` cải thiện
+  nhưng chưa tới 40% (còn 4 truy vấn ấm so với 1 của `/`).
+  `x-vercel-id`: hàm `iad1` (edge `iad1`).
+- Checkout live (kiểm bằng trình duyệt đám mây, thêm "Bó Hồng
+  Đỏ Tình Yêu" vào giỏ rồi mở /checkout, KHÔNG điền thông tin,
+  KHÔNG đặt hàng): chỉ có **một** phương thức "Thanh toán khi
+  nhận hàng (COD)"; tìm "Chuyển khoản"/"VietQR"/"QR" trong toàn
+  bộ trang không có kết quả, trang không có ảnh nào → không có
+  mã QR. Chuyển khoản vẫn TẮT đúng như yêu cầu.
