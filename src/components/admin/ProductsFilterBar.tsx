@@ -62,7 +62,9 @@ export default function ProductsFilterBar({
         name="source"
         options={[
           { value: "", label: "Tất cả" },
+          { value: "system", label: "Hệ thống" },
           ...PRODUCT_SOURCES.map((s) => ({ value: s, label: PRODUCT_SOURCE_LABELS[s] })),
+          { value: "review", label: "Chờ duyệt" },
         ]}
         value={source}
         onChange={(value) => updateFilter("source", value)}

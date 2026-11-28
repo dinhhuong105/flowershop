@@ -19,6 +19,11 @@ import {
   bulkToggleProductsAction,
   type BulkToggleProductsState,
 } from "@/app/actions/admin";
+import {
+  approveImportedAction,
+  rejectImportedAction,
+  type ImportActionState,
+} from "@/app/admin/products/import/actions";
 import ToggleActiveButton from "@/components/admin/ToggleActiveButton";
 import AdminIconButton, { PencilIcon } from "@/components/admin/AdminIconButton";
 
@@ -36,6 +41,17 @@ export default function AdminProductsList({ products }: { products: AdminProduct
   const [doneMessage, setDoneMessage] = useState<string | null>(null);
   const lastHandled = useRef<BulkToggleProductsState | null>(null);
 
+  // Duyệt hàng chờ duyệt (Ngày 20 C6): tối đa 50/lần, tùy chọn
+  // đồng thời Hiện. Dùng hộp xác nhận riêng, cùng mẫu với Ẩn/Hiện.
+  const [approvePending, setApprovePending] = useState(false);
+  const approveDialogRef = useRef<HTMLDialogElement | null>(null);
+  const [alsoShow, setAlsoShow] = useState(false);
+  const [approveState, approveDispatch] = useActionState<ImportActionState, FormData>(
+    approveImportedAction,
+    { ok: false, error: null, message: null },
+  );
+  const lastApproveHandled = useRef<ImportActionState | null>(null);
+
   useEffect(() => {
     if (!state.ok || state === lastHandled.current) return;
     lastHandled.current = state;
@@ -49,6 +65,16 @@ export default function AdminProductsList({ products }: { products: AdminProduct
     );
     router.refresh();
   }, [state, router]);
+
+  useEffect(() => {
+    if (!approveState.ok || approveState === lastApproveHandled.current) return;
+    lastApproveHandled.current = approveState;
+    approveDialogRef.current?.close();
+    setApprovePending(false);
+    setSelected([]);
+    setDoneMessage(approveState.message ?? "Đã duyệt sản phẩm.");
+    router.refresh();
+  }, [approveState, router]);
 
   const allSelected = products.length > 0 && selected.length === products.length;
   const toggleOne = (id: number, checked: boolean) => {
@@ -109,6 +135,17 @@ export default function AdminProductsList({ products }: { products: AdminProduct
           </button>
           <button
             type="button"
+            onClick={() => {
+              setApprovePending(true);
+              setDoneMessage(null);
+              approveDialogRef.current?.showModal();
+            }}
+            className="flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-5 text-sm font-bold text-white transition-opacity hover:opacity-90"
+          >
+            Duyệt {selected.length} sản phẩm
+          </button>
+          <button
+            type="button"
             onClick={() => setSelected([])}
             className="flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 transition-colors hover:bg-slate-100"
           >
@@ -116,6 +153,58 @@ export default function AdminProductsList({ products }: { products: AdminProduct
           </button>
         </div>
       ) : null}
+      {approveState.error && !approveState.ok ? (
+        <p role="alert" className="mt-4 rounded-lg border border-danger/40 bg-danger/5 px-4 py-3 text-sm font-medium text-danger">
+          {approveState.error}
+        </p>
+      ) : null}
+
+      {/* Hộp xác nhận duyệt hàng loạt (Ngày 20 C6). */}
+      <dialog
+        ref={approveDialogRef}
+        aria-label="Xác nhận duyệt hàng loạt"
+        className="m-auto w-[calc(100vw-2rem)] max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-[0_24px_64px_rgba(15,30,51,0.35)] backdrop:bg-black/40"
+      >
+        {approvePending ? (
+          <form action={approveDispatch}>
+            <p className="text-base font-bold text-slate-900">
+              Duyệt {selected.length} sản phẩm chờ duyệt?
+            </p>
+            <p className="mt-2 text-sm text-slate-500">
+              Chỉ sản phẩm đang chờ duyệt mới được duyệt (sản phẩm khác trong
+              lựa chọn sẽ bị bỏ qua). Mỗi sản phẩm duyệt đều được ghi vào nhật ký.
+            </p>
+            {selected.map((id) => (
+              <input key={id} type="hidden" name="ids" value={id} />
+            ))}
+            <label className="mt-3 flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="alsoShow"
+                checked={alsoShow}
+                onChange={(e) => setAlsoShow(e.target.checked)}
+                className="h-5 w-5 accent-blue-600"
+              />
+              Đồng thời Hiện (cho bán ngay)
+            </label>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="submit"
+                className="flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-6 text-sm font-bold text-white transition-opacity hover:opacity-90"
+              >
+                Duyệt sản phẩm
+              </button>
+              <button
+                type="button"
+                onClick={() => approveDialogRef.current?.close()}
+                className="flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-5 text-sm font-bold text-slate-900 transition-colors hover:bg-slate-100"
+              >
+                Hủy
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </dialog>
 
       {/* Hộp xác nhận thao tác hàng loạt (theo mẫu DeleteCategoryButton). */}
       <dialog
@@ -221,7 +310,23 @@ export default function AdminProductsList({ products }: { products: AdminProduct
                   {p.sku ? <span className="block text-xs text-slate-500">SKU: {p.sku}</span> : null}
                 </td>
                 <td className="px-4 py-3">{p.categoryName}</td>
-                <td className="px-4 py-3">{productSourceLabel(p.source)}</td>
+                <td className="px-4 py-3">
+                  {p.importBatchId ? (
+                    <Link
+                      href={`/admin/products/import?batch=${p.importBatchId}`}
+                      className="font-bold text-blue-600 hover:underline"
+                    >
+                      {productSourceLabel(p.source)}
+                    </Link>
+                  ) : (
+                    productSourceLabel(p.source)
+                  )}
+                  {p.needsReview ? (
+                    <span className="mt-1 block w-fit rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+                      Chờ duyệt
+                    </span>
+                  ) : null}
+                </td>
                 <td className="px-4 py-3">
                   <span className="font-bold text-slate-900">{formatVND(p.salePrice !== null && p.salePrice > 0 && p.salePrice < p.price ? p.salePrice : p.price)}</span>
                   {p.salePrice !== null && p.salePrice > 0 && p.salePrice < p.price ? (
@@ -231,7 +336,7 @@ export default function AdminProductsList({ products }: { products: AdminProduct
                 <td className="px-4 py-3">{statusLabel(p)}</td>
                 <td className="px-4 py-3">{p.inStock ? "Còn hàng" : "Hết hàng"}</td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <AdminIconButton
                       href={`/admin/products/${p.id}`}
                       label="Sửa sản phẩm"
@@ -240,6 +345,7 @@ export default function AdminProductsList({ products }: { products: AdminProduct
                       className="border border-blue-600 bg-white text-blue-600 hover:bg-slate-100"
                     />
                     <ToggleActiveButton productId={p.id} isActive={p.isActive} />
+                    {p.needsReview ? <ImportReviewButtons productId={p.id} /> : null}
                   </div>
                 </td>
               </tr>
@@ -279,6 +385,7 @@ export default function AdminProductsList({ products }: { products: AdminProduct
                   {p.categoryName}
                   {p.sku ? ` · SKU: ${p.sku}` : ""}
                   {` · Nguồn: ${productSourceLabel(p.source)}`}
+                  {p.needsReview ? " · Chờ duyệt" : ""}
                 </p>
                 <p className="mt-1 text-sm">
                   <span className="font-bold text-slate-900">{formatVND(p.salePrice !== null && p.salePrice > 0 && p.salePrice < p.price ? p.salePrice : p.price)}</span>
@@ -289,7 +396,7 @@ export default function AdminProductsList({ products }: { products: AdminProduct
                 </p>
               </div>
             </div>
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex flex-wrap gap-2">
               <AdminIconButton
                 href={`/admin/products/${p.id}`}
                 label="Sửa sản phẩm"
@@ -297,10 +404,64 @@ export default function AdminProductsList({ products }: { products: AdminProduct
                 className="border border-blue-600 bg-white text-blue-600 hover:bg-slate-100"
               />
               <ToggleActiveButton productId={p.id} isActive={p.isActive} />
+              {p.needsReview ? <ImportReviewButtons productId={p.id} /> : null}
             </div>
           </li>
         ))}
       </ul>
     </div>
+  );
+}
+
+// Nút duyệt/từ chối từng sản phẩm chờ duyệt (Ngày 20 C6). Duyệt lẻ
+// đồng thời Hiện để sản phẩm bán ngay; từ chối = xóa (ghi nhật ký).
+function ImportReviewButtons({ productId }: { productId: number }) {
+  const [approveState, approveDispatch] = useActionState<ImportActionState, FormData>(
+    approveImportedAction,
+    { ok: false, error: null, message: null },
+  );
+  const [rejectState, rejectDispatch] = useActionState<ImportActionState, FormData>(
+    rejectImportedAction,
+    { ok: false, error: null, message: null },
+  );
+  const error = approveState.error ?? rejectState.error;
+  return (
+    <>
+      <form action={approveDispatch}>
+        <input type="hidden" name="ids" value={productId} />
+        <input type="hidden" name="alsoShow" value="on" />
+        <button
+          type="submit"
+          className="flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-bold text-white transition-opacity hover:opacity-90"
+        >
+          Duyệt
+        </button>
+      </form>
+      <form
+        action={rejectDispatch}
+        onSubmit={(e) => {
+          if (
+            !window.confirm(
+              "Từ chối (xóa) sản phẩm này? Sản phẩm sẽ bị xóa khỏi kho và ghi vào nhật ký.",
+            )
+          ) {
+            e.preventDefault();
+          }
+        }}
+      >
+        <input type="hidden" name="id" value={productId} />
+        <button
+          type="submit"
+          className="flex min-h-11 items-center justify-center rounded-lg border border-danger bg-white px-4 text-sm font-bold text-danger transition-colors hover:bg-danger/5"
+        >
+          Từ chối
+        </button>
+      </form>
+      {error ? (
+        <span role="alert" className="text-sm font-medium text-danger">
+          {error}
+        </span>
+      ) : null}
+    </>
   );
 }

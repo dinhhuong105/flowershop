@@ -88,7 +88,7 @@ export async function getHomeData(): Promise<{
   const [categories, products] = await Promise.all([
     getNavCategories(),
     db.product.findMany({
-      where: { isActive: true },
+      where: { isActive: true, needsReview: false },
       orderBy: [{ category: { sortOrder: "asc" } }, { sortOrder: "asc" }],
       select: {
         id: true,

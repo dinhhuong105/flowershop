@@ -56,6 +56,44 @@ model Category {
   @@map("categories")
 }
 
+// Lô nhập sản phẩm (Ngày 20 C1/C4): một lần nhập (tệp hoặc feed) là
+// một lô; fileName hoặc sourceUrl đúng một (kiểm ở tầng ứng dụng).
+// payload giữ các dòng đã chuẩn hóa + ánh xạ để chạy tiếp được sau
+// khi tải lại trang (tệp gốc đã mất).
+enum ImportBatchKind {
+  file
+  feed
+}
+
+enum ImportBatchStatus {
+  pending
+  running
+  done
+  cancelled
+}
+
+model ImportBatch {
+  id              Int               @id @default(autoincrement())
+  sourceName      String
+  kind            ImportBatchKind
+  fileName        String?
+  sourceUrl       String?
+  rightsConfirmed Boolean           @default(false)
+  status          ImportBatchStatus @default(pending)
+  createdCount    Int               @default(0)
+  updatedCount    Int               @default(0)
+  skippedCount    Int               @default(0)
+  errorCount      Int               @default(0)
+  createdBy       String
+  createdAt       DateTime          @default(now())
+  finishedAt      DateTime?
+  notes           String?
+  payload         Json?
+  products        Product[]
+
+  @@map("import_batches")
+}
+
 model Product {
   id             Int        @id @default(autoincrement())
   categoryId     Int
@@ -77,13 +115,29 @@ model Product {
   seoDescription String     @default("")
   // Nguồn dữ liệu (Ngày 17 P1): như Category.source.
   source         String     @default("seed")
+  // Nhập sản phẩm (Ngày 20 C1): chỉ có nghĩa khi source = "import".
+  // sourceName/sourceUrl/externalId/importedAt nullable; needsReview
+  // = true khi mới nhập (chờ duyệt, ẩn khỏi shop). importBatchId
+  // nối về lô nhập để hoàn tác (C6). Khóa (sourceName, externalId)
+  // ở @@unique dưới: NULL khác nhau trong Postgres nên SP hệ thống
+  // (sourceName null) không xung đột.
+  sourceName     String?
+  sourceUrl      String?
+  externalId     String?
+  importedAt     DateTime?
+  needsReview    Boolean    @default(false)
+  importBatchId  Int?
+  importBatch    ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   cartItems      CartItem[]
   orderItems     OrderItem[]
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
   @@unique([categoryId, slug])
+  @@unique([sourceName, externalId])
   @@index([categoryId, isActive, sortOrder])
+  @@index([importBatchId])
+  @@index([needsReview])
   @@map("products")
 }
 

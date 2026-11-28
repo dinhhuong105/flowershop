@@ -32,7 +32,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     orderBy: { sortOrder: "asc" },
   });
   const products = await db.product.findMany({
-    where: { isActive: true },
+    where: { isActive: true, needsReview: false },
     select: {
       slug: true,
       updatedAt: true,

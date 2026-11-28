@@ -46,21 +46,43 @@ export default async function AdminProductsPage({
   const status =
     params.status === "active" || params.status === "hidden" ? params.status : "all";
   const sourceRaw = params.source ?? "";
-  const source = isProductSource(sourceRaw) ? sourceRaw : "";
+  // "system" = seed + nhập tay (Ngày 20 C6); "review" = chờ duyệt
+  // (needsReview=true) — hai giá trị lọc riêng, không phải ProductSource.
+  const needsReview = sourceRaw === "review";
+  const source =
+    isProductSource(sourceRaw) || sourceRaw === "system" ? sourceRaw : "";
   const page = Math.max(1, Number(params.page) || 1);
   const [list, categories] = await Promise.all([
-    listAdminProducts({ q, categoryId, status, source: source === "" ? null : source, page }),
+    listAdminProducts({
+      q,
+      categoryId,
+      status,
+      source: source === "" ? null : source,
+      needsReview: needsReview ? true : undefined,
+      page,
+    }),
     listAdminCategories(),
   ]);
-  const base = { q, category: categoryRaw, status, source };
+  const base = {
+    q,
+    category: categoryRaw,
+    status,
+    source: isProductSource(sourceRaw) || sourceRaw === "system" || needsReview ? sourceRaw : "",
+  };
 
   return (
     <div>
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-3xl font-bold text-slate-900">Sản phẩm</h1>
         <Link
+          href="/admin/products/import"
+          className="ml-auto flex min-h-11 items-center justify-center rounded-lg border border-blue-600 bg-white px-5 text-sm font-bold text-blue-600 transition-colors hover:bg-blue-600/5"
+        >
+          Nhập sản phẩm
+        </Link>
+        <Link
           href="/admin/products/new"
-          className="ml-auto flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-5 text-sm font-bold text-white transition-opacity hover:opacity-90"
+          className="flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-5 text-sm font-bold text-white transition-opacity hover:opacity-90"
         >
           + Thêm sản phẩm
         </Link>

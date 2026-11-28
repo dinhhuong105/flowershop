@@ -60,6 +60,10 @@ runStep("unit test bảo mật", npxBin, [
   "src/lib/storage.test.ts",
   "src/lib/admin/ip.test.ts",
   "src/lib/admin/password.test.ts",
+  // Ngày 20 C7: bộ đọc + safe-fetch của bộ nhập (SSRF, tài nguyên,
+  // phân tích dữ liệu, ô công thức).
+  "src/lib/import/parse.test.ts",
+  "src/lib/import/safe-fetch.test.ts",
 ]);
 
 // 2. Quét tĩnh.

@@ -42,6 +42,8 @@ async function fetchCategoryPage(
   //  - Q3: tag dịp thực sự có trong danh mục (DISTINCT unnest).
   const conditions: Prisma.Sql[] = [
     Prisma.sql`p."isActive" = true`,
+    // Ngày 20 C5: hàng nhập đang chờ duyệt (needsReview) không hiện ở shop.
+    Prisma.sql`p."needsReview" = false`,
   ];
   if (params.dip) conditions.push(Prisma.sql`${params.dip} = ANY(p."tags")`);
   if (range) {
@@ -96,7 +98,7 @@ async function fetchCategoryPage(
       SELECT DISTINCT unnest(p."tags") AS "tag"
       FROM "products" AS p
       JOIN "categories" AS c ON c."id" = p."categoryId"
-      WHERE c."slug" = ${slug} AND p."isActive" = true
+      WHERE c."slug" = ${slug} AND p."isActive" = true AND p."needsReview" = false
     `),
   ]);
   if (!category) return null;

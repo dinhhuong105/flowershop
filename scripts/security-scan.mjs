@@ -273,5 +273,42 @@ if (existsSync(envExample)) {
   else ok(".env.example chỉ có tên biến/placeholder");
 }
 
+// ---------------- C7 (Ngày 20): chỉ safe-fetch được fetch URL người dùng ----------------
+// SSRF: mọi fetch tới URL do người dùng cung cấp (feed/ảnh nhập) phải đi
+// qua src/lib/import/safe-fetch.ts. Cho phép thêm: telegram.ts (URL
+// Telegram cấu hình sẵn ở server, không phải URL người dùng) và các
+// component client fetch route nội bộ "/api/..." của chính shop.
+console.log("C7 — fetch URL người dùng chỉ qua safe-fetch:");
+const FETCH_ALLOWLIST = new Set([
+  "src/lib/import/safe-fetch.ts", // mô-đun duy nhất fetch URL người dùng (SSRF-safe)
+  "src/lib/telegram.ts", // URL Telegram cấu hình sẵn ở server, không phải URL người dùng
+]);
+let fetchViolations = 0;
+for (const f of srcFiles) {
+  const src = readFileSync(f, "utf8");
+  const r = rel(f);
+  if (/https?\.request\s*\(/.test(src)) {
+    fetchViolations += 1;
+    fail(`http(s).request trực tiếp (${r}) — chỉ dùng safe-fetch`);
+    continue;
+  }
+  if (!/\bfetch\s*\(/.test(src)) continue;
+  if (FETCH_ALLOWLIST.has(r)) {
+    ok(`fetch (cho phép): ${r}`);
+    continue;
+  }
+  const calls = [...src.matchAll(/\bfetch\s*\(\s*([^,)]*)/g)].map((m) => m[1].trim());
+  const bad = calls.filter((arg) => !/^["'`]\/api\//.test(arg));
+  if (bad.length > 0) {
+    fetchViolations += 1;
+    fail(`fetch trực tiếp (${r}): ${bad.slice(0, 2).join("; ")} — chỉ dùng safe-fetch hoặc route /api nội bộ`);
+  } else {
+    ok(`fetch nội bộ /api (cho phép): ${r}`);
+  }
+}
+if (fetchViolations === 0) {
+  ok("không có fetch/http.request tới URL người dùng ngoài safe-fetch");
+}
+
 console.log(`\nsecurity-scan: ${checks} ok, ${failures} FAIL`);
 process.exit(failures === 0 ? 0 : 1);

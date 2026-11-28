@@ -79,7 +79,7 @@ export async function searchProducts(
     SELECT p."id", COUNT(*) OVER() AS "total"
     FROM "products" AS p
     JOIN "categories" AS c ON c."id" = p."categoryId"
-    WHERE p."isActive" = true AND ${Prisma.join(wordConds, " AND ")}
+    WHERE p."isActive" = true AND p."needsReview" = false AND ${Prisma.join(wordConds, " AND ")}
     ${orderBy}
     LIMIT ${PAGE_SIZE} OFFSET ${(page - 1) * PAGE_SIZE}
   `);

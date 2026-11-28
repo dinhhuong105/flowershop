@@ -18,7 +18,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     );
   }
   const product = await db.product.findFirst({
-    where: { slug: productSlug, isActive: true, category: { slug: categorySlug } },
+    where: { slug: productSlug, isActive: true, needsReview: false, category: { slug: categorySlug } },
     select: {
       id: true,
       name: true,

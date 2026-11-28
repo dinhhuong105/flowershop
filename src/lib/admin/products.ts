@@ -49,6 +49,10 @@ export type AdminProductRow = {
   // Giữ chuỗi thô (giá trị lạ trong DB hiện "Không rõ" qua
   // productSourceLabel, không tự nhận là seed).
   source: string;
+  // Nhập sản phẩm (Ngày 20 C6): chờ duyệt + lô nhập để nối link.
+  needsReview: boolean;
+  importBatchId: number | null;
+  sourceName: string | null;
 };
 
 export type AdminProductList = {
@@ -63,7 +67,10 @@ export type ListAdminProductsOpts = {
   categoryId?: number | null;
   status?: "all" | "active" | "hidden";
   // Lọc theo nguồn (Ngày 17 P2): chỉ nhận đúng 3 giá trị, lạ → bỏ qua.
-  source?: ProductSource | null;
+  // Ngày 20 C6: thêm "system" (seed + nhập tay = hàng hệ thống) và
+  // lọc riêng needsReview (hàng chờ duyệt).
+  source?: ProductSource | "system" | null;
+  needsReview?: boolean;
   page?: number;
 };
 
@@ -87,8 +94,15 @@ export async function listAdminProducts(
   } else if (opts.status === "hidden") {
     conditions.push(Prisma.sql`p."isActive" = false`);
   }
-  if (opts.source !== undefined && opts.source !== null && isProductSource(opts.source)) {
-    conditions.push(Prisma.sql`p."source" = ${opts.source}`);
+  if (opts.source !== undefined && opts.source !== null) {
+    if (opts.source === "system") {
+      conditions.push(Prisma.sql`p."source" IN ('seed', 'manual')`);
+    } else if (isProductSource(opts.source)) {
+      conditions.push(Prisma.sql`p."source" = ${opts.source}`);
+    }
+  }
+  if (opts.needsReview === true) {
+    conditions.push(Prisma.sql`p."needsReview" = true`);
   }
   const where =
     conditions.length > 0
@@ -109,12 +123,16 @@ export async function listAdminProducts(
       inStock: boolean;
       sortOrder: number;
       source: string;
+      needsReview: boolean;
+      importBatchId: number | null;
+      sourceName: string | null;
       total: bigint;
     }>
   >(Prisma.sql`
     SELECT p."id", p."name", p."slug", p."sku", p."categoryId",
       c."name" AS "categoryName", p."price", p."salePrice", p."images",
-      p."isActive", p."inStock", p."sortOrder", p."source", COUNT(*) OVER() AS "total"
+      p."isActive", p."inStock", p."sortOrder", p."source",
+      p."needsReview", p."importBatchId", p."sourceName", COUNT(*) OVER() AS "total"
     FROM "products" AS p
     JOIN "categories" AS c ON c."id" = p."categoryId"
     ${where}
@@ -137,6 +155,9 @@ export async function listAdminProducts(
       inStock: r.inStock,
       sortOrder: r.sortOrder,
       source: r.source,
+      needsReview: r.needsReview,
+      importBatchId: r.importBatchId,
+      sourceName: r.sourceName,
     })),
     total,
     totalPages: total === 0 ? 0 : Math.ceil(total / ADMIN_PAGE_SIZE),

@@ -11,13 +11,15 @@ export const MAX_IMAGE_DIMENSION = 6000;
 // Logo shop (Ngày 11 B2): tối đa 1 MB; favicon: tối đa 256 KB.
 export const MAX_LOGO_BYTES = 1 * 1024 * 1024;
 export const MAX_FAVICON_BYTES = 256 * 1024;
-export const UPLOAD_NAME_RE = /^[a-f0-9]{12}\.(jpg|png|webp|svg)$/;
+export const UPLOAD_NAME_RE = /^[a-f0-9]{12}\.(jpg|png|webp|svg|avif)$/;
 
-export type ImageType = "jpg" | "png" | "webp" | "svg";
+export type ImageType = "jpg" | "png" | "webp" | "svg" | "avif";
 
 // Kiểm MAGIC BYTES (không tin Content-Type hay đuôi file):
 // JPEG FF D8 FF; PNG 89 50 4E 47 0D 0A 1A 0A; WebP "RIFF" + "WEBP"
-// ở byte 8–11. SVG, GIF, HEIC, file rỗng, file giả đuôi → null.
+// ở byte 8–11; AVIF "ftyp" + "avif" ở byte 4–11 (Ngày 20 C3/C5 —
+// ảnh nhập qua safe-fetch cũng xác thực AVIF). SVG, GIF, HEIC,
+// file rỗng, file giả đuôi → null.
 export function detectImageType(buf: Buffer): ImageType | null {
   if (buf.length === 0) return null;
   if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
@@ -43,6 +45,13 @@ export function detectImageType(buf: Buffer): ImageType | null {
   ) {
     return "webp";
   }
+  if (
+    buf.length >= 12 &&
+    buf.subarray(4, 8).toString("ascii") === "ftyp" &&
+    buf.subarray(8, 12).toString("ascii") === "avif"
+  ) {
+    return "avif";
+  }
   return null;
 }
 
@@ -50,6 +59,7 @@ export function contentTypeForImage(name: string): string {
   if (name.endsWith(".png")) return "image/png";
   if (name.endsWith(".webp")) return "image/webp";
   if (name.endsWith(".svg")) return "image/svg+xml";
+  if (name.endsWith(".avif")) return "image/avif";
   return "image/jpeg";
 }
 

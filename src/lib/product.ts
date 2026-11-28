@@ -50,12 +50,13 @@ const productSelect = {
   // danh mục tra từ danh mục menu (đã cache) trong JS bên dưới.
 } as const;
 
-// Tìm theo cặp (slug danh mục, slug sản phẩm), chỉ sản phẩm isActive.
-// Sai danh mục → null (trang gọi notFound, không chuyển hướng).
+// Tìm theo cặp (slug danh mục, slug sản phẩm), chỉ sản phẩm isActive
+// và không chờ duyệt. Sai danh mục → null (trang gọi notFound, không
+// chuyển hướng).
 export const getProduct = cache(
   async (categorySlug: string, productSlug: string): Promise<ProductDetail | null> => {
     const p = await db.product.findFirst({
-      where: { slug: productSlug, isActive: true, category: { slug: categorySlug } },
+      where: { slug: productSlug, isActive: true, needsReview: false, category: { slug: categorySlug } },
       select: productSelect,
     });
     if (!p) return null;
@@ -91,7 +92,7 @@ export async function getRelated(product: ProductDetail): Promise<ProductSummary
   // truy vấn nạp quan hệ; slug/tên danh mục tra từ menu (đã cache).
   const [candidates, categories] = await Promise.all([
     db.product.findMany({
-      where: { isActive: true, id: { not: product.id } },
+      where: { isActive: true, needsReview: false, id: { not: product.id } },
       select: {
         id: true,
         name: true,

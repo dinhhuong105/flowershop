@@ -88,9 +88,32 @@ chữ O/I), rồi tìm đơn đó trong `/admin/orders` bằng ô tìm kiếm.
   rõ số lượng trước khi áp dụng).
 - **Nhập sản phẩm từ nguồn ngoài:** nhập từ URL nguồn dữ liệu
   (chỉ `http(s)`, có giới hạn tốc độ, chỉ chạy khi đã đăng nhập
-  admin). Nguồn không hợp lệ hoặc trỏ về địa chỉ nội bộ sẽ bị từ
+  admin) hoặc tệp CSV/JSON (tối đa 5 MB, 2.000 dòng/lô, tối đa
+  5 lô/ngày) qua trang `/admin/products/import` theo 6 bước:
+  nguồn → ánh xạ cột → xem trước → xác nhận quyền → chạy →
+  kết quả. Hàng nhập luôn ở trạng thái **Chờ duyệt** và **ẩn**
+  khỏi shop/sitemap/tìm kiếm cho tới khi duyệt; duyệt từng cái
+  hoặc tối đa 50/lần (tùy chọn đồng thời Hiện); từ chối = xóa;
+  hoàn tác lô xóa mọi sản phẩm của lô còn chờ duyệt (giữ lại
+  sản phẩm đã duyệt). Nhập lại cùng nguồn: cập nhật theo khóa
+  (tên nguồn + mã ngoài); sản phẩm đã duyệt mà sửa tay sau khi
+  nhập thì mặc định bỏ qua (bật ghi đè mới cập nhật); không bao
+  giờ ghi đè sản phẩm hệ thống (trùng SKU/slug → bỏ qua + lý do).
+  Nguồn không hợp lệ hoặc trỏ về địa chỉ nội bộ sẽ bị từ
   chối — đó là hành vi đúng. Kiểm lại từng sản phẩm sau khi nhập
   (tên, giá, ảnh) trước khi để hiện ngoài shop.
+- **Ô công thức trong dữ liệu nhập (CSV/JSON):** ô bắt đầu bằng
+  `=`, `+`, `-`, `@`, tab hoặc ký tự xuống dòng được **giữ
+  nguyên** khi nhập (có đánh cờ) — nhưng nếu sau này có chức
+  năng **xuất CSV**, bắt buộc phải vô hiệu hóa công thức trước
+  khi xuất (ví dụ thêm dấu `'` ở đầu ô) để file xuất ra mở bằng
+  bảng tính không chạy công thức lạ.
+- **Cờ test `SAFE_FETCH_ALLOW_LOOPBACK` (chỉ máy local):** mặc
+  định tắt — server chỉ fetch feed/ảnh từ địa chỉ công khai.
+  Khi cần probe với máy chủ giả trên chính máy này thì khởi
+  động server local với `SAFE_FETCH_ALLOW_LOOPBACK=1`; **không
+  bao giờ đặt biến này trên Vercel** (ở đó biến môi trường
+  `VERCEL=1` nên cờ luôn bị ép tắt).
 
 ### Danh mục (`/admin/categories`)
 
