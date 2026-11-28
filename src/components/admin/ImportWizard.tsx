@@ -18,6 +18,19 @@ import type {
   ImportPreview,
 } from "@/lib/admin/import-batches";
 import type { FieldMapping } from "@/lib/import/parse";
+import { buildErrorsCsv } from "@/lib/import/parse";
+
+const FIELD_LABELS: Array<{ field: keyof FieldMapping; label: string; required: boolean }> = [
+  { field: "externalId", label: "Mã ngoài (externalId)", required: true },
+  { field: "sku", label: "SKU", required: false },
+  { field: "name", label: "Tên sản phẩm", required: true },
+  { field: "description", label: "Mô tả", required: false },
+  { field: "price", label: "Giá (VND)", required: true },
+  { field: "salePrice", label: "Giá khuyến mãi", required: false },
+  { field: "categoryName", label: "Danh mục", required: false },
+  { field: "imageUrls", label: "Ảnh (URL, phân tách |)", required: false },
+  { field: "stock", label: "Tồn kho", required: false },
+];
 import {
   cancelImportAction,
   confirmRightsAction,
@@ -30,18 +43,6 @@ import {
   type ImportActionState,
   type ImportStartState,
 } from "@/app/admin/products/import/actions";
-
-const FIELD_LABELS: Array<{ field: keyof FieldMapping; label: string; required: boolean }> = [
-  { field: "externalId", label: "Mã ngoài (externalId)", required: false },
-  { field: "sku", label: "SKU", required: false },
-  { field: "name", label: "Tên sản phẩm", required: true },
-  { field: "description", label: "Mô tả", required: false },
-  { field: "price", label: "Giá (VND)", required: true },
-  { field: "salePrice", label: "Giá khuyến mãi", required: false },
-  { field: "categoryName", label: "Danh mục", required: false },
-  { field: "imageUrls", label: "Ảnh (URL, phân tách | hoặc ;)", required: false },
-  { field: "stock", label: "Tồn kho", required: false },
-];
 
 const BATCH_STATUS_LABELS: Record<ImportBatchView["status"], string> = {
   PREVIEW: "Chờ xử lý",
@@ -151,6 +152,14 @@ export default function ImportWizard({
   const [defaultCategoryId, setDefaultCategoryId] = useState<string>(
     () => (batch?.payload.defaultCategoryId ? String(batch.payload.defaultCategoryId) : ""),
   );
+  // Tùy chọn giá (B3): hệ số nhân 0,1–10 (2 chữ số thập phân) +
+  // làm tròn; đồng bộ theo lô như ánh xạ.
+  const [multiplier, setMultiplier] = useState<string>(
+    () => String(batch?.payload.priceOptions.multiplier ?? 1),
+  );
+  const [rounding, setRounding] = useState<string>(
+    () => batch?.payload.priceOptions.rounding ?? "none",
+  );
   // Đồng bộ form ánh xạ theo lô đang chọn. useState khởi tạo chỉ
   // chạy 1 lần lúc mount (khi batch còn null ở bước 1) nên sau khi
   // tạo lô ở bước 1, form bước 2 hiện toàn "— Không dùng —" dù
@@ -170,8 +179,9 @@ export default function ImportWizard({
     setDefaultCategoryId(
       batch.payload.defaultCategoryId ? String(batch.payload.defaultCategoryId) : "",
     );
+    setMultiplier(String(batch.payload.priceOptions.multiplier ?? 1));
+    setRounding(batch.payload.priceOptions.rounding ?? "none");
   }, [batch]);
-  const [overwrite, setOverwrite] = useState(false);
   const [mappingState, mappingDispatch] = useActionState<ImportActionState, FormData>(
     saveMappingAction,
     { ok: false, error: null, message: null },
@@ -199,8 +209,27 @@ export default function ImportWizard({
     }
     fd.set("categoryMapping", JSON.stringify(cm));
     fd.set("defaultCategoryId", defaultCategoryId);
-    if (overwrite) fd.set("overwriteHandEdited", "on");
+    fd.set(
+      "priceOptions",
+      JSON.stringify({ multiplier: Number(multiplier), rounding }),
+    );
     mappingDispatch(fd);
+  }
+
+  /** Tải danh sách lỗi/kết quả dạng CSV (đã vô hiệu công thức, B6). */
+  function downloadErrorsCsv(
+    filename: string,
+    items: Array<{ line: number; reason: string }>,
+  ) {
+    const blob = new Blob(["﻿" + buildErrorsCsv(items)], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   // Bước 3: xem trước (tính lại từ DB mỗi lần vào bước).
@@ -353,8 +382,8 @@ export default function ImportWizard({
             </div>
           )}
           <div>
-            <label htmlFor="imp-sourceName" className="block text-sm font-semibold">Tên nguồn (bắt buộc, 2–60 ký tự)</label>
-            <input id="imp-sourceName" name="sourceName" type="text" minLength={2} maxLength={60} placeholder="Ví dụ: NhaCungCapA-2026-11" className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" required />
+            <label htmlFor="imp-sourceName" className="block text-sm font-semibold">Tên nguồn (bắt buộc, 3–80 ký tự)</label>
+            <input id="imp-sourceName" name="sourceName" type="text" minLength={3} maxLength={80} placeholder="Ví dụ: NhaCungCapA-2026-11" className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" required />
             <p className="mt-1 text-sm text-slate-500">Tên nguồn + mã ngoài là khóa để lần nhập sau cập nhật đúng sản phẩm. Đặt tên riêng cho từng nhà cung cấp.</p>
           </div>
           {totpEnabled && (
@@ -449,10 +478,38 @@ export default function ImportWizard({
             </select>
             <p className="mt-1 text-sm text-slate-500">Bắt buộc khi nguồn không có cột danh mục; còn không thì dùng cho các dòng để trống danh mục.</p>
           </div>
-          <label className="flex items-start gap-2 text-sm">
-            <input type="checkbox" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} className="mt-0.5 h-5 w-5 accent-blue-600" />
-            <span>Ghi đè cả sản phẩm đã duyệt và sửa tay sau khi nhập (mặc định: bỏ qua, báo “đã chỉnh sửa tay”).</span>
-          </label>
+          <div>
+            <h3 className="text-sm font-semibold">Tùy chọn giá</h3>
+            <p className="text-sm text-slate-500">Hệ số nhân áp lên giá và giá khuyến mãi trước khi làm tròn; giá sau chuyển đổi phải là số nguyên VND từ 1 đến 1.000.000.000 ₫, giá khuyến mãi nhỏ hơn giá gốc.</p>
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              <div>
+                <label htmlFor="map-multiplier" className="block text-sm font-semibold">Hệ số nhân (0,1–10)</label>
+                <input
+                  id="map-multiplier"
+                  type="number"
+                  min={0.1}
+                  max={10}
+                  step={0.01}
+                  value={multiplier}
+                  onChange={(e) => setMultiplier(e.target.value)}
+                  className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label htmlFor="map-rounding" className="block text-sm font-semibold">Làm tròn</label>
+                <select
+                  id="map-rounding"
+                  value={rounding}
+                  onChange={(e) => setRounding(e.target.value)}
+                  className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                >
+                  <option value="none">Không làm tròn</option>
+                  <option value="1000">1.000 ₫</option>
+                  <option value="10000">10.000 ₫</option>
+                </select>
+              </div>
+            </div>
+          </div>
           <button
             type="button"
             onClick={submitMapping}
@@ -500,6 +557,13 @@ export default function ImportWizard({
                       <li key={i}>Dòng {e.line}: {e.reason}</li>
                     ))}
                   </ul>
+                  <button
+                    type="button"
+                    onClick={() => downloadErrorsCsv(`loi-xem-truoc-lo-${batch.id}.csv`, preview.errors)}
+                    className="mt-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold hover:bg-slate-50"
+                  >
+                    Tải CSV lỗi
+                  </button>
                 </div>
               )}
               <div>
@@ -524,7 +588,7 @@ export default function ImportWizard({
                           <td className="px-2 py-2">{r.categoryName ?? "—"}</td>
                           <td className="px-2 py-2">
                             {r.disposition === "create" && `Tạo mới${r.slug ? ` (${r.slug})` : ""}`}
-                            {r.disposition === "update" && "Cập nhật"}
+                            {r.disposition === "update" && (r.priceOnly ? "Cập nhật (chỉ giá)" : "Cập nhật")}
                             {r.disposition === "skip" && `Bỏ qua: ${r.reason ?? ""}`}
                             {r.disposition === "error" && `Lỗi: ${r.reason ?? ""}`}
                           </td>
@@ -557,7 +621,7 @@ export default function ImportWizard({
           <input type="hidden" name="batchId" value={batch.id} />
           <label className="flex items-start gap-2 text-sm">
             <input type="checkbox" name="rightsConfirmed" className="mt-0.5 h-5 w-5 accent-blue-600" required />
-            <span>Tôi xác nhận shop có quyền sử dụng dữ liệu này (ảnh, tên, mô tả) để bán hàng.</span>
+            <span>Tôi xác nhận shop có quyền sử dụng dữ liệu và hình ảnh của nguồn này (ví dụ có thỏa thuận bằng văn bản hoặc đây là dữ liệu của chính shop).</span>
           </label>
           <div>
             <label htmlFor="imp-retype" className="block text-sm font-semibold">Gõ lại tên nguồn để xác nhận: {batch.sourceName}</label>
@@ -573,7 +637,7 @@ export default function ImportWizard({
         <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-5">
           <h2 className="text-lg font-bold">Bước 5 — Chạy nhập</h2>
           <p className="text-sm text-slate-600">
-            Lô “{batch.sourceName}” — chạy theo khối ~25 dòng/lần gọi. Tải lại trang vẫn tiếp tục được
+            Lô “{batch.sourceName}” — chạy theo khối ~10 dòng/lần gọi. Tải lại trang vẫn tiếp tục được
             (đã nhập {batch.payload.processed}/{batch.rowsTotal} dòng).
           </p>
           {runState?.error && (
@@ -641,6 +705,13 @@ export default function ImportWizard({
                   <li key={i}>Dòng {e.line}: {e.reason}</li>
                 ))}
               </ul>
+              <button
+                type="button"
+                onClick={() => downloadErrorsCsv(`loi-chay-lo-${batch.id}.csv`, batch.payload.runErrors)}
+                className="mt-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold hover:bg-slate-50"
+              >
+                Tải CSV lỗi
+              </button>
             </div>
           )}
           <div className="flex flex-wrap gap-2">

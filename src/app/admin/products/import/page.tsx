@@ -45,6 +45,9 @@ export default async function AdminImportPage({
         Nhập từ tệp CSV/JSON hoặc feed qua URL. Hàng nhập luôn chờ duyệt và
         ẩn khỏi shop cho tới khi duyệt — không bao giờ ghi đè sản phẩm hệ thống.
       </p>
+      <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+        Không nhập dữ liệu hoặc ảnh của website khác khi chưa có thỏa thuận bằng văn bản.
+      </p>
       <div className="mt-6">
         <ImportWizard
           initialBatch={batch}

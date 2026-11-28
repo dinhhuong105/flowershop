@@ -413,8 +413,10 @@ export default function AdminProductsList({ products }: { products: AdminProduct
   );
 }
 
-// Nút duyệt/từ chối từng sản phẩm chờ duyệt (Ngày 20 C6). Duyệt lẻ
-// đồng thời Hiện để sản phẩm bán ngay; từ chối = xóa (ghi nhật ký).
+// Nút duyệt/từ chối từng sản phẩm chờ duyệt (Ngày 20 C6, căn chỉnh
+// B6 bản sau Retry). Duyệt lẻ MẶC ĐỊNH KHÔNG hiện (phải tick "Hiện
+// luôn" mới bán ngay); cả duyệt và từ chối đều có xác nhận kèm số
+// lượng. Từ chối = xóa (ghi nhật ký).
 function ImportReviewButtons({ productId }: { productId: number }) {
   const [approveState, approveDispatch] = useActionState<ImportActionState, FormData>(
     approveImportedAction,
@@ -427,9 +429,24 @@ function ImportReviewButtons({ productId }: { productId: number }) {
   const error = approveState.error ?? rejectState.error;
   return (
     <>
-      <form action={approveDispatch}>
+      <form
+        action={approveDispatch}
+        onSubmit={(e) => {
+          if (
+            !window.confirm(
+              "Duyệt 1 sản phẩm này? Sản phẩm sẽ hết trạng thái chờ duyệt.",
+            )
+          ) {
+            e.preventDefault();
+          }
+        }}
+        className="flex flex-wrap items-center gap-2"
+      >
         <input type="hidden" name="ids" value={productId} />
-        <input type="hidden" name="alsoShow" value="on" />
+        <label className="flex min-h-11 items-center gap-1 text-sm font-medium">
+          <input type="checkbox" name="alsoShow" className="h-5 w-5 accent-blue-600" />
+          Hiện luôn
+        </label>
         <button
           type="submit"
           className="flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-bold text-white transition-opacity hover:opacity-90"

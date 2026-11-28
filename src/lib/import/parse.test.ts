@@ -69,7 +69,7 @@ describe("parse CSV (Ngày 20 C2)", () => {
     assert.equal(result.errors.length, 0);
     assert.equal(result.rows.length, 2);
     assert.equal(result.rows[0].name, "Hoa hồng, đỏ");
-    assert.equal(result.rows[0].description, "dòng 1\ndòng 2");
+    assert.equal(result.rows[0].description, "dòng 1 dòng 2"); // B5: chuẩn hóa khoảng trắng
     assert.equal(result.rows[1].name, 'Hoa "đẹp"');
     // Ô có xuống dòng trong ngoặc kép tính là 1 dòng logic.
     assert.equal(result.totalLines, 3);
@@ -151,8 +151,8 @@ describe("parse CSV (Ngày 20 C2)", () => {
     assert.match(over161.errors[0].reason, /tên/);
   });
 
-  it("giá: 0 lỗi, âm lỗi, chữ lỗi; 890000.5 và 890000,5 ok", () => {
-    for (const bad of ["0", "-5", "abc", "1.000.000", "890 000"]) {
+  it("giá: 0 lỗi, âm lỗi, chữ lỗi, khoảng trắng trong số lỗi; 890000.5 và 890000,5 ok", () => {
+    for (const bad of ["0", "-5", "abc", "890 000"]) {
       const result = parseCsv(`${HEADER}\nX1,Hoa hồng,,${bad},,,,,\n`);
       assert.equal(result.rows.length, 0, `giá ${bad} phải lỗi`);
       assert.match(result.errors[0].reason, /giá/);
@@ -167,13 +167,22 @@ describe("parse CSV (Ngày 20 C2)", () => {
       `${HEADER}\nX1,Hoa hồng,,"890000,5",,,,,\n`,
     );
     assert.equal(commaQuoted.rows[0].price, 890000.5);
-    // "890.000" kiểu VN KHÔNG được hiểu là 890.000: dấu `.` chỉ là
-    // phân tách thập phân nên giá trị là 890.
+    // B3 (bản sau Retry — ĐẢO NGƯỢC Ngày 20): "890.000" = 890.000
+    // (dấu phân tách nghìn), "1.000.000" = 1000000.
     const vnStyle = parseCsv(`${HEADER}\nX1,Hoa hồng,,890.000,,,,,\n`);
-    assert.equal(vnStyle.rows[0].price, 890);
+    assert.equal(vnStyle.rows[0].price, 890000);
+    const million = parseCsv(`${HEADER}\nX1,Hoa hồng,,"1.000.000",,,,,\n`);
+    assert.equal(million.rows[0].price, 1000000);
+    const commaThousands = parseCsv(`${HEADER}\nX1,Hoa hồng,,"1,234,567",,,,,\n`);
+    assert.equal(commaThousands.rows[0].price, 1234567);
+    const mixed = parseCsv(`${HEADER}\nX1,Hoa hồng,,"1.234,56",,,,,\n`);
+    assert.equal(mixed.rows[0].price, 1234.56);
+    // Nhóm nghìn sai ("12.34.567": nhóm đầu 2 số rồi 2 số) → lỗi.
+    const badGroups = parseCsv(`${HEADER}\nX1,Hoa hồng,,"12.34.567",,,,,\n`);
+    assert.equal(badGroups.rows.length, 0);
   });
 
-  it("salePrice > price → lỗi; bằng price thì ok; trống → null", () => {
+  it("salePrice > price → lỗi; bằng price cũng lỗi (nghiêm ngặt); trống → null", () => {
     const over = parseCsv(
       `${HEADER}\nX1,Hoa hồng,,100000,150000,,,,\n`,
     );
@@ -181,25 +190,44 @@ describe("parse CSV (Ngày 20 C2)", () => {
     const equal = parseCsv(
       `${HEADER}\nX1,Hoa hồng,,100000,100000,,,,\n`,
     );
-    assert.equal(equal.errors.length, 0);
-    assert.equal(equal.rows[0].salePrice, 100000);
+    assert.equal(equal.rows.length, 0, "salePrice bằng giá gốc phải lỗi");
+    assert.match(equal.errors[0].reason, /khuyến mãi/);
     const empty = parseCsv(oneRowCsv());
     assert.equal(empty.rows[0].salePrice, null);
   });
 
-  it("imageUrls: 7 ảnh → lỗi; phân tách `|` và `;` đều được", () => {
-    const seven = parseCsv(
-      `${HEADER}\nX1,Hoa hồng,,100000,,,${"a.jpg|".repeat(6)}a.jpg,,\n`,
+  it("imageUrls: 9 ảnh → lỗi; phân tách `|`; `;` không còn tách; URL phải http(s)", () => {
+    const nine = parseCsv(
+      `${HEADER}\nX1,Hoa hồng,,100000,,,${"https://a.test/1.jpg|".repeat(8)}https://a.test/9.jpg,,\n`,
     );
-    assert.match(seven.errors[0].reason, /6 ảnh/);
+    assert.match(nine.errors[0].reason, /8 ảnh/);
+    const eight = parseCsv(
+      `${HEADER}\nX1,Hoa hồng,,100000,,,${"https://a.test/1.jpg|".repeat(7)}https://a.test/8.jpg,,\n`,
+    );
+    assert.equal(eight.errors.length, 0);
+    assert.equal(eight.rows[0].imageUrls.length, 8);
     const pipes = parseCsv(
-      `${HEADER}\nX1,Hoa hồng,,100000,,,a.jpg | b.jpg | c.jpg,,\n`,
+      `${HEADER}\nX1,Hoa hồng,,100000,,,https://a.test/a.jpg | https://a.test/b.jpg | https://a.test/c.jpg,,\n`,
     );
-    assert.deepEqual(pipes.rows[0].imageUrls, ["a.jpg", "b.jpg", "c.jpg"]);
+    assert.deepEqual(pipes.rows[0].imageUrls, [
+      "https://a.test/a.jpg",
+      "https://a.test/b.jpg",
+      "https://a.test/c.jpg",
+    ]);
     const semis = parseCsv(
-      `${HEADER}\nX1,Hoa hồng,,100000,,,a.jpg;b.jpg,,\n`,
+      `${HEADER}\nX1,Hoa hồng,,100000,,,https://a.test/a.jpg;https://a.test/b.jpg,,\n`,
     );
-    assert.deepEqual(semis.rows[0].imageUrls, ["a.jpg", "b.jpg"]);
+    assert.deepEqual(semis.rows[0].imageUrls, [
+      "https://a.test/a.jpg;https://a.test/b.jpg",
+    ]);
+    const badScheme = parseCsv(
+      `${HEADER}\nX1,Hoa hồng,,100000,,,javascript:alert(1),,\n`,
+    );
+    assert.match(badScheme.errors[0].reason, /http\(s\)/);
+    const relative = parseCsv(
+      `${HEADER}\nX1,Hoa hồng,,100000,,,a.jpg,,\n`,
+    );
+    assert.match(relative.errors[0].reason, /http\(s\)/);
   });
 
   it("stock: -1 lỗi, 1.5 lỗi, trống → null, 0 ok", () => {
@@ -341,10 +369,10 @@ describe("parse JSON (Ngày 20 C2)", () => {
 
   it("imageUrls dạng mảng JSON; stock/salePrice dạng số", () => {
     const result = parseJson(
-      '[{"externalId":"X1","name":"Hoa hồng","price":100000,"salePrice":90000,"imageUrls":["a.jpg","b.jpg"],"stock":3}]',
+      '[{"externalId":"X1","name":"Hoa hồng","price":100000,"salePrice":90000,"imageUrls":["https://a.test/a.jpg","https://a.test/b.jpg"],"stock":3}]',
     );
     assert.equal(result.errors.length, 0);
-    assert.deepEqual(result.rows[0].imageUrls, ["a.jpg", "b.jpg"]);
+    assert.deepEqual(result.rows[0].imageUrls, ["https://a.test/a.jpg", "https://a.test/b.jpg"]);
     assert.equal(result.rows[0].salePrice, 90000);
     assert.equal(result.rows[0].stock, 3);
   });
@@ -376,20 +404,15 @@ describe("parse JSON (Ngày 20 C2)", () => {
     assert.ok(elapsed < 5000, `parse 1M phần tử mất ${elapsed}ms`);
   });
 
-  it("__proto__ trong JSON không làm nhiễm prototype", () => {
+  it("__proto__ trong JSON bị từ chối (B2) và không làm nhiễm prototype", () => {
     const result = parseJson(
       '{"items":[{"__proto__":{"polluted":true},"externalId":"X1","name":"Hoa hồng","price":100}]}',
     );
-    assert.equal(result.errors.length, 0);
-    assert.equal(result.rows.length, 1);
+    assert.equal(result.rows.length, 0);
+    assert.match(result.errors[0].reason, /__proto__/);
     assert.equal(
       ({} as Record<string, unknown>)["polluted"],
       undefined,
-    );
-    // raw vẫn giữ khóa __proto__ dưới dạng own property.
-    assert.equal(
-      Object.prototype.hasOwnProperty.call(result.rows[0].raw, "__proto__"),
-      true,
     );
   });
 
@@ -403,5 +426,78 @@ describe("parse JSON (Ngày 20 C2)", () => {
     assert.equal(result.rows.length, 0);
     assert.equal(result.errors[0].line, 0);
     assert.equal(result.totalLines, 2001);
+  });
+});
+
+describe("giới hạn đầu vào + làm sạch (Ngày 20 bản sau Retry B2/B5/B6)", () => {
+  it("CSV quá 40 cột → lỗi toàn cục dòng 1", () => {
+    const header = Array.from({ length: 41 }, (_, i) => `c${i}`).join(",");
+    const result = parseCsv(`${header}\n${"x,".repeat(40)}x\n`);
+    assert.equal(result.rows.length, 0);
+    assert.equal(result.errors[0].line, 1);
+    assert.match(result.errors[0].reason, /40 cột/);
+  });
+
+  it("CSV ô quá 5000 ký tự → lỗi dòng đó, dòng khác vẫn đọc", () => {
+    const big = "a".repeat(5001);
+    const result = parseCsv(
+      `${HEADER}\nX1,Hoa hồng,${big},100000,,,,,\nX2,Hoa lan,,200000,,,,,\n`,
+    );
+    assert.equal(result.rows.length, 1);
+    assert.equal(result.rows[0].externalId, "X2");
+    assert.match(result.errors[0].reason, /5000 ký tự/);
+  });
+
+  it("tệp nhị phân/UTF-16 (byte NUL) → lỗi toàn cục", () => {
+    const csv = parseCsv("externalId,name,price\nX1,Hoa\u0000hồng,100000\n");
+    assert.equal(csv.rows.length, 0);
+    assert.match(csv.errors[0].reason, /nhị phân|UTF-16/);
+    const json = parseJson('[{"externalId":"X1","name":"Hoa\u0000","price":100}]');
+    assert.equal(json.rows.length, 0);
+    assert.match(json.errors[0].reason, /nhị phân|UTF-16/);
+  });
+
+  it("JSON sâu 7 tầng → lỗi (giới hạn 6); sâu 6 ok", () => {
+    const deep7 = { a: { b: { c: { d: { e: { f: { g: 1 } } } } } } };
+    const bad = parseJson(JSON.stringify({ items: [deep7] }));
+    assert.equal(bad.rows.length, 0);
+    assert.match(bad.errors[0].reason, /6 tầng/);
+    const deep6 = { a: { b: 1 } }; // extra(4) → a(5) → b(6): đúng giới hạn
+    const ok = parseJson(
+      JSON.stringify({ items: [{ externalId: "X1", name: "Hoa", price: 100, extra: deep6 }] }),
+    );
+    assert.equal(ok.rows.length, 1);
+  });
+
+  it("JSON chứa khóa __proto__/constructor/prototype → lỗi toàn cục", () => {
+    for (const key of ["__proto__", "constructor", "prototype"]) {
+      const raw = `{"items":[{"externalId":"X1","name":"Hoa","price":100,"${key}":{"x":1}}]}`;
+      const result = parseJson(raw);
+      assert.equal(result.rows.length, 0, `khóa ${key} phải bị từ chối`);
+      assert.match(result.errors[0].reason, new RegExp(key));
+    }
+  });
+
+  it("làm sạch văn bản: bỏ thẻ HTML, ký tự điều khiển, gọn khoảng trắng", () => {
+    const result = parseCsv(
+      `${HEADER}\nX1,"<b>Hoa   hồng</b>  đỏ",<script>alert(1)</script>mô tả,100000,,,,,\n`,
+    );
+    assert.equal(result.rows.length, 1);
+    assert.equal(result.rows[0].name, "Hoa hồng đỏ");
+    assert.equal(result.rows[0].description, "alert(1)mô tả"); // chỉ bỏ thẻ, giữ text
+  });
+
+  it("xuất CSV lỗi: ô công thức được vô hiệu bằng dấu nháy đơn", async () => {
+    const { buildErrorsCsv, neutralizeCsvCell } = await import("./parse");
+    assert.equal(neutralizeCsvCell("=2+2"), "'=2+2");
+    assert.equal(neutralizeCsvCell("+cmd"), "'+cmd");
+    assert.equal(neutralizeCsvCell("bình thường"), "bình thường");
+    const csv = buildErrorsCsv([
+      { line: 2, reason: "=cmd|calc" },
+      { line: 3, reason: "thiếu tên" },
+    ]);
+    assert.ok(csv.startsWith("Dòng,Lý do"));
+    assert.ok(csv.includes("'=cmd|calc"), "ô công thức phải có dấu nháy đơn");
+    assert.ok(csv.includes("thiếu tên"));
   });
 });

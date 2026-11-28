@@ -13,9 +13,14 @@
 //   192.168/16, fc00::/7), link-local (169.254/16 gồm
 //   169.254.169.254, fe80::/10), đặc dụng (0.0.0.0/8, 100.64/10,
 //   192.0.0.0/24, 192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24,
-//   240.0.0.0/4, 255.255.255.255), IPv4-mapped IPv6
-//   (::ffff:127.0.0.1). Kiểm TẤT CẢ địa chỉ trả về — chỉ dùng địa
-//   chỉ ĐẦU TIÊN hợp lệ; không có địa chỉ hợp lệ nào → blocked.
+//   240.0.0.0/4, 255.255.255.255), multicast (224.0.0.0/4,
+//   ff00::/8), IPv4-mapped IPv6 (::ffff:127.0.0.1). IP dạng số
+//   inet_aton (2130706433, 0x7f000001, 017700000001, 127.1) được
+//   WHATWG URL chuẩn hóa thành dạng chấm-thập phân ở
+//   `url.hostname` nên đã chặn theo đường đó; `parseInetAton` /
+//   `isBlockedIp` vẫn kiểm tường minh cho chuỗi IP do DNS trả về.
+//   Kiểm TẤT CẢ địa chỉ trả về — chỉ dùng địa chỉ ĐẦU TIÊN hợp lệ;
+//   không có địa chỉ hợp lệ nào → blocked.
 // - GHIM IP đã kiểm khi kết nối (lookup override của http/https.
 //   request) để chống DNS rebinding; header `Host` = hostname gốc
 //   (+cổng nếu khác mặc định, Node tự đặt); với https đặt
@@ -29,7 +34,8 @@
 // Tài nguyên:
 // - Timeout TỔNG 10 s mặc định (opts.timeoutMs cho phép test truyền
 //   nhỏ hơn) — hẹn giờ theo đồng hồ treo tường, nên phản hồi vô
-//   hạn hay nhỏ giọt từng byte đều bị cắt.
+//   hạn hay nhỏ giọt từng byte đều bị cắt. Riêng giai đoạn KẾT NỐI
+//   TCP có hẹn giờ 5 s (B2).
 // - Giới hạn đọc theo luồng: feed ≤ 5 MB, ảnh ≤ 3 MB (opts.
 //   maxBytes, mặc định theo kind); vượt thì hủy stream ngay.
 //   KHÔNG tin Content-Length (chỉ đếm byte thật nhận được).
@@ -38,7 +44,11 @@
 //   chỉ nhận `image/jpeg`, `image/png`, `image/webp`, `image/avif`
 //   VÀ xác thực magic bytes trong 512 byte đầu (JPEG FF D8 FF,
 //   PNG 89 50 4E 47, WebP RIFF....WEBP, AVIF ftyp avif); magic
-//   bytes không khớp → bad_content_type.
+//   bytes không khớp → bad_content_type. Feed trả về trang web
+//   (Content-Type text/html hoặc body bắt đầu bằng `<`) → từ chối
+//   với đúng thông báo HTML_NOT_DATA_MESSAGE (B2). Ảnh còn kiểm
+//   kích thước điểm ảnh ≤ 6000×6000 (B7 bổ sung) để chặn bom giải
+//   nén điểm ảnh.
 //
 // Header gửi đi: chỉ `User-Agent: FlowerShop-Import/1.0` + `Accept`
 // phù hợp + `Host` (tự động). Không gửi cookie/header xác thực nào.
@@ -55,9 +65,19 @@ import net from "node:net";
 import type { LookupFunction } from "node:net";
 
 export const SAFE_FETCH_TIMEOUT_MS = 10_000;
+/** Hết thời gian KẾT NỐI TCP (B2): socket chưa nối được trong 5 s
+ *  thì cắt, không đợi hết timeout tổng 10 s. */
+export const SAFE_FETCH_CONNECT_TIMEOUT_MS = 5_000;
 export const FEED_MAX_BYTES = 5 * 1024 * 1024;
 export const IMAGE_MAX_BYTES = 3 * 1024 * 1024;
 export const MAX_REDIRECTS = 3;
+/** Kích thước điểm ảnh tối đa của ảnh nhập (B7 bổ sung, bản sau
+ *  Retry): chiều rộng hoặc cao vượt 6000 thì từ chối. */
+export const MAX_IMAGE_DIMENSION = 6000;
+/** Thông báo khi feed URL trả về trang web thay vì dữ liệu (B2) —
+ *  dùng đúng câu này để giao diện nhập hiển thị cho admin. */
+export const HTML_NOT_DATA_MESSAGE =
+  "Đây là trang web, không phải dữ liệu nhập (CSV/JSON)";
 
 export type SafeFetchErrorCode =
   | "blocked"
@@ -132,8 +152,68 @@ function isBlockedV4(num: number): boolean {
     inV4Range(num, 0xc0000200, 24) || // TEST-NET-1 192.0.2.0/24
     inV4Range(num, 0xc6336400, 24) || // TEST-NET-2 198.51.100.0/24
     inV4Range(num, 0xcb007100, 24) || // TEST-NET-3 203.0.113.0/24
+    inV4Range(num, 0xe0000000, 4) || // multicast 224.0.0.0/4 (B2)
     inV4Range(num, 0xf0000000, 4) // 240/4 (gồm 255.255.255.255)
   );
+}
+
+// Phân tích IPv4 theo ngữ nghĩa inet_aton (B2): mỗi phần có thể ở
+// dạng thập phân, bát phân (số 0 ở đầu) hoặc thập lục phân (0x);
+// 1–4 phần: 1 phần = đủ 32 bit, 2 phần = a.24bit, 3 phần =
+// a.b.16bit, 4 phần = mỗi phần 8 bit. Trả số 32-bit hoặc null nếu
+// không phải dạng này (vd có chữ, phần vượt giới hạn). WHATWG URL
+// đã chuẩn hóa các dạng này thành dạng chấm-thập phân ở
+// `url.hostname`, nhưng hàm này vẫn cần cho chuỗi IP do DNS trả về
+// và cho kiểm trực tiếp.
+export function parseInetAton(host: string): number | null {
+  if (host === "") return null;
+  const parts = host.split(".");
+  if (parts.length < 1 || parts.length > 4) return null;
+  const values: number[] = [];
+  for (const part of parts) {
+    if (part === "") return null;
+    let base = 10;
+    let digits = part;
+    if (/^0x[0-9a-fA-F]+$/.test(part)) {
+      base = 16;
+      digits = part.slice(2);
+    } else if (/^0[0-7]+$/.test(part)) {
+      base = 8;
+    } else if (!/^[0-9]+$/.test(part)) {
+      return null;
+    }
+    const value = parseInt(digits, base);
+    if (!Number.isSafeInteger(value) || value < 0) return null;
+    values.push(value);
+  }
+  const n = values.length;
+  if (n === 4) {
+    if (values.some((v) => v > 255)) return null;
+    return (
+      (((values[0] * 256 + values[1]) * 256 + values[2]) * 256 + values[3]) >>>
+      0
+    );
+  }
+  if (n === 3) {
+    if (values[0] > 255 || values[1] > 255 || values[2] > 65535) return null;
+    return ((values[0] * 256 + values[1]) * 65536 + values[2]) >>> 0;
+  }
+  if (n === 2) {
+    if (values[0] > 255 || values[1] > 16777215) return null;
+    return (values[0] * 16777216 + values[1]) >>> 0;
+  }
+  if (values[0] > 4294967295) return null;
+  return values[0] >>> 0;
+}
+
+/** Số IPv4 32-bit → chuỗi chấm-thập phân chuẩn. */
+export function formatIPv4(num: number): string {
+  return [
+    (num >>> 24) & 0xff,
+    (num >>> 16) & 0xff,
+    (num >>> 8) & 0xff,
+    num & 0xff,
+  ].join(".");
 }
 
 // IPv6 → 16 byte, hoặc null nếu không phải IPv6. Hỗ trợ `::` nén
@@ -197,6 +277,7 @@ function isBlockedV6(buf: Buffer): boolean {
   if (isZero(0, 15) && buf[15] === 1) return true; // ::1 loopback
   if ((buf[0] & 0xfe) === 0xfc) return true; // fc00::/7 (ULA)
   if (buf[0] === 0xfe && (buf[1] & 0xc0) === 0x80) return true; // fe80::/10
+  if (buf[0] === 0xff) return true; // ff00::/8 multicast (B2)
   // IPv4-mapped ::ffff:a.b.c.d — kiểm IPv4 nhúng.
   if (isZero(0, 10) && buf[10] === 0xff && buf[11] === 0xff) {
     const v4 =
@@ -207,10 +288,13 @@ function isBlockedV6(buf: Buffer): boolean {
 }
 
 /** Địa chỉ IP có nằm trong dải bị chặn? Chuỗi không phải IP → chặn
- *  cho an toàn (fail-closed). */
+ *  cho an toàn (fail-closed). Nhận cả dạng số inet_aton
+ *  (2130706433, 0x7f000001, 017700000001). */
 export function isBlockedIp(ip: string): boolean {
   const v4 = parseIPv4(ip);
   if (v4 !== null) return isBlockedV4(v4);
+  const aton = parseInetAton(ip);
+  if (aton !== null) return isBlockedV4(aton);
   const v6 = parseIPv6(ip);
   if (v6 !== null) return isBlockedV6(v6);
   return true;
@@ -219,6 +303,8 @@ export function isBlockedIp(ip: string): boolean {
 function isLoopbackIp(ip: string): boolean {
   const v4 = parseIPv4(ip);
   if (v4 !== null) return inV4Range(v4, 0x7f000000, 8);
+  const aton = parseInetAton(ip);
+  if (aton !== null) return inV4Range(aton, 0x7f000000, 8);
   const v6 = parseIPv6(ip);
   if (v6 !== null) {
     for (let i = 0; i < 15; i++) if (v6[i] !== 0) return false;
@@ -228,11 +314,14 @@ function isLoopbackIp(ip: string): boolean {
 }
 
 /** Host đã là IP literal (đã bỏ `[]` nếu có) thì trả về nó,
- *  còn lại trả null. `URL.hostname` đã bỏ `[]` sẵn. */
+ *  còn lại trả null. `URL.hostname` đã bỏ `[]` sẵn. Nhận cả dạng
+ *  số inet_aton (trả về dạng chấm-thập phân chuẩn). */
 export function parseIpLiteral(host: string): string | null {
   const text =
     host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;
-  return net.isIP(text) !== 0 ? text : null;
+  if (net.isIP(text) !== 0) return text;
+  const aton = parseInetAton(text);
+  return aton !== null ? formatIPv4(aton) : null;
 }
 
 const defaultResolve: ResolveFn = async (hostname: string) => {
@@ -303,6 +392,158 @@ function imageMagicMatches(mediaType: string, buf: Buffer): boolean {
     );
   }
   return false;
+}
+
+// --- Kích thước điểm ảnh (B7 bổ sung, bản sau Retry) ---
+
+export type ImageDimensions = { width: number; height: number };
+
+function readU24LE(buf: Buffer, off: number): number {
+  return buf[off] | (buf[off + 1] << 8) | (buf[off + 2] << 16);
+}
+
+/** Đọc kích thước điểm ảnh từ header ảnh (PNG/JPEG/WebP/AVIF),
+ *  thuần JS, không thư viện. Trả null khi chưa đủ byte để kết
+ *  luận (gọi lại khi có thêm dữ liệu) hoặc header không nhận ra. */
+export function imageDimensions(
+  mediaType: string,
+  buf: Buffer,
+): ImageDimensions | null {
+  if (mediaType === "image/png") {
+    if (buf.length < 24) return null;
+    if (buf.subarray(12, 16).toString("latin1") !== "IHDR") return null;
+    return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+  }
+  if (mediaType === "image/jpeg") {
+    // Quét các đoạn marker tới SOF0/SOF1/SOF2.
+    let off = 2;
+    while (off + 1 < buf.length) {
+      if (buf[off] !== 0xff) return null;
+      let marker = buf[off + 1];
+      // Bỏ các byte 0xFF đệm và byte stuffing 0x00.
+      while (marker === 0xff || marker === 0x00) {
+        off += 1;
+        if (off + 1 >= buf.length) return null;
+        marker = buf[off + 1];
+      }
+      // Marker độc lập, không có độ dài.
+      if (
+        marker === 0xd8 ||
+        marker === 0xd9 ||
+        marker === 0x01 ||
+        (marker >= 0xd0 && marker <= 0xd7)
+      ) {
+        off += 2;
+        continue;
+      }
+      if (off + 4 > buf.length) return null; // chưa đủ byte đọc dài
+      const length = buf.readUInt16BE(off + 2);
+      if (length < 2) return null;
+      if (marker === 0xc0 || marker === 0xc1 || marker === 0xc2) {
+        if (off + 9 > buf.length) return null;
+        return {
+          height: buf.readUInt16BE(off + 5),
+          width: buf.readUInt16BE(off + 7),
+        };
+      }
+      off += 2 + length;
+    }
+    return null;
+  }
+  if (mediaType === "image/webp") {
+    if (buf.length < 12) return null;
+    const chunk = buf.subarray(12, 16).toString("latin1");
+    if (chunk === "VP8X") {
+      if (buf.length < 30) return null;
+      return {
+        width: readU24LE(buf, 24) + 1,
+        height: readU24LE(buf, 27) + 1,
+      };
+    }
+    if (chunk === "VP8L") {
+      if (buf.length < 25) return null;
+      const b0 = buf[21];
+      const b1 = buf[22];
+      const b2 = buf[23];
+      const b3 = buf[24];
+      return {
+        width: ((b1 & 0x3f) << 8) + b0 + 1,
+        height: ((b3 & 0x0f) << 10) + (b2 << 2) + ((b1 >> 6) & 0x03) + 1,
+      };
+    }
+    if (chunk === "VP8 ") {
+      if (buf.length < 30) return null;
+      if (buf.subarray(23, 26).toString("latin1") !== "\x9d\x01\x2a") {
+        return null;
+      }
+      return {
+        width: buf.readUInt16LE(26),
+        height: buf.readUInt16LE(28),
+      };
+    }
+    return null;
+  }
+  if (mediaType === "image/avif") {
+    // Quét các box tới `ispe` (thường nằm trong `meta`).
+    const scan = (
+      start: number,
+      end: number,
+      depth: number,
+    ): ImageDimensions | null => {
+      if (depth > 4) return null;
+      let off = start;
+      while (off + 8 <= end) {
+        const size = buf.readUInt32BE(off);
+        const type = buf.subarray(off + 4, off + 8).toString("latin1");
+        let header = 8;
+        let contentEnd = off + size;
+        if (size === 1) {
+          if (off + 16 > end) return null;
+          header = 16;
+          contentEnd = off + Number(buf.readBigUInt64BE(off + 8));
+        } else if (size === 0) {
+          contentEnd = end;
+        }
+        if (size !== 0 && (size < header || contentEnd > end)) return null;
+        if (type === "ispe") {
+          // ispe: size(4) type(4) version/flags(4) width(4) height(4).
+          if (off + header + 12 > end) return null;
+          return {
+            width: buf.readUInt32BE(off + header + 4),
+            height: buf.readUInt32BE(off + header + 8),
+          };
+        }
+        if (type === "meta") {
+          const found = scan(off + header + 4, contentEnd, depth + 1);
+          if (found !== null) return found;
+        }
+        if (size === 0) break;
+        off = contentEnd;
+      }
+      return null;
+    };
+    if (buf.length < 8) return null;
+    return scan(0, buf.length, 0);
+  }
+  return null;
+}
+
+/** Body có bắt đầu bằng thẻ HTML không (bỏ BOM UTF-8 + khoảng
+ *  trắng đầu)? Trả null khi chưa đủ byte để kết luận. */
+export function bodyStartsWithHtml(buf: Buffer): boolean | null {
+  let i = 0;
+  if (buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) {
+    i = 3; // BOM UTF-8
+  }
+  while (i < buf.length) {
+    const b = buf[i];
+    if (b === 0x20 || b === 0x09 || b === 0x0a || b === 0x0d) {
+      i += 1;
+      continue;
+    }
+    return b === 0x3c; // "<"
+  }
+  return null;
 }
 
 // ------------------------------------------------------- Kiểm tra URL/DNS ---
@@ -418,10 +659,15 @@ function fetchOnce(
   return new Promise<SingleResult>((resolvePromise, rejectPromise) => {
     let settled = false;
     let timer: NodeJS.Timeout | undefined;
+    let connectTimer: NodeJS.Timeout | undefined;
     const cleanup = (): void => {
       if (timer !== undefined) {
         clearTimeout(timer);
         timer = undefined;
+      }
+      if (connectTimer !== undefined) {
+        clearTimeout(connectTimer);
+        connectTimer = undefined;
       }
     };
     const fail = (err: SafeFetchError): void => {
@@ -479,6 +725,23 @@ function fetchOnce(
     };
     const req = lib.request(requestOptions);
 
+    // Hẹn giờ KẾT NỐI (B2): socket chưa nối được trong 5 s thì cắt.
+    // Socket đã nối sẵn (kết nối lại) thì không đặt hẹn giờ.
+    req.on("socket", (socket: net.Socket) => {
+      if (settled) return;
+      if (!socket.connecting) return;
+      connectTimer = setTimeout(() => {
+        fail(new SafeFetchError("timeout", "không kết nối được (quá 5 giây)"));
+        req.destroy();
+      }, SAFE_FETCH_CONNECT_TIMEOUT_MS);
+      socket.once("connect", () => {
+        if (connectTimer !== undefined) {
+          clearTimeout(connectTimer);
+          connectTimer = undefined;
+        }
+      });
+    });
+
     // Hẹn giờ TỔNG theo đồng hồ treo tường: cắt cả phản hồi vô hạn
     // lẫn phản hồi nhỏ giọt từng byte (timeout của socket chỉ tính
     // lúc không có dữ liệu nên không đủ).
@@ -521,6 +784,14 @@ function fetchOnce(
       const mediaType =
         contentType.split(";")[0]?.trim().toLowerCase() ?? "";
       if (kind === "feed") {
+        // Trang web trả về thay vì dữ liệu (B2): từ chối với đúng
+        // thông báo của đặc tả, dù Content-Type khai là HTML hay
+        // body bắt đầu bằng `<`.
+        if (mediaType === "text/html") {
+          res.resume();
+          fail(new SafeFetchError("bad_content_type", HTML_NOT_DATA_MESSAGE));
+          return;
+        }
         if (!isFeedContentType(mediaType)) {
           res.resume();
           fail(
@@ -546,6 +817,8 @@ function fetchOnce(
       const chunks: Buffer[] = [];
       let total = 0;
       let magicChecked = false;
+      let htmlChecked = false;
+      let dimensionsChecked = false;
       const minMagic = kind === "image" ? imageMagicMinLength(mediaType) : 0;
       res.on("data", (chunk: Buffer) => {
         if (settled) return;
@@ -558,6 +831,18 @@ function fetchOnce(
           return;
         }
         chunks.push(chunk);
+        if (kind === "feed" && !htmlChecked) {
+          // Sniff HTML trong body (kể cả khi Content-Type khai
+          // text/plain): body bắt đầu bằng `<` → trang web.
+          const head = Buffer.concat(chunks);
+          const isHtml = bodyStartsWithHtml(head);
+          if (isHtml === true) {
+            fail(new SafeFetchError("bad_content_type", HTML_NOT_DATA_MESSAGE));
+            req.destroy();
+            return;
+          }
+          if (isHtml === false) htmlChecked = true;
+        }
         if (kind === "image" && !magicChecked) {
           const buf = Buffer.concat(chunks);
           if (buf.length >= minMagic) {
@@ -567,6 +852,28 @@ function fetchOnce(
                 new SafeFetchError(
                   "bad_content_type",
                   "magic bytes không khớp Content-Type ảnh",
+                ),
+              );
+              req.destroy();
+              return;
+            }
+          }
+        }
+        if (kind === "image" && magicChecked && !dimensionsChecked) {
+          // Kiểm kích thước sớm để cắt bom giải nén trước khi tải
+          // hết body; header ảnh thường nằm trong vài KB đầu.
+          const buf = Buffer.concat(chunks);
+          const dims = imageDimensions(mediaType, buf);
+          if (dims !== null) {
+            dimensionsChecked = true;
+            if (
+              dims.width > MAX_IMAGE_DIMENSION ||
+              dims.height > MAX_IMAGE_DIMENSION
+            ) {
+              fail(
+                new SafeFetchError(
+                  "bad_content_type",
+                  `ảnh vượt quá ${MAX_IMAGE_DIMENSION}×${MAX_IMAGE_DIMENSION} điểm ảnh`,
                 ),
               );
               req.destroy();
@@ -585,6 +892,32 @@ function fetchOnce(
               new SafeFetchError(
                 "bad_content_type",
                 "magic bytes không khớp Content-Type ảnh",
+              ),
+            );
+            return;
+          }
+        }
+        if (kind === "image" && !dimensionsChecked) {
+          // Header chưa đọc được khi đang tải (vd SOF JPEG nằm
+          // sâu) — kiểm lần cuối trên body đầy đủ.
+          const dims = imageDimensions(mediaType, body);
+          if (dims === null) {
+            fail(
+              new SafeFetchError(
+                "bad_content_type",
+                "không đọc được kích thước ảnh",
+              ),
+            );
+            return;
+          }
+          if (
+            dims.width > MAX_IMAGE_DIMENSION ||
+            dims.height > MAX_IMAGE_DIMENSION
+          ) {
+            fail(
+              new SafeFetchError(
+                "bad_content_type",
+                `ảnh vượt quá ${MAX_IMAGE_DIMENSION}×${MAX_IMAGE_DIMENSION} điểm ảnh`,
               ),
             );
             return;

@@ -25,7 +25,8 @@ import {
   type NormalizedRow,
   type ParseError,
 } from "@/lib/import/parse";
-import { SafeFetchError, safeFetch } from "@/lib/import/safe-fetch";
+import { SafeFetchError, safeFetch, HTML_NOT_DATA_MESSAGE } from "@/lib/safe-fetch";
+import { checkRateLimitFailClosed } from "@/lib/rate-limit";
 import { isReservedSlug } from "@/lib/reserved-slugs";
 import { deleteImage, saveImage, type ImageType } from "@/lib/storage";
 import { PRODUCT_SKU_RE, slugifyName } from "./product-validation";
@@ -45,19 +46,26 @@ import { BULK_PRODUCTS_MAX } from "./bulk-products";
 const allowLoopbackForTest =
   process.env.SAFE_FETCH_ALLOW_LOOPBACK === "1" && process.env.VERCEL !== "1";
 
-export const IMPORT_CHUNK_ROWS = 25;
-export const IMPORT_MAX_BATCHES_PER_DAY = 5;
+/** Mỗi lần gọi chạy tối đa 10 hàng hoặc ~8 giây (B5, bản sau Retry):
+ *  Vercel Hobby giới hạn Server Action ~15 s; dừng sớm khi quá 8 s
+ *  để không bị cắt giữa chừng; lần gọi sau chạy tiếp từ import_rows. */
+export const IMPORT_CHUNK_ROWS = 10;
+export const IMPORT_MAX_BATCHES_PER_DAY = 20;
+/** Bắt đầu lô tối đa 5 lần/giờ (B9, bản sau Retry). */
+export const IMPORT_MAX_BATCHES_PER_HOUR = 5;
+/** Tải feed URL tối đa 10 lần/giờ (B9, bản sau Retry). */
+export const IMPORT_MAX_FEED_FETCHES_PER_HOUR = 10;
 export const IMPORT_RUN_TIMEOUT_MS = 20 * 60 * 1000;
-// Mỗi lần gọi chạy tối đa ~10 s (Vercel Hobby giới hạn Server
-// Action ~15 s): đủ 25 dòng nhẹ, dừng sớm khi quá 10 s để không
-// bị cắt giữa chừng; lần gọi sau chạy tiếp từ processed.
-export const IMPORT_CHUNK_MAX_MS = 10_000;
+// Mỗi lần gọi chạy tối đa ~8 s (Vercel Hobby giới hạn Server
+// Action ~15 s): đủ 10 dòng nhẹ, dừng sớm khi quá 8 s để không
+// bị cắt giữa chừng; lần gọi sau chạy tiếp từ import_rows.
+export const IMPORT_CHUNK_MAX_MS = 8_000;
 // Hạn giữ lô của một lần gọi chạy (30 s > tối đa 10 s của khối):
 // lần gọi khác chỉ được giữ lô khi hạn này đã hết (lần gọi trước
 // chết giữa chừng thì sau 30 s chạy tiếp được).
 export const IMPORT_RUN_LEASE_MS = 30_000;
-export const IMPORT_SOURCE_NAME_MIN = 2;
-export const IMPORT_SOURCE_NAME_MAX = 60;
+export const IMPORT_SOURCE_NAME_MIN = 3;
+export const IMPORT_SOURCE_NAME_MAX = 80;
 export const IMPORT_FILE_MAX_BYTES = 5 * 1024 * 1024;
 /** Dữ liệu tạm từng hàng (import_rows.payload) tối đa 8 KB (B2). */
 export const IMPORT_ROW_PAYLOAD_MAX_BYTES = 8 * 1024;
@@ -89,6 +97,45 @@ export const DEFAULT_PRICE_OPTIONS: PriceOptions = {
   rounding: "none",
 };
 
+/** Kiểm tra tùy chọn giá (B3): hệ số 0,1–10, tối đa 2 chữ số
+ *  thập phân; làm tròn none/1000/10000. Trả thông báo lỗi hoặc null. */
+export function validatePriceOptions(opts: unknown): string | null {
+  if (opts === null || typeof opts !== "object" || Array.isArray(opts)) {
+    return "Tùy chọn giá không hợp lệ.";
+  }
+  const o = opts as Record<string, unknown>;
+  const m = o.multiplier;
+  if (typeof m !== "number" || !Number.isFinite(m) || m < 0.1 || m > 10) {
+    return "Hệ số nhân phải từ 0,1 đến 10.";
+  }
+  if (Math.abs(m * 100 - Math.round(m * 100)) > 1e-9) {
+    return "Hệ số nhân tối đa 2 chữ số thập phân.";
+  }
+  if (o.rounding !== "none" && o.rounding !== "1000" && o.rounding !== "10000") {
+    return "Làm tròn phải là không, 1.000 hoặc 10.000.";
+  }
+  return null;
+}
+
+/** Áp hệ số + làm tròn lên giá/salePrice của một dòng (B3): nhân
+ *  hệ số, làm tròn về số nguyên VND trước, rồi làm tròn theo mức
+ *  (1000/10000: về bội số gần nhất). Trả giá đã chuyển đổi. */
+export function applyPriceOptions(
+  row: NormalizedRow,
+  opts: PriceOptions,
+): { price: number; salePrice: number | null } {
+  const convert = (value: number): number => {
+    let v = Math.round(value * opts.multiplier);
+    if (opts.rounding === "1000") v = Math.round(v / 1000) * 1000;
+    else if (opts.rounding === "10000") v = Math.round(v / 10000) * 10000;
+    return v;
+  };
+  return {
+    price: convert(row.price),
+    salePrice: row.salePrice === null ? null : convert(row.salePrice),
+  };
+}
+
 /** Một hàng đã lưu trong import_rows, kèm số dòng gốc + trạng thái
  *  (view cho wizard/xem trước). */
 export type StoredImportRow = NormalizedRow & {
@@ -116,7 +163,6 @@ export type ImportMappingJson = {
   categoryMapping: Record<string, number | "skip">;
   defaultCategoryId: number | null;
   priceOptions: PriceOptions;
-  overwriteHandEdited: boolean;
 };
 
 /** Payload view cho wizard (lắp từ mappingJson + import_rows +
@@ -132,7 +178,6 @@ export type ImportPayload = {
   priceOptions: PriceOptions;
   processed: number;
   runErrors: Array<{ line: number; reason: string; kind: "row" | "image" }>;
-  overwriteHandEdited: boolean;
   runStartedAt: string | null;
   runLeaseUntil: string | null;
 };
@@ -168,7 +213,6 @@ function emptyMappingJson(): ImportMappingJson {
     categoryMapping: {},
     defaultCategoryId: null,
     priceOptions: { ...DEFAULT_PRICE_OPTIONS },
-    overwriteHandEdited: false,
   };
 }
 
@@ -214,7 +258,6 @@ function parseMappingJson(value: unknown): ImportMappingJson {
           ? priceOptions.rounding
           : "none",
     },
-    overwriteHandEdited: v.overwriteHandEdited === true,
   };
 }
 
@@ -346,7 +389,6 @@ function toBatchView(row: BatchRowWithRows): ImportBatchView {
       priceOptions: mapping.priceOptions,
       processed,
       runErrors: runErrors.slice(-200),
-      overwriteHandEdited: mapping.overwriteHandEdited,
       runStartedAt: run.runStartedAt,
       runLeaseUntil: run.runLeaseUntil,
     },
@@ -374,7 +416,7 @@ export async function listImportBatches(limit = 10): Promise<ImportBatchView[]> 
   return rows.map((r) => toBatchView(r as unknown as BatchRowWithRows));
 }
 
-// Đầu ngày theo giờ VN (UTC+7 cố định, không DST) — giới hạn 5 lô/ngày.
+// Đầu ngày theo giờ VN (UTC+7 cố định, không DST) — giới hạn 20 lô/ngày (B9).
 function vnDayStart(now: Date): Date {
   const vn = new Date(now.getTime() + 7 * 60 * 60 * 1000);
   vn.setUTCHours(0, 0, 0, 0);
@@ -402,12 +444,22 @@ function validateSourceName(sourceName: string): string | null {
   return null;
 }
 
-function detectFormat(fileName: string, content: string): "csv" | "json" {
-  const lower = fileName.toLowerCase();
-  if (lower.endsWith(".json")) return "json";
-  if (lower.endsWith(".csv")) return "csv";
+/** Nhận dạng định dạng BẰNG NỘI DUNG (B2, bản sau Retry): không
+ *  tin đuôi tệp hay Content-Type — nội dung bắt đầu bằng `{`/`[`
+ *  là JSON, còn lại là CSV. */
+export function detectFormat(content: string): "csv" | "json" {
   const trimmed = content.trimStart();
   return trimmed.startsWith("{") || trimmed.startsWith("[") ? "json" : "csv";
+}
+
+/** Nội dung có phải trang web HTML không (bỏ BOM UTF-8 + khoảng
+ *  trắng đầu, rồi bắt đầu bằng `<`)? Trang web không phải dữ liệu
+ *  nhập (B2). */
+export function isHtmlContent(content: string): boolean {
+  let text = content;
+  if (text.startsWith("﻿")) text = text.slice(1);
+  const trimmed = text.trimStart();
+  return trimmed.startsWith("<");
 }
 
 /** Gán số dòng gốc cho từng dòng hợp lệ: đi lần lượt các dòng dữ
@@ -514,7 +566,29 @@ export async function createImportBatch(input: {
       error: `Đang có lô "${running.sourceName}" chạy — chờ lô đó xong hoặc hủy rồi mới tạo lô mới.`,
     };
   }
-  if ((await countBatchesToday()) >= IMPORT_MAX_BATCHES_PER_DAY) {
+  // B9: bắt đầu lô tối đa 5 lần/giờ và 20 lần/ngày (toàn cục).
+  // Bộ đếm lỗi → ĐÓNG (fail-closed), không tạo lô.
+  let hourCount: number;
+  let dayCount: number;
+  try {
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    [hourCount, dayCount] = await Promise.all([
+      db.importBatch.count({ where: { createdAt: { gte: hourAgo } } }),
+      countBatchesToday(),
+    ]);
+  } catch {
+    return {
+      ok: false,
+      error: "Không kiểm được giới hạn tạo lô — thử lại sau.",
+    };
+  }
+  if (hourCount >= IMPORT_MAX_BATCHES_PER_HOUR) {
+    return {
+      ok: false,
+      error: `Đã đủ ${IMPORT_MAX_BATCHES_PER_HOUR} lô trong 1 giờ — thử lại sau.`,
+    };
+  }
+  if (dayCount >= IMPORT_MAX_BATCHES_PER_DAY) {
     return {
       ok: false,
       error: `Đã đủ ${IMPORT_MAX_BATCHES_PER_DAY} lô trong ngày — tạo tiếp vào ngày mai.`,
@@ -537,11 +611,31 @@ export async function createImportBatch(input: {
     const url = (input.sourceUrl ?? "").trim();
     if (url === "") return { ok: false, error: "Chưa nhập địa chỉ feed." };
     sourceUrl = url;
+    // B9: tải feed URL tối đa 10 lần/giờ (toàn cục); bộ đếm lỗi
+    // → ĐÓNG (checkRateLimitFailClosed trả allowed=false).
+    const fetchLimit = await checkRateLimitFailClosed({
+      key: "import:feed-fetch:global",
+      limit: IMPORT_MAX_FEED_FETCHES_PER_HOUR,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!fetchLimit.allowed) {
+      return {
+        ok: false,
+        error: fetchLimit.counterUnavailable
+          ? "Không kiểm được giới hạn tải feed — thử lại sau."
+          : `Đã đủ ${IMPORT_MAX_FEED_FETCHES_PER_HOUR} lần tải feed trong 1 giờ — thử lại sau.`,
+      };
+    }
     let fetched;
     try {
       fetched = await safeFetch(url, { kind: "feed", allowLoopbackForTest });
     } catch (err) {
       if (err instanceof SafeFetchError) {
+        // Trang web trả về thay vì dữ liệu: trả đúng thông báo
+        // của đặc tả, không bọc thêm chữ.
+        if (err.message === HTML_NOT_DATA_MESSAGE) {
+          return { ok: false, error: HTML_NOT_DATA_MESSAGE };
+        }
         return { ok: false, error: `Không tải được feed: ${err.message}` };
       }
       return { ok: false, error: "Không tải được feed (lỗi mạng)." };
@@ -550,7 +644,13 @@ export async function createImportBatch(input: {
     fileName = null;
   }
 
-  const format = detectFormat(fileName ?? sourceUrl ?? "", content);
+  // Nội dung HTML (trang web) không phải dữ liệu nhập — từ chối
+  // với đúng thông báo của đặc tả (phòng thủ thêm sau safeFetch).
+  if (isHtmlContent(content)) {
+    return { ok: false, error: HTML_NOT_DATA_MESSAGE };
+  }
+
+  const format = detectFormat(content);
   const sourceKind: ImportSourceKind =
     input.kind === "feed" ? "FEED_URL" : format === "json" ? "JSON" : "CSV";
   const fileSha256 = createHash("sha256").update(content, "utf8").digest("hex");
@@ -561,6 +661,9 @@ export async function createImportBatch(input: {
       error: `Không đọc được dữ liệu: ${parsed.errors[0].reason}`,
     };
   }
+  // B9: lô quá 2.000 hàng bị từ chối. Bộ đọc đã cắt ở 2.000 dòng
+  // (lỗi toàn cục → nhánh trên) nên nhánh này chỉ phòng thủ khi
+  // bộ đọc trả nhiều dòng hơn giới hạn.
   if (parsed.rows.length > MAX_IMPORT_ROWS) {
     return { ok: false, error: `Vượt quá ${MAX_IMPORT_ROWS} dòng mỗi lô.` };
   }
@@ -634,7 +737,7 @@ export async function saveImportMapping(
   mapping: FieldMapping,
   categoryMapping: Record<string, number | "skip">,
   defaultCategoryId: number | null,
-  overwriteHandEdited: boolean,
+  priceOptions: PriceOptions,
 ): Promise<SaveMappingResult> {
   const batch = await getImportBatch(batchId);
   if (!batch) return { ok: false, error: "Không tìm thấy lô nhập." };
@@ -643,9 +746,13 @@ export async function saveImportMapping(
   }
   if (!mapping.name) return { ok: false, error: "Chưa chọn cột cho tên sản phẩm." };
   if (!mapping.price) return { ok: false, error: "Chưa chọn cột cho giá." };
-  if (!mapping.externalId && !mapping.sku) {
-    return { ok: false, error: "Chưa chọn cột cho mã ngoài (externalId) hoặc SKU." };
+  // B3: externalId là trường ánh xạ BẮT BUỘC (SKU chỉ tùy chọn,
+  // không thay thế externalId được).
+  if (!mapping.externalId) {
+    return { ok: false, error: "Chưa chọn cột cho mã ngoài (externalId)." };
   }
+  const priceError = validatePriceOptions(priceOptions);
+  if (priceError) return { ok: false, error: priceError };
   if (!mapping.categoryName && defaultCategoryId === null) {
     return {
       ok: false,
@@ -685,8 +792,7 @@ export async function saveImportMapping(
     mappingSaved: true,
     categoryMapping,
     defaultCategoryId,
-    priceOptions: batch.payload.priceOptions,
-    overwriteHandEdited,
+    priceOptions,
   };
   await db.$transaction(async (tx) => {
     await tx.importBatch.update({
@@ -712,15 +818,17 @@ export function distinctCategoryValues(payload: ImportPayload): string[] {
 }
 
 /** Chuẩn hóa lại các dòng CHỜ (PENDING) theo ánh xạ đã chọn
- *  (bước 2 / xem trước / chạy). Trả về dòng hợp lệ + lỗi từng
- *  dòng (kèm số dòng gốc + id hàng). Hàng đã có trạng thái cuối
- *  không chuẩn hóa lại. */
+ *  (bước 2 / xem trước / chạy), ÁP TÙY CHỌN GIÁ (B3) rồi kiểm cuối:
+ *  giá phải là số nguyên VND 1–1.000.000.000, salePrice < price
+ *  nghiêm ngặt. Trả về dòng hợp lệ + lỗi từng dòng (kèm số dòng gốc
+ *  + id hàng). Hàng đã có trạng thái cuối không chuẩn hóa lại. */
 export function renormalizeRows(batch: ImportBatchView): {
   valid: Array<{ row: NormalizedRow; rowId: number; line: number }>;
   errors: Array<ParseError & { rowId: number }>;
 } {
   const valid: Array<{ row: NormalizedRow; rowId: number; line: number }> = [];
   const errors: Array<ParseError & { rowId: number }> = [];
+  const priceOptions = batch.payload.priceOptions;
   for (const stored of batch.payload.rows) {
     if (stored.status !== "PENDING") continue;
     const re = normalizeMappedRecord(stored.raw, batch.payload.mapping);
@@ -730,21 +838,59 @@ export function renormalizeRows(batch: ImportBatchView): {
         reason: re.errors.join("; "),
         rowId: stored.rowId,
       });
-    } else {
-      valid.push({ row: re.row, rowId: stored.rowId, line: stored.line });
+      continue;
     }
+    const converted = applyPriceOptions(re.row, priceOptions);
+    const priceError = validateConvertedPrice(converted);
+    if (priceError !== null) {
+      errors.push({ line: stored.line, reason: priceError, rowId: stored.rowId });
+      continue;
+    }
+    valid.push({
+      row: { ...re.row, price: converted.price, salePrice: converted.salePrice },
+      rowId: stored.rowId,
+      line: stored.line,
+    });
   }
   return { valid, errors };
+}
+
+/** Kiểm giá sau chuyển đổi (B3): số nguyên VND 1–1.000.000.000;
+ *  salePrice (nếu có) là số nguyên và NHỎ HƠN giá gốc nghiêm ngặt. */
+function validateConvertedPrice(converted: {
+  price: number;
+  salePrice: number | null;
+}): string | null {
+  if (!Number.isInteger(converted.price)) {
+    return "giá phải là số nguyên (VND)";
+  }
+  if (converted.price < 1 || converted.price > 1_000_000_000) {
+    return "giá phải từ 1 đến 1.000.000.000 ₫";
+  }
+  if (converted.salePrice !== null) {
+    if (!Number.isInteger(converted.salePrice)) {
+      return "giá khuyến mãi phải là số nguyên (VND)";
+    }
+    if (converted.salePrice < 1) {
+      return "giá khuyến mãi phải lớn hơn 0";
+    }
+    if (converted.salePrice >= converted.price) {
+      return "giá khuyến mãi phải nhỏ hơn giá gốc";
+    }
+  }
+  return null;
 }
 // --- Phân loại dòng (C5) ---
 
 type ClassifyContext = {
-  existingByKey: Map<string, { id: number; slug: string; sku: string | null; needsReview: boolean; importedAt: Date | null; updatedAt: Date }>;
+  existingByKey: Map<string, { id: number; slug: string; sku: string | null; price: number; salePrice: number | null; needsReview: boolean; importedAt: Date | null; updatedAt: Date }>;
   skuOwners: Map<string, { id: number; source: string }>;
   systemSlugs: Set<string>;
+  importSlugs: Set<string>;
   categorySlugs: Set<string>;
   staticSlugs: Set<string>;
   seenKeys: Set<string>;
+  seenSkus: Set<string>;
   seenImportSlugs: Set<string>;
 };
 
@@ -755,10 +901,10 @@ async function buildClassifyContext(
   const skus = rows
     .map((r) => (r.sku ?? "").trim().toUpperCase())
     .filter((s) => s !== "");
-  const [existing, skuRows, systemProducts, categories, pages] = await Promise.all([
+  const [existing, skuRows, systemProducts, importProducts, categories, pages] = await Promise.all([
     db.product.findMany({
       where: { source: "import", sourceName },
-      select: { id: true, sourceExternalId: true, slug: true, sku: true, needsReview: true, importedAt: true, updatedAt: true },
+      select: { id: true, sourceExternalId: true, slug: true, sku: true, price: true, salePrice: true, needsReview: true, importedAt: true, updatedAt: true },
     }),
     skus.length > 0
       ? db.product.findMany({
@@ -769,6 +915,11 @@ async function buildClassifyContext(
     db.product.findMany({
       where: { source: { not: "import" } },
       select: { id: true, categoryId: true, slug: true },
+    }),
+    // Slug của SP đã nhập (mọi nguồn) — để thêm hậu tố khi trùng (B5).
+    db.product.findMany({
+      where: { source: "import" },
+      select: { categoryId: true, slug: true },
     }),
     db.category.findMany({ select: { slug: true } }),
     db.page.findMany({ where: { isPublished: true }, select: { slug: true } }),
@@ -787,16 +938,18 @@ async function buildClassifyContext(
     existingByKey,
     skuOwners,
     systemSlugs: new Set(systemProducts.map((p) => `${p.categoryId}\n${p.slug}`)),
+    importSlugs: new Set(importProducts.map((p) => `${p.categoryId}\n${p.slug}`)),
     categorySlugs: new Set(categories.map((c) => c.slug)),
     staticSlugs: new Set(pages.map((p) => p.slug)),
     seenKeys: new Set(),
+    seenSkus: new Set(),
     seenImportSlugs: new Set(),
   };
 }
 
 export type RowDisposition =
   | { action: "create"; categoryId: number; slug: string; sku: string | null }
-  | { action: "update"; productId: number; categoryId: number; sku: string | null }
+  | { action: "update"; productId: number; categoryId: number; sku: string | null; priceOnly: boolean; priceChanged: boolean }
   | { action: "skip"; reason: string }
   | { action: "error"; reason: string };
 
@@ -830,6 +983,9 @@ function classifyRow(
   if (!Number.isInteger(row.price)) {
     return { action: "error", reason: "giá phải là số nguyên (VND)" };
   }
+  if (row.price < 1 || row.price > 1_000_000_000) {
+    return { action: "error", reason: "giá phải từ 1 đến 1.000.000.000 ₫" };
+  }
   if (row.salePrice !== null && !Number.isInteger(row.salePrice)) {
     return { action: "error", reason: "giá khuyến mãi phải là số nguyên (VND)" };
   }
@@ -844,56 +1000,50 @@ function classifyRow(
   }
   ctx.seenKeys.add(key);
 
+  // SKU trùng với SP khác (không cùng SP đích) → hàng LỖI (B5),
+  // không còn là "bỏ qua" như Ngày 20. SKU chỉ kiểm khi nó sẽ
+  // được ghi (tạo mới hoặc cập nhật đầy đủ); cập nhật chỉ-giá
+  // không đụng tới SKU nên không kiểm.
+  const skuCollidesWithOther = (targetId: number | null): boolean => {
+    if (sku === null) return false;
+    if (ctx.seenSkus.has(sku)) return true;
+    const owner = ctx.skuOwners.get(sku);
+    return owner !== undefined && owner.id !== targetId;
+  };
+
   const existing = ctx.existingByKey.get(key);
   if (existing) {
-    if (sku !== null && sku !== existing.sku) {
-      const owner = ctx.skuOwners.get(sku);
-      if (owner && owner.id !== existing.id) {
-        return {
-          action: "skip",
-          reason:
-            owner.source === "import"
-              ? "trùng SKU với sản phẩm nhập khác"
-              : "trùng SKU hệ thống",
-        };
-      }
-    }
-    // "Sửa tay" = updatedAt chênh importedAt quá 1 giây. Dung sai 1 giây
-    // vì lần cập nhật do chính lần nhập trước cũng đặt importedAt =
-    // thời điểm chạy, còn updatedAt do Prisma tự đặt cùng lúc — hai
-    // mốc có thể lệch vài mili-giây. Duyệt (approve) KHÔNG chạm
-    // updatedAt (xem approveImportedProducts) nên SP đã duyệt mà
-    // chưa sửa tay vẫn được cập nhật ở lần nhập sau.
-    if (
-      !existing.needsReview &&
-      existing.importedAt !== null &&
-      existing.updatedAt.getTime() - existing.importedAt.getTime() > 1000 &&
-      !payload.overwriteHandEdited
-    ) {
+    if (!existing.needsReview) {
+      // B5: SP ĐÃ DUYỆT → chỉ cập nhật price/salePrice, không ghi
+      // đè tên/mô tả/ảnh/danh mục đã chỉnh (thay quy tắc "bỏ qua
+      // khi sửa tay" của Ngày 20).
+      const priceChanged =
+        row.price !== existing.price || row.salePrice !== existing.salePrice;
       return {
-        action: "skip",
-        reason: "đã chỉnh sửa tay sau khi nhập (bật ghi đè để cập nhật)",
+        action: "update",
+        productId: existing.id,
+        categoryId,
+        sku: existing.sku,
+        priceOnly: true,
+        priceChanged,
       };
     }
-    return { action: "update", productId: existing.id, categoryId, sku };
+    if (skuCollidesWithOther(existing.id)) {
+      return { action: "error", reason: "SKU đã tồn tại" };
+    }
+    if (sku !== null) ctx.seenSkus.add(sku);
+    return { action: "update", productId: existing.id, categoryId, sku, priceOnly: false, priceChanged: false };
   }
 
-  if (sku !== null) {
-    const owner = ctx.skuOwners.get(sku);
-    if (owner) {
-      return {
-        action: "skip",
-        reason:
-          owner.source === "import"
-            ? "trùng SKU với sản phẩm nhập khác"
-            : "trùng SKU hệ thống",
-      };
-    }
+  if (skuCollidesWithOther(null)) {
+    return { action: "error", reason: "SKU đã tồn tại" };
   }
+  if (sku !== null) ctx.seenSkus.add(sku);
 
   // Slug từ tên, duy nhất bằng hậu tố. Trùng slug HỆ THỐNG trong
   // cùng danh mục → BỎ QUA (không bao giờ ghi đè SP hệ thống);
-  // trùng slug đặt trước/danh mục/trang tĩnh → thêm hậu tố -2, -3…
+  // trùng slug đặt trước/danh mục/trang tĩnh/SP đã nhập → thêm hậu
+  // tố -2, -3… (B5).
   let base = slugifyName(row.name);
   if (base === "") {
     base = slugifyName(row.externalId);
@@ -911,6 +1061,7 @@ function classifyRow(
     isReservedSlug(slug) ||
     ctx.categorySlugs.has(slug) ||
     ctx.staticSlugs.has(slug) ||
+    ctx.importSlugs.has(`${categoryId}\n${slug}`) ||
     ctx.seenImportSlugs.has(`${categoryId}\n${slug}`)
   ) {
     slug = `${base}-${n}`;
@@ -934,6 +1085,8 @@ export type ImportPreviewRow = {
   disposition: "create" | "update" | "skip" | "error";
   reason: string | null;
   slug: string | null;
+  /** Cập nhật chỉ-giá (SP đã duyệt, B5) — xem trước ghi rõ. */
+  priceOnly: boolean;
 };
 
 export type ImportPreview = {
@@ -971,7 +1124,6 @@ export async function computePreview(batchId: number): Promise<ImportPreview | n
       toSkip += 1;
       skipReasons[d.reason] = (skipReasons[d.reason] ?? 0) + 1;
     } else {
-      errorReasons[d.reason] = (errorReasons[d.reason] ?? 0) + 1;
       errors.push({ line, reason: d.reason });
     }
     if (rows.length < 20) {
@@ -984,8 +1136,14 @@ export async function computePreview(batchId: number): Promise<ImportPreview | n
         sku: row.sku,
         externalId: row.externalId,
         disposition: d.action,
-        reason: d.action === "create" || d.action === "update" ? null : d.reason,
+        reason:
+          d.action === "create" || d.action === "update"
+            ? d.action === "update" && d.priceOnly
+              ? "chỉ cập nhật giá"
+              : null
+            : d.reason,
         slug: d.action === "create" ? d.slug : null,
+        priceOnly: d.action === "update" && d.priceOnly,
       });
     }
   }
@@ -1267,7 +1425,11 @@ export async function runImportChunk(batchId: number): Promise<RunChunkResult> {
     // Lỗi ảnh không hỏng dòng: vẫn tạo/cập nhật với ảnh tải được.
     // Nhưng lỗi ảnh VẪN đếm vào tổng lỗi của lô (ô "Lỗi" ở kết quả)
     // — nếu không, lô có ảnh lỗi vẫn hiện "Lỗi 0".
-    const { urls, imageErrors } = await fetchRowImages(row, line);
+    // Cập nhật chỉ-giá (SP đã duyệt, B5): không tải ảnh, không
+    // đụng tới tên/mô tả/ảnh/danh mục.
+    const { urls, imageErrors } = d.action === "update" && d.priceOnly
+      ? { urls: [], imageErrors: [] as Array<{ line: number; reason: string; kind: "image" }> }
+      : await fetchRowImages(row, line);
     const imageWarnings = imageErrors.map((e) => e.reason);
     try {
       const productId = await db.$transaction(async (tx) => {
@@ -1299,6 +1461,20 @@ export async function runImportChunk(batchId: number): Promise<RunChunkResult> {
           });
           id = createdRow.id;
           auditRows.push(lifecycleAuditRow(productAuditPrefix(createdRow), null, "created"));
+        } else if (d.priceOnly) {
+          // B5: SP đã duyệt — chỉ cập nhật price/salePrice.
+          await tx.product.update({
+            where: { id: d.productId },
+            data: { price: row.price, salePrice: row.salePrice, importedAt: now },
+          });
+          id = d.productId;
+          auditRows.push(
+            lifecycleAuditRow(
+              productAuditPrefix({ id: d.productId, sku: d.sku }),
+              null,
+              "updated",
+            ),
+          );
         } else {
           await tx.product.update({
             where: { id: d.productId },
@@ -1314,11 +1490,21 @@ export async function runImportChunk(batchId: number): Promise<RunChunkResult> {
           }
         }
         const terminalStatus = d.action === "create" ? "CREATED" : "UPDATED";
+        // B5: cập nhật chỉ-giá ghi "giá đổi" vào kết quả khi giá
+        // thực sự đổi; không đổi thì để trống (không tính là lỗi).
+        const terminalMessage =
+          d.action === "update" && d.priceOnly
+            ? d.priceChanged
+              ? "giá đổi"
+              : null
+            : imageWarnings.length > 0
+              ? imageWarnings[0]
+              : null;
         const claimed = await markRowTerminal(
           tx,
           rowId,
           terminalStatus,
-          imageWarnings.length > 0 ? imageWarnings[0] : null,
+          terminalMessage,
           id,
           imageWarnings,
         );

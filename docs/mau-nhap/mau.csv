@@ -1,0 +1,4 @@
+externalId,name,description,price,salePrice,categoryName,imageUrls,stock,sku
+MAU-001,Bó Hoa Mẫu Hồng,Bó hoa mẫu để thử nhập,150000,120000,Hoa tươi,https://vi-du.invalid/hoa-mau-1.jpg,10,MAU-001
+MAU-002,Giỏ Hoa Mẫu Vàng,Giỏ hoa mẫu để thử nhập,250000,,Hoa tươi,,5,MAU-002
+MAU-003,Bó Hoa Mẫu Tím,Bó hoa mẫu để thử nhập,89000,,Hoa tươi,https://vi-du.invalid/hoa-mau-3.jpg|https://vi-du.invalid/hoa-mau-3b.jpg,0,MAU-003

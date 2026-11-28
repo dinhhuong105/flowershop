@@ -15,8 +15,11 @@
 // JSON:
 // - Mảng ở gốc, hoặc object có khóa `items` / `products` / `data`
 //   chứa mảng. ≤ 2.000 phần tử (đếm trước khi duyệt sâu). Độ sâu
-//   ≤ 10, kiểm bằng duyệt lặp (stack riêng) nên JSON lồng 1.000
-//   tầng cũng không stack overflow.
+//   ≤ 6 (B2), kiểm bằng duyệt lặp (stack riêng) nên JSON lồng 1.000
+//   tầng cũng không stack overflow. Khóa `__proto__` /
+//   `constructor` / `prototype` ở mọi tầng bị từ chối (B2).
+// - CSV tối đa 40 cột, mỗi ô tối đa 5000 ký tự (B2); tệp nhị
+//   phân/UTF-16 (chứa byte NUL) bị từ chối.
 //
 // Chuẩn hóa mỗi dòng/object thành NormalizedRow (xem kiểu bên dưới).
 // Lỗi từng dòng được thu thập (không dừng cả tệp); lỗi toàn cục có
@@ -32,7 +35,14 @@
 // nhiễm prototype.
 
 export const MAX_IMPORT_ROWS = 2000;
-export const MAX_JSON_DEPTH = 10;
+export const MAX_JSON_DEPTH = 6;
+/** CSV: tối đa 40 cột, mỗi ô tối đa 5000 ký tự (B2). */
+export const MAX_CSV_COLUMNS = 40;
+export const MAX_CELL_CHARS = 5000;
+/** Khóa JSON bị cấm ở mọi tầng (B2): chống nhiễm prototype. */
+export const FORBIDDEN_JSON_KEYS = ["__proto__", "constructor", "prototype"];
+/** Ảnh mỗi hàng tối đa 8 URL (B3). */
+export const MAX_IMAGE_URLS = 8;
 // Giới hạn số nút duyệt khi kiểm độ sâu JSON (chống JSON phình to
 // bất thường; giới hạn này cao hơn nhiều so với tệp feed ≤ 5 MB).
 const MAX_JSON_NODES = 5_000_000;
@@ -200,20 +210,89 @@ function toText(value: unknown): string | null {
   return null;
 }
 
-// Số thập phân: số thuần, hoặc chuỗi số với MỘT dấu `.` hoặc `,` làm
-// phân tách thập phân — "890000", "890000.5", "890000,5". Chuỗi kiểu
-// VN "890.000" KHÔNG được hiểu là 890.000: dấu `.` ở đây chỉ là phân
-// tách thập phân nên "890.000" = 890. Chuỗi có chữ, nhiều dấu phân
-// tách, khoảng trắng trong số → null.
-function parseDecimal(value: unknown): number | null {
+// Số tiền VN (B3, bản sau Retry — ĐẢO NGƯỢC diễn giải Ngày 20):
+// dấu `.` / `,` là phân tách NGHÌN khi nhóm đủ 3 chữ số, còn dấu
+// phân tách cuối cùng theo sau là 1–2 chữ số mới là thập phân.
+// "890.000" = 890.000 (nghìn), "1234.5" = 1234,5 (thập phân),
+// "1.234.567" = 1234567, "1,234,567" = 1234567, "1.234,56" =
+// 1234,56 (dấu cuối là thập phân). Chuỗi có chữ, nhiều dấu phân
+// tách không theo nhóm 3, khoảng trắng trong số → null.
+export function parseVndNumber(value: unknown): number | null {
   if (typeof value === "number") {
     return Number.isFinite(value) ? value : null;
   }
   if (typeof value !== "string") return null;
   const text = value.trim();
-  if (!/^[+-]?\d+([.,]\d+)?$/.test(text)) return null;
-  const num = Number(text.replace(",", "."));
+  if (text === "") return null;
+  if (!/^[+-]?[\d.,]+$/.test(text)) return null;
+  const sign = text.startsWith("-") ? -1 : 1;
+  const digits = text.replace(/^[+-]/, "");
+  const dotCount = (digits.match(/\./g) ?? []).length;
+  const commaCount = (digits.match(/,/g) ?? []).length;
+  let normalized: string | null = null;
+  if (dotCount === 0 && commaCount === 0) {
+    normalized = digits;
+  } else if (dotCount > 0 && commaCount > 0) {
+    // Cả hai dấu: dấu CUỐI là thập phân, dấu còn lại là nghìn.
+    const lastDot = digits.lastIndexOf(".");
+    const lastComma = digits.lastIndexOf(",");
+    const decimalSep = lastDot > lastComma ? "." : ",";
+    const thousandsSep = decimalSep === "." ? "," : ".";
+    const sepIndex = decimalSep === "." ? lastDot : lastComma;
+    const intPart = digits.slice(0, sepIndex);
+    const fracPart = digits.slice(sepIndex + 1);
+    if (!/^\d{1,2}$/.test(fracPart)) return null;
+    if (!thousandsGroupsOk(intPart, thousandsSep)) return null;
+    normalized = `${intPart.replaceAll(thousandsSep, "")}.${fracPart}`;
+  } else {
+    const sep = dotCount > 0 ? "." : ",";
+    const parts = digits.split(sep);
+    if (parts.length === 1) {
+      normalized = digits;
+    } else if (parts.length === 2) {
+      const [intPart, fracPart] = parts as [string, string];
+      if (fracPart === "" || !/^\d+$/.test(intPart) || intPart === "") return null;
+      if (fracPart.length === 3) {
+        // Một dấu + đúng 3 chữ số sau → phân tách nghìn.
+        normalized = intPart + fracPart;
+      } else if (fracPart.length <= 2) {
+        // 1–2 chữ số sau → thập phân.
+        normalized = `${intPart}.${fracPart}`;
+      } else {
+        // 4+ chữ số sau → thập phân (vd "1.2345" = 1,2345).
+        normalized = `${intPart}.${fracPart}`;
+      }
+    } else {
+      // Nhiều dấu giống nhau → chỉ hợp lệ khi mọi nhóm đều 3 chữ số.
+      if (!thousandsGroupsOk(digits, sep)) return null;
+      normalized = parts.join("");
+    }
+  }
+  if (normalized === null || normalized === "") return null;
+  const num = Number(normalized) * sign;
   return Number.isFinite(num) ? num : null;
+}
+
+/** "1.234.567" tách theo dấu nghìn phải cho nhóm đầu 1–3 chữ số,
+ *  các nhóm sau đúng 3 chữ số. */
+function thousandsGroupsOk(text: string, sep: string): boolean {
+  const groups = text.split(sep);
+  return groups.every(
+    (g, i) => /^\d+$/.test(g) && g !== "" && (i === 0 ? g.length <= 3 : g.length === 3),
+  );
+}
+
+/** Giữ tên cũ cho tương thích nội bộ (đã đổi nghĩa theo B3). */
+export const parseDecimal = parseVndNumber;
+
+// Làm sạch văn bản (B5): bỏ thẻ HTML, ký tự điều khiển, chuẩn hóa
+// khoảng trắng (nhiều khoảng → một, cắt đầu/cuối).
+export function cleanText(value: string): string {
+  return value
+    .replace(/<[^>]*>/g, "")
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 // Số nguyên: "5", 5, -1 (để bước kiểm bắt lỗi âm); "1.5" → null.
@@ -247,21 +326,23 @@ function normalizeRecord(
   const problems: string[] = [];
 
   // externalId: bắt buộc, ≤ 100 ký tự; thiếu/rỗng thì lấy từ SKU.
-  let externalId = toText(findField(record, "externalId"))?.trim() ?? "";
+  // (B5: làm sạch văn bản trước khi kiểm — bỏ thẻ HTML, ký tự
+  // điều khiển, chuẩn hóa khoảng trắng.)
+  let externalId = cleanText(toText(findField(record, "externalId")) ?? "");
   if (externalId === "") {
-    externalId = toText(findField(record, "sku"))?.trim() ?? "";
+    externalId = cleanText(toText(findField(record, "sku")) ?? "");
   }
   if (externalId === "") problems.push("thiếu externalId/SKU");
   else if (externalId.length > 100) {
     problems.push("externalId tối đa 100 ký tự");
   }
 
-  const name = toText(findField(record, "name"))?.trim() ?? "";
+  const name = cleanText(toText(findField(record, "name")) ?? "");
   if (name.length < 3 || name.length > 160) {
     problems.push("tên phải từ 3 đến 160 ký tự");
   }
 
-  const description = toText(findField(record, "description"))?.trim() ?? "";
+  const description = cleanText(toText(findField(record, "description")) ?? "");
   if (description.length > 2000) {
     problems.push("mô tả tối đa 2.000 ký tự");
   }
@@ -279,14 +360,15 @@ function normalizeRecord(
     if (parsed === null) problems.push("giá khuyến mãi không phải số");
     else if (!(parsed > 0)) {
       problems.push("giá khuyến mãi phải lớn hơn 0");
-    } else if (price !== null && parsed > price) {
-      problems.push("giá khuyến mãi phải nhỏ hơn hoặc bằng giá gốc");
+    } else if (price !== null && parsed >= price) {
+      // B3: salePrice < price NGHIÊM NGẶT (bằng giá gốc cũng lỗi).
+      problems.push("giá khuyến mãi phải nhỏ hơn giá gốc");
     } else {
       salePrice = parsed;
     }
   }
 
-  const categoryText = toText(findField(record, "categoryName"))?.trim() ?? "";
+  const categoryText = cleanText(toText(findField(record, "categoryName")) ?? "");
   let categoryName: string | null = null;
   if (categoryText !== "") {
     if (categoryText.length > 100) {
@@ -301,9 +383,9 @@ function normalizeRecord(
   if (imgRaw === undefined || imgRaw === null) {
     imageUrls = [];
   } else if (typeof imgRaw === "string") {
-    // Chuỗi phân tách bằng `|` hoặc `;`; ô rỗng bỏ qua.
+    // Chuỗi phân tách bằng `|` (B3); ô rỗng bỏ qua.
     imageUrls = imgRaw
-      .split(/[|;]/)
+      .split("|")
       .map((u) => u.trim())
       .filter((u) => u !== "");
   } else if (Array.isArray(imgRaw)) {
@@ -317,7 +399,12 @@ function normalizeRecord(
   } else {
     problems.push("imageUrls phải là chuỗi hoặc mảng chuỗi");
   }
-  if (imageUrls.length > 6) problems.push("tối đa 6 ảnh");
+  if (imageUrls.length > MAX_IMAGE_URLS) problems.push(`tối đa ${MAX_IMAGE_URLS} ảnh`);
+  // B11: chỉ nhận URL http(s) — javascript:/data:/… bị từ chối.
+  const badImageUrl = imageUrls.find((u) => !/^https?:\/\//i.test(u));
+  if (badImageUrl !== undefined) {
+    problems.push("ảnh phải là địa chỉ http(s)");
+  }
 
   let stock: number | null = null;
   const stockRaw = findField(record, "stock");
@@ -331,7 +418,7 @@ function normalizeRecord(
     else stock = parsed;
   }
 
-  const skuText = toText(findField(record, "sku"))?.trim() ?? "";
+  const skuText = cleanText(toText(findField(record, "sku")) ?? "");
   let sku: string | null = null;
   if (skuText !== "") {
     if (skuText.length > 100) problems.push("SKU tối đa 100 ký tự");
@@ -357,6 +444,33 @@ function normalizeRecord(
       raw,
     },
   };
+}
+
+// Tệp nhị phân/UTF-16 (chứa byte NUL) không phải CSV/JSON UTF-8.
+export function binaryContentReason(input: string): string | null {
+  if (input.indexOf(String.fromCharCode(0)) !== -1) return "tệp không phải văn bản UTF-8 (có thể là tệp nhị phân hoặc UTF-16)";
+  return null;
+}
+
+/** Tìm khóa JSON bị cấm (__proto__/constructor/prototype) ở mọi
+ *  tầng bằng duyệt lặp; trả tên khóa hoặc null. */
+export function findForbiddenJsonKey(value: unknown): string | null {
+  const stack: unknown[] = [value];
+  let visited = 0;
+  while (stack.length > 0) {
+    const node = stack.pop();
+    visited += 1;
+    if (visited > MAX_JSON_NODES) return null;
+    if (Array.isArray(node)) {
+      for (const child of node) stack.push(child);
+    } else if (node !== null && typeof node === "object") {
+      for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+        if ((FORBIDDEN_JSON_KEYS as readonly string[]).includes(k)) return k;
+        stack.push(v);
+      }
+    }
+  }
+  return null;
 }
 
 // Tách văn bản CSV thành các dòng logic (mảng các ô), tôn trọng ngoặc
@@ -421,6 +535,10 @@ function tokenizeCsv(input: string, delimiter: string): string[][] {
 
 export function parseCsv(input: string): ParseResult {
   const text = input.startsWith("\uFEFF") ? input.slice(1) : input;
+  const binaryReason = binaryContentReason(text);
+  if (binaryReason !== null) {
+    return { rows: [], errors: [{ line: 0, reason: binaryReason }], totalLines: 0 };
+  }
   if (text.trim() === "") {
     return {
       rows: [],
@@ -458,6 +576,13 @@ export function parseCsv(input: string): ParseResult {
   const rows = tokenized[best].filter((r) => r.some((c) => c !== ""));
 
   const headers = rows[0].map((h) => h.trim());
+  if (headers.length > MAX_CSV_COLUMNS) {
+    return {
+      rows: [],
+      errors: [{ line: 1, reason: `CSV tối đa ${MAX_CSV_COLUMNS} cột` }],
+      totalLines: rows.length,
+    };
+  }
   const seen = new Set<string>();
   for (const header of headers) {
     const normalized = normalizeHeaderName(header);
@@ -487,6 +612,11 @@ export function parseCsv(input: string): ParseResult {
   const errors: ParseError[] = [];
   for (let i = 1; i < rows.length; i++) {
     const cells = rows[i];
+    const hugeCell = cells.find((c) => c.length > MAX_CELL_CHARS);
+    if (hugeCell !== undefined) {
+      errors.push({ line: i + 1, reason: `ô vượt quá ${MAX_CELL_CHARS} ký tự` });
+      continue;
+    }
     // Object.fromEntries (không gán trực tiếp) để header `__proto__`
     // không làm nhiễm prototype.
     const record = Object.fromEntries(
@@ -529,6 +659,10 @@ function jsonTooDeep(value: unknown): boolean {
 }
 
 export function parseJson(input: string): ParseResult {
+  const binaryReasonJson = binaryContentReason(input);
+  if (binaryReasonJson !== null) {
+    return { rows: [], errors: [{ line: 0, reason: binaryReasonJson }], totalLines: 0 };
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(input);
@@ -545,6 +679,14 @@ export function parseJson(input: string): ParseResult {
     };
   }
 
+  const forbiddenKey = findForbiddenJsonKey(parsed);
+  if (forbiddenKey !== null) {
+    return {
+      rows: [],
+      errors: [{ line: 0, reason: `khóa JSON không được phép: ${forbiddenKey}` }],
+      totalLines: 0,
+    };
+  }
   let items: unknown;
   if (Array.isArray(parsed)) {
     items = parsed;
@@ -669,4 +811,29 @@ export function normalizeMappedRecord(
     if (col !== undefined && col !== null) record[field] = raw[col];
   }
   return normalizeRecord(record, raw);
+}
+
+// --- Xuất CSV lỗi/kết quả (B6) ---
+
+/** Vô hiệu công thức trong một ô CSV: ô bắt đầu bằng `=`, `+`,
+ *  `-`, `@`, tab, CR thì thêm dấu nháy đơn phía trước (B6). */
+export function neutralizeCsvCell(value: string): string {
+  return isFormulaCell(value) ? `'${value}` : value;
+}
+
+function csvEscapeCell(value: string): string {
+  const cell = neutralizeCsvCell(value);
+  return /[",\n\r]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
+}
+
+/** Dựng CSV lỗi/kết quả từ danh sách {dòng, lý do} (dùng cho nút
+ *  "Tải CSV lỗi" ở bước xem trước và kết quả). */
+export function buildErrorsCsv(
+  items: Array<{ line: number; reason: string }>,
+): string {
+  const header = "Dòng,Lý do";
+  const body = items.map(
+    (e) => `${csvEscapeCell(String(e.line))},${csvEscapeCell(e.reason)}`,
+  );
+  return [header, ...body].join("\r\n");
 }

@@ -1,18 +1,18 @@
-// Nguồn dữ liệu của sản phẩm/danh mục (Ngày 17 P1): giá trị lấy từ
-// đâu — seed mẫu Ngày 1, nhập tay trong admin, hay nhập file.
-// Chỉ là nhãn nguồn gốc, KHÔNG phải quyền hay trạng thái: đổi nguồn
-// không đổi hành vi hiển thị/bán của sản phẩm. Giá trị "import" hiện
-// chưa có luồng nhập file nào ghi — giữ sẵn để lọc không vỡ khi nhập
-// file được thêm sau (Ngày 17 §9 có "nhập sản phẩm/danh mục").
+// Nguồn dữ liệu của sản phẩm/danh mục (Ngày 17 P1, nhãn căn chỉnh
+// bản sau Retry B0/B6): "Hệ thống" = dữ liệu có sẵn của shop (seed
+// mẫu Ngày 1 + nhập tay trong admin); "Nhập từ ngoài" = nhập từ
+// tệp/feed của nguồn ngoài (chờ duyệt). Chỉ là nhãn nguồn gốc,
+// KHÔNG phải quyền hay trạng thái: đổi nguồn không đổi hành vi
+// hiển thị/bán của sản phẩm.
 
 export const PRODUCT_SOURCES = ["seed", "manual", "import"] as const;
 
 export type ProductSource = (typeof PRODUCT_SOURCES)[number];
 
 export const PRODUCT_SOURCE_LABELS: Record<ProductSource, string> = {
-  seed: "Seed mẫu",
-  manual: "Nhập tay",
-  import: "Nhập file",
+  seed: "Hệ thống",
+  manual: "Hệ thống",
+  import: "Nhập từ ngoài",
 };
 
 export function isProductSource(value: string): value is ProductSource {

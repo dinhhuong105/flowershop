@@ -36,6 +36,7 @@ import {
   type ImportBatchKind,
   type ImportBatchView,
   type ImportPreview,
+  type PriceOptions,
 } from "@/lib/admin/import-batches";
 import type { FieldMapping } from "@/lib/import/parse";
 
@@ -180,13 +181,19 @@ export async function saveMappingAction(
   if (defaultRaw !== "" && (!Number.isSafeInteger(defaultCategoryId) || (defaultCategoryId as number) <= 0)) {
     return { ok: false, error: "Danh mục mặc định không hợp lệ.", message: null };
   }
-  const overwrite = formData.get("overwriteHandEdited") === "on";
+  let priceOptions: unknown = { multiplier: 1, rounding: "none" };
+  try {
+    const rawOptions = formDataString(formData, "priceOptions");
+    if (rawOptions !== "") priceOptions = JSON.parse(rawOptions) as unknown;
+  } catch {
+    return { ok: false, error: "Tùy chọn giá không hợp lệ.", message: null };
+  }
   const result = await saveImportMapping(
     batchId,
     mapping,
     categoryMapping,
     defaultCategoryId,
-    overwrite,
+    priceOptions as PriceOptions,
   );
   if (!result.ok) return { ok: false, error: result.error, message: null };
   revalidatePath("/admin/products/import");
@@ -217,7 +224,7 @@ export async function confirmRightsAction(
   return { ok: true, error: null, message: "Đã xác nhận quyền sử dụng." };
 }
 
-// --- Bước 5: chạy / hủy (gọi lặp từ client, mỗi lần ~25 dòng) ---
+// --- Bước 5: chạy / hủy (gọi lặp từ client, mỗi lần ~10 dòng) ---
 
 export async function runImportChunkAction(
   batchId: number,

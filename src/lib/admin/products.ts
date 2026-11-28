@@ -183,6 +183,13 @@ export type AdminProductDetail = {
   isFastDelivery: boolean;
   seoTitle: string;
   seoDescription: string;
+  // Nguồn dữ liệu (B6, bản sau Retry): chỉ có nghĩa khi SP nhập
+  // từ ngoài (sourceName != null).
+  sourceName: string | null;
+  sourceExternalId: string | null;
+  sourceUrl: string | null;
+  importBatchId: number | null;
+  importedAt: Date | null;
 };
 
 export async function getAdminProduct(id: number): Promise<AdminProductDetail | null> {
@@ -209,6 +216,11 @@ export async function getAdminProduct(id: number): Promise<AdminProductDetail | 
     isFastDelivery: p.isFastDelivery,
     seoTitle: p.seoTitle,
     seoDescription: p.seoDescription,
+    sourceName: p.sourceName,
+    sourceExternalId: p.sourceExternalId,
+    sourceUrl: p.sourceUrl,
+    importBatchId: p.importBatchId,
+    importedAt: p.importedAt,
   };
 }
 

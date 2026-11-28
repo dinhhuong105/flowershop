@@ -19,9 +19,9 @@ describe("product source (Ngày 17 P1)", () => {
     assert.equal(isProductSource("seed "), false);
   });
   it("nhãn hiển thị đúng từng nguồn; lạ/null → Không rõ", () => {
-    assert.equal(productSourceLabel("seed"), "Seed mẫu");
-    assert.equal(productSourceLabel("manual"), "Nhập tay");
-    assert.equal(productSourceLabel("import"), "Nhập file");
+    assert.equal(productSourceLabel("seed"), "Hệ thống");
+    assert.equal(productSourceLabel("manual"), "Hệ thống");
+    assert.equal(productSourceLabel("import"), "Nhập từ ngoài");
     assert.equal(productSourceLabel("la"), "Không rõ");
     assert.equal(productSourceLabel(null), "Không rõ");
     assert.equal(productSourceLabel(undefined), "Không rõ");

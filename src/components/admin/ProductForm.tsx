@@ -50,6 +50,15 @@ export type ProductFormInitial = {
   images: string[];
   seoTitle: string;
   seoDescription: string;
+  /** Nguồn dữ liệu (B6, bản sau Retry) — chỉ có khi SP nhập từ
+   *  ngoài; form hiện khối chỉ đọc, không cho sửa. */
+  source?: {
+    sourceName: string | null;
+    sourceExternalId: string | null;
+    sourceUrl: string | null;
+    importBatchId: number | null;
+    importedAt: string | null;
+  } | null;
 };
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -193,6 +202,53 @@ export default function ProductForm({
         <p role="alert" className="rounded-lg border border-danger/40 bg-danger/5 px-4 py-3 text-sm font-medium text-danger">
           {state.formError}
         </p>
+      ) : null}
+
+      {initial.source?.sourceName ? (
+        <section aria-label="Nguồn dữ liệu" className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-5">
+          <h2 className="text-sm font-bold text-slate-900">Nguồn dữ liệu</h2>
+          <dl className="grid gap-1 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-slate-500">Tên nguồn</dt>
+              <dd className="font-medium text-slate-900">{initial.source.sourceName}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Mã ngoài</dt>
+              <dd className="font-medium text-slate-900">{initial.source.sourceExternalId ?? "—"}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Lô nhập</dt>
+              <dd className="font-medium text-slate-900">
+                {initial.source.importBatchId !== null ? (
+                  <Link href={`/admin/products/import?batch=${initial.source.importBatchId}`} className="text-blue-700 hover:underline">
+                    Lô #{initial.source.importBatchId}
+                  </Link>
+                ) : (
+                  "—"
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">Ngày nhập</dt>
+              <dd className="font-medium text-slate-900">
+                {initial.source.importedAt
+                  ? new Date(initial.source.importedAt).toLocaleString("vi-VN")
+                  : "—"}
+              </dd>
+            </div>
+            {initial.source.sourceUrl && /^https?:\/\//i.test(initial.source.sourceUrl) ? (
+              <div className="sm:col-span-2">
+                <dt className="text-slate-500">Địa chỉ nguồn</dt>
+                <dd className="break-all font-medium">
+                  <a href={initial.source.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline">
+                    {initial.source.sourceUrl}
+                  </a>
+                </dd>
+              </div>
+            ) : null}
+          </dl>
+          <p className="text-xs text-slate-500">Thông tin nguồn chỉ đọc, không sửa được ở đây.</p>
+        </section>
       ) : null}
 
       <section aria-label="Thông tin sản phẩm" className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">

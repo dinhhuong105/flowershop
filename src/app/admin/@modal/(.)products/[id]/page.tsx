@@ -54,6 +54,15 @@ export default async function AdminEditProductModal({
           images: product.images,
           seoTitle: product.seoTitle,
           seoDescription: product.seoDescription,
+          source: {
+            sourceName: product.sourceName,
+            sourceExternalId: product.sourceExternalId,
+            sourceUrl: product.sourceUrl,
+            importBatchId: product.importBatchId,
+            importedAt: product.importedAt
+              ? product.importedAt.toISOString()
+              : null,
+          },
         }}
       />
     </ProductModal>

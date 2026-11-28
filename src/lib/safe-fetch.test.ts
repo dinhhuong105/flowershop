@@ -23,6 +23,10 @@ import {
   SafeFetchError,
   isBlockedIp,
   parseIpLiteral,
+  parseInetAton,
+  imageDimensions,
+  HTML_NOT_DATA_MESSAGE,
+  MAX_IMAGE_DIMENSION,
   type ResolveFn,
 } from "./safe-fetch";
 
@@ -63,8 +67,12 @@ function pngBytes(): Buffer {
 }
 
 function jpegBytes(): Buffer {
+  // JPEG tối thiểu có SOF0 1x1 (bản sau Retry kiểm kích thước ảnh ở
+  // cuối body nên JPEG test cũng cần SOF thật).
   return Buffer.from([
-    0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00,
+    0xff, 0xd8, 0xff, 0xe0, 0x00, 0x07, 0x4a, 0x46, 0x49, 0x46, 0x00,
+    0xff, 0xc0, 0x00, 0x0b, 0x08, 0x00, 0x01, 0x00, 0x01, 0x01, 0x01,
+    0x11, 0x00,
   ]);
 }
 
@@ -855,5 +863,263 @@ describe("isBlockedIp / parseIpLiteral (Ngày 20 C3)", () => {
     assert.equal(err.code, "blocked");
     assert.equal(err.name, "SafeFetchError");
     assert.equal(err.message, "bị chặn");
+  });
+});
+
+describe("bổ sung bảo mật (Ngày 20 bản sau Retry B11)", () => {
+  // PNG/JPEG/WebP/AVIF với kích thước tùy chọn (header thật).
+  function pngWithSize(width: number, height: number): Buffer {
+    const buf = Buffer.alloc(33);
+    Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00,
+      0x0d, 0x49, 0x48, 0x44, 0x52,
+    ]).copy(buf, 0);
+    buf.writeUInt32BE(width, 16);
+    buf.writeUInt32BE(height, 20);
+    buf[24] = 0x08;
+    buf[25] = 0x02;
+    return buf;
+  }
+
+  function jpegWithSize(width: number, height: number): Buffer {
+    const buf = Buffer.from([
+      0xff, 0xd8, 0xff, 0xe0, 0x00, 0x07, 0x4a, 0x46, 0x49, 0x46, 0x00,
+      0xff, 0xc0, 0x00, 0x0b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01,
+      0x11, 0x00,
+    ]);
+    buf.writeUInt16BE(height, 16);
+    buf.writeUInt16BE(width, 18);
+    return buf;
+  }
+
+  function webpVp8x(width: number, height: number): Buffer {
+    const buf = Buffer.alloc(30);
+    buf.write("RIFF", 0, "latin1");
+    buf.writeUInt32LE(22, 4);
+    buf.write("WEBP", 8, "latin1");
+    buf.write("VP8X", 12, "latin1");
+    buf.writeUInt32LE(10, 16);
+    buf[20] = 0x00;
+    const w = width - 1;
+    const h = height - 1;
+    buf[24] = w & 0xff;
+    buf[25] = (w >> 8) & 0xff;
+    buf[26] = (w >> 16) & 0xff;
+    buf[27] = h & 0xff;
+    buf[28] = (h >> 8) & 0xff;
+    buf[29] = (h >> 16) & 0xff;
+    return buf;
+  }
+
+  function avifWithSize(width: number, height: number): Buffer {
+    const ftyp = Buffer.alloc(24);
+    ftyp.writeUInt32BE(24, 0);
+    ftyp.write("ftypavif", 4, "latin1");
+    const ispe = Buffer.alloc(20);
+    ispe.writeUInt32BE(20, 0);
+    ispe.write("ispe", 4, "latin1");
+    ispe.writeUInt32BE(width, 12);
+    ispe.writeUInt32BE(height, 16);
+    const metaSize = 8 + 4 + ispe.length;
+    const meta = Buffer.alloc(metaSize);
+    meta.writeUInt32BE(metaSize, 0);
+    meta.write("meta", 4, "latin1");
+    ispe.copy(meta, 12);
+    return Buffer.concat([ftyp, meta]);
+  }
+
+  it("IP dạng số inet_aton (2130706433, 0x7f000001, 017700000001, 127.1) → blocked", async () => {
+    for (const host of [
+      "2130706433",
+      "0x7f000001",
+      "017700000001",
+      "127.1",
+      "0x7f.1",
+      "0177.0.0.1",
+    ]) {
+      await expectCode(
+        safeFetch(`http://${host}/`, {
+          resolve: fakeResolve({}),
+        }),
+        "blocked",
+      );
+    }
+    // [::ffff:127.0.0.1] (IPv4-mapped) → blocked.
+    await expectCode(
+      safeFetch("http://[::ffff:127.0.0.1]/", {
+        resolve: fakeResolve({}),
+      }),
+      "blocked",
+    );
+  });
+
+  it("parseInetAton/isBlockedIp: dạng số + multicast bị chặn", () => {
+    assert.equal(parseInetAton("2130706433"), 0x7f000001);
+    assert.equal(parseInetAton("0x7f000001"), 0x7f000001);
+    assert.equal(parseInetAton("017700000001"), 0x7f000001);
+    assert.equal(parseInetAton("127.1"), 0x7f000001);
+    assert.equal(parseInetAton("0x7f.0.0.1"), 0x7f000001);
+    assert.equal(parseInetAton("0177.0.0.1"), 0x7f000001);
+    assert.equal(parseInetAton("1.2.3.4.5"), null);
+    assert.equal(parseInetAton("256.1.1.1"), null);
+    assert.equal(parseInetAton("example.com"), null);
+    assert.equal(parseIpLiteral("2130706433"), "127.0.0.1");
+    for (const ip of [
+      "2130706433",
+      "0x7f000001",
+      "017700000001",
+      "127.1",
+      "224.0.0.1",
+      "239.255.255.250",
+      "ff02::1",
+      "ff00::1",
+    ]) {
+      assert.equal(isBlockedIp(ip), true, ip);
+    }
+    for (const ip of ["223.255.255.255", "8.8.8.8", "2001:db8::1"]) {
+      assert.equal(isBlockedIp(ip), false, ip);
+    }
+  });
+
+  it("cổng 22/6379/5432 → blocked", async () => {
+    for (const port of [22, 6379, 5432]) {
+      await expectCode(
+        safeFetch(`http://example.com:${port}/`, {
+          resolve: fakeResolve({ "example.com": ["93.184.216.34"] }),
+        }),
+        "blocked",
+      );
+    }
+  });
+
+  it("scheme file:/gopher:/data: → blocked", async () => {
+    for (const url of [
+      "file:///etc/passwd",
+      "gopher://example.com/",
+      "data:text/html,<h1>x</h1>",
+    ]) {
+      await expectCode(
+        safeFetch(url, { resolve: fakeResolve({}) }),
+        "blocked",
+      );
+    }
+  });
+
+  it("feed trả HTML (Content-Type text/html hoặc body bắt đầu `<`) → đúng thông báo", async () => {
+    const server = await startHttp((req, res) => {
+      if (req.url === "/html-as-text") {
+        res.writeHead(200, { "Content-Type": "text/plain" });
+        res.end("<html><body>xin chào</body></html>");
+        return;
+      }
+      if (req.url === "/html-ws") {
+        res.writeHead(200, { "Content-Type": "text/plain" });
+        res.end("  \n<html><body>x</body></html>");
+        return;
+      }
+      feedHandler(req, res);
+    });
+    try {
+      const base = `http://localhost:${server.port}`;
+      const opts = { resolve: loopbackResolve, allowLoopbackForTest: true };
+      for (const path of ["/html", "/html-as-text", "/html-ws"]) {
+        let caught: unknown;
+        try {
+          await safeFetch(base + path, opts);
+        } catch (err) {
+          caught = err;
+        }
+        assert.ok(caught instanceof SafeFetchError, path);
+        assert.equal(caught.code, "bad_content_type");
+        assert.equal(caught.message, HTML_NOT_DATA_MESSAGE);
+      }
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("imageDimensions đọc đúng PNG/JPEG/WebP/AVIF", () => {
+    assert.deepEqual(imageDimensions("image/png", pngWithSize(320, 240)), {
+      width: 320,
+      height: 240,
+    });
+    assert.deepEqual(imageDimensions("image/jpeg", jpegWithSize(640, 480)), {
+      width: 640,
+      height: 480,
+    });
+    assert.deepEqual(imageDimensions("image/webp", webpVp8x(800, 600)), {
+      width: 800,
+      height: 600,
+    });
+    assert.deepEqual(imageDimensions("image/avif", avifWithSize(1024, 768)), {
+      width: 1024,
+      height: 768,
+    });
+    assert.equal(imageDimensions("image/png", Buffer.alloc(10)), null);
+  });
+
+  it("ảnh vượt 6000×6000 → bad_content_type; đúng 6000×6000 thì qua", async () => {
+    const server = await startHttp((req, res) => {
+      if (req.url === "/big.png") {
+        res.writeHead(200, { "Content-Type": "image/png" });
+        res.end(pngWithSize(7000, 100));
+        return;
+      }
+      if (req.url === "/big.jpg") {
+        res.writeHead(200, { "Content-Type": "image/jpeg" });
+        res.end(jpegWithSize(100, 7000));
+        return;
+      }
+      if (req.url === "/max.png") {
+        res.writeHead(200, { "Content-Type": "image/png" });
+        res.end(pngWithSize(MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION));
+        return;
+      }
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("not found");
+    });
+    try {
+      const base = `http://localhost:${server.port}`;
+      const opts = {
+        kind: "image" as const,
+        resolve: loopbackResolve,
+        allowLoopbackForTest: true,
+      };
+      await expectCode(safeFetch(base + "/big.png", opts), "bad_content_type");
+      await expectCode(safeFetch(base + "/big.jpg", opts), "bad_content_type");
+      const ok = await safeFetch(base + "/max.png", opts);
+      assert.equal(ok.status, 200);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("ảnh đa dạng thức: GIF/HTML, PNG chứa HTML → bad_content_type", async () => {
+    const server = await startHttp((req, res) => {
+      if (req.url === "/gif-html") {
+        res.writeHead(200, { "Content-Type": "image/gif" });
+        res.end("GIF89a<html><script>alert(1)</script>");
+        return;
+      }
+      if (req.url === "/png-html") {
+        res.writeHead(200, { "Content-Type": "image/png" });
+        res.end("<html><script>alert(1)</script></html>");
+        return;
+      }
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("not found");
+    });
+    try {
+      const base = `http://localhost:${server.port}`;
+      const opts = {
+        kind: "image" as const,
+        resolve: loopbackResolve,
+        allowLoopbackForTest: true,
+      };
+      await expectCode(safeFetch(base + "/gif-html", opts), "bad_content_type");
+      await expectCode(safeFetch(base + "/png-html", opts), "bad_content_type");
+    } finally {
+      await server.close();
+    }
   });
 });

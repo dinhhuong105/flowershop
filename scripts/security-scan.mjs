@@ -275,12 +275,12 @@ if (existsSync(envExample)) {
 
 // ---------------- C7 (Ngày 20): chỉ safe-fetch được fetch URL người dùng ----------------
 // SSRF: mọi fetch tới URL do người dùng cung cấp (feed/ảnh nhập) phải đi
-// qua src/lib/import/safe-fetch.ts. Cho phép thêm: telegram.ts (URL
+// qua src/lib/safe-fetch.ts. Cho phép thêm: telegram.ts (URL
 // Telegram cấu hình sẵn ở server, không phải URL người dùng) và các
 // component client fetch route nội bộ "/api/..." của chính shop.
 console.log("C7 — fetch URL người dùng chỉ qua safe-fetch:");
 const FETCH_ALLOWLIST = new Set([
-  "src/lib/import/safe-fetch.ts", // mô-đun duy nhất fetch URL người dùng (SSRF-safe)
+  "src/lib/safe-fetch.ts", // mô-đun duy nhất fetch URL người dùng (SSRF-safe)
   "src/lib/telegram.ts", // URL Telegram cấu hình sẵn ở server, không phải URL người dùng
 ]);
 let fetchViolations = 0;
