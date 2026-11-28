@@ -1,9 +1,18 @@
-// Lô nhập sản phẩm (Ngày 20 C1/C4/C5/C6) — logic phía máy chủ.
-// Chỉ admin gọi qua Server Action (mỗi action mở đầu requireAdmin).
-// Hàng nhập luôn source=import, needsReview=true, ẨN khỏi shop /
-// sitemap / tìm kiếm (bộ lọc needsReview=false ở catalog, product,
-// queries, search, sitemap, quick-view).
+// Lô nhập sản phẩm (Ngày 20 C1/C4/C5/C6, căn chỉnh B1 bản sau
+// Retry) — logic phía máy chủ. Chỉ admin gọi qua Server Action
+// (mỗi action mở đầu requireAdmin). Hàng nhập luôn source=import,
+// needsReview=true, ẨN khỏi shop / sitemap / tìm kiếm (bộ lọc
+// needsReview=false ở catalog, product, queries, search, sitemap,
+// quick-view).
+//
+// Mô hình B1: trạng thái từng hàng nằm ở bảng import_rows (không
+// còn trong payload JSON); mappingJson giữ ánh xạ + tùy chọn giá;
+// payload chỉ còn dữ liệu chạy tạm (lỗi đọc ban đầu, thời điểm bắt
+// đầu, hạn giữ lô). Chunk runner giữ lô bằng hạn giữ (lease) trong
+// payload + ghi trạng thái cuối của từng hàng có điều kiện
+// WHERE status='PENDING' (chống hai lần chạy trùng xử lý trùng hàng).
 
+import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import {
@@ -43,43 +52,108 @@ export const IMPORT_RUN_TIMEOUT_MS = 20 * 60 * 1000;
 // Action ~15 s): đủ 25 dòng nhẹ, dừng sớm khi quá 10 s để không
 // bị cắt giữa chừng; lần gọi sau chạy tiếp từ processed.
 export const IMPORT_CHUNK_MAX_MS = 10_000;
+// Hạn giữ lô của một lần gọi chạy (30 s > tối đa 10 s của khối):
+// lần gọi khác chỉ được giữ lô khi hạn này đã hết (lần gọi trước
+// chết giữa chừng thì sau 30 s chạy tiếp được).
+export const IMPORT_RUN_LEASE_MS = 30_000;
 export const IMPORT_SOURCE_NAME_MIN = 2;
 export const IMPORT_SOURCE_NAME_MAX = 60;
 export const IMPORT_FILE_MAX_BYTES = 5 * 1024 * 1024;
+/** Dữ liệu tạm từng hàng (import_rows.payload) tối đa 8 KB (B2). */
+export const IMPORT_ROW_PAYLOAD_MAX_BYTES = 8 * 1024;
 
 export type ImportBatchKind = "file" | "feed";
+export type ImportSourceKind = "CSV" | "JSON" | "FEED_URL";
+export type ImportBatchStatus =
+  | "PREVIEW"
+  | "RUNNING"
+  | "DONE"
+  | "FAILED"
+  | "ROLLED_BACK";
+export type ImportRowStatus =
+  | "PENDING"
+  | "CREATED"
+  | "UPDATED"
+  | "SKIPPED"
+  | "ERROR";
 
-export type ImportPayload = {
-  rows: NormalizedRow[];
-  /** Số dòng gốc của từng dòng trong rows (CSV: dòng logic kể cả
-   *  header, dòng dữ liệu đầu là 2; JSON: chỉ số phần tử + 1) —
-   *  để lỗi sau ánh xạ lại vẫn báo đúng số dòng. */
-  lines: number[];
-  errors: ParseError[];
+/** Tùy chọn giá (B3): hệ số nhân + làm tròn. Mặc định hệ số 1,
+ *  không làm tròn (giữ nguyên giá nguồn). */
+export type PriceOptions = {
+  multiplier: number;
+  rounding: "none" | "1000" | "10000";
+};
+
+export const DEFAULT_PRICE_OPTIONS: PriceOptions = {
+  multiplier: 1,
+  rounding: "none",
+};
+
+/** Một hàng đã lưu trong import_rows, kèm số dòng gốc + trạng thái
+ *  (view cho wizard/xem trước). */
+export type StoredImportRow = NormalizedRow & {
+  rowId: number;
+  line: number;
+  status: ImportRowStatus;
+  message: string | null;
+  productId: number | null;
+  imageWarnings?: string[];
+};
+
+/** Dữ liệu chạy tạm trên lô (payload JSON, gọn): chỉ lỗi đọc ban
+ *  đầu + thời điểm bắt đầu + hạn giữ lô. Trạng thái từng hàng ở
+ *  import_rows; ánh xạ ở mappingJson. */
+export type ImportRunPayload = {
+  parseErrors: ParseError[];
+  runStartedAt: string | null;
+  runLeaseUntil: string | null;
+};
+
+/** Ánh xạ + tùy chọn của lô (mappingJson). */
+export type ImportMappingJson = {
   mapping: FieldMapping;
-  /** true sau khi bước 2 lưu ánh xạ — wizard dùng để biết đang ở
-   *  bước nào khi tải lại trang. */
   mappingSaved: boolean;
   categoryMapping: Record<string, number | "skip">;
   defaultCategoryId: number | null;
+  priceOptions: PriceOptions;
+  overwriteHandEdited: boolean;
+};
+
+/** Payload view cho wizard (lắp từ mappingJson + import_rows +
+ *  payload gọn) — giữ nguyên hình dạng Ngày 20 để wizard không
+ *  phải đổi, chỉ thêm priceOptions + runLeaseUntil. */
+export type ImportPayload = {
+  rows: StoredImportRow[];
+  errors: ParseError[];
+  mapping: FieldMapping;
+  mappingSaved: boolean;
+  categoryMapping: Record<string, number | "skip">;
+  defaultCategoryId: number | null;
+  priceOptions: PriceOptions;
   processed: number;
   runErrors: Array<{ line: number; reason: string; kind: "row" | "image" }>;
   overwriteHandEdited: boolean;
   runStartedAt: string | null;
+  runLeaseUntil: string | null;
 };
 
 export type ImportBatchView = {
   id: number;
   sourceName: string;
   kind: ImportBatchKind;
+  sourceKind: ImportSourceKind;
   fileName: string | null;
+  fileSha256: string | null;
   sourceUrl: string | null;
   rightsConfirmed: boolean;
-  status: "pending" | "running" | "done" | "cancelled";
-  createdCount: number;
-  updatedCount: number;
-  skippedCount: number;
-  errorCount: number;
+  rightsConfirmedAt: Date | null;
+  rightsConfirmedBy: string | null;
+  status: ImportBatchStatus;
+  rowsTotal: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  failed: number;
   createdBy: string;
   createdAt: Date;
   finishedAt: Date | null;
@@ -87,63 +161,217 @@ export type ImportBatchView = {
   payload: ImportPayload;
 };
 
-function emptyPayload(): ImportPayload {
+function emptyMappingJson(): ImportMappingJson {
   return {
-    rows: [],
-    lines: [],
-    errors: [],
     mapping: {},
     mappingSaved: false,
     categoryMapping: {},
     defaultCategoryId: null,
-    processed: 0,
-    runErrors: [],
+    priceOptions: { ...DEFAULT_PRICE_OPTIONS },
     overwriteHandEdited: false,
-    runStartedAt: null,
   };
 }
 
-function toBatchView(row: {
+function emptyRunPayload(): ImportRunPayload {
+  return { parseErrors: [], runStartedAt: null, runLeaseUntil: null };
+}
+
+function parseMappingJson(value: unknown): ImportMappingJson {
+  const base = emptyMappingJson();
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return base;
+  }
+  const v = value as Record<string, unknown>;
+  const priceOptions =
+    v.priceOptions !== null &&
+    typeof v.priceOptions === "object" &&
+    !Array.isArray(v.priceOptions)
+      ? (v.priceOptions as Record<string, unknown>)
+      : {};
+  return {
+    mapping:
+      v.mapping !== null && typeof v.mapping === "object" && !Array.isArray(v.mapping)
+        ? (v.mapping as FieldMapping)
+        : {},
+    mappingSaved: v.mappingSaved === true,
+    categoryMapping:
+      v.categoryMapping !== null &&
+      typeof v.categoryMapping === "object" &&
+      !Array.isArray(v.categoryMapping)
+        ? (v.categoryMapping as Record<string, number | "skip">)
+        : {},
+    defaultCategoryId:
+      typeof v.defaultCategoryId === "number" ? v.defaultCategoryId : null,
+    priceOptions: {
+      multiplier:
+        typeof priceOptions.multiplier === "number" &&
+        Number.isFinite(priceOptions.multiplier)
+          ? priceOptions.multiplier
+          : 1,
+      rounding:
+        priceOptions.rounding === "1000" ||
+        priceOptions.rounding === "10000"
+          ? priceOptions.rounding
+          : "none",
+    },
+    overwriteHandEdited: v.overwriteHandEdited === true,
+  };
+}
+
+function parseRunPayload(value: unknown): ImportRunPayload {
+  const base = emptyRunPayload();
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return base;
+  }
+  const v = value as Record<string, unknown>;
+  // Tương thích lô cũ (migration đã đổi errors → parseErrors).
+  const parseErrors = Array.isArray(v.parseErrors)
+    ? (v.parseErrors as ParseError[])
+    : Array.isArray(v.errors)
+      ? (v.errors as ParseError[])
+      : [];
+  return {
+    parseErrors,
+    runStartedAt:
+      typeof v.runStartedAt === "string" ? v.runStartedAt : null,
+    runLeaseUntil:
+      typeof v.runLeaseUntil === "string" ? v.runLeaseUntil : null,
+  };
+}
+
+type BatchRowWithRows = {
   id: number;
   sourceName: string;
   kind: string;
+  sourceKind: string;
   fileName: string | null;
+  fileSha256: string | null;
   sourceUrl: string | null;
   rightsConfirmed: boolean;
+  rightsConfirmedAt: Date | null;
+  rightsConfirmedBy: string | null;
   status: string;
-  createdCount: number;
-  updatedCount: number;
-  skippedCount: number;
-  errorCount: number;
+  rowsTotal: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  failed: number;
   createdBy: string;
   createdAt: Date;
   finishedAt: Date | null;
   notes: string | null;
+  mappingJson: unknown;
   payload: unknown;
-}): ImportBatchView {
-  const payload =
-    row.payload !== null && typeof row.payload === "object"
-      ? (row.payload as ImportPayload)
-      : emptyPayload();
+  rows: Array<{
+    id: number;
+    rowIndex: number;
+    externalId: string;
+    status: string;
+    message: string | null;
+    productId: number | null;
+    payload: unknown;
+  }>;
+};
+
+function toBatchView(row: BatchRowWithRows): ImportBatchView {
+  const mapping = parseMappingJson(row.mappingJson);
+  const run = parseRunPayload(row.payload);
+  const rows: StoredImportRow[] = row.rows.map((r) => {
+    const stored =
+      r.payload !== null && typeof r.payload === "object" && !Array.isArray(r.payload)
+        ? (r.payload as Record<string, unknown>)
+        : {};
+    const { line, imageWarnings, ...rest } = stored as Record<string, unknown> & {
+      line?: unknown;
+      imageWarnings?: unknown;
+    };
+    return {
+      ...(rest as unknown as NormalizedRow),
+      rowId: r.id,
+      line: typeof line === "number" ? line : r.rowIndex + 2,
+      status: r.status as ImportRowStatus,
+      message: r.message,
+      productId: r.productId,
+      imageWarnings: Array.isArray(imageWarnings)
+        ? (imageWarnings as string[])
+        : undefined,
+    };
+  });
+  const processed = rows.filter((r) => r.status !== "PENDING").length;
+  const runErrors: ImportPayload["runErrors"] = [];
+  for (const r of rows) {
+    if (r.status === "ERROR" || r.status === "SKIPPED") {
+      runErrors.push({
+        line: r.line,
+        reason: r.message ?? "",
+        kind: "row",
+      });
+    } else if (
+      (r.status === "CREATED" || r.status === "UPDATED") &&
+      r.imageWarnings !== undefined
+    ) {
+      for (const w of r.imageWarnings) {
+        runErrors.push({ line: r.line, reason: w, kind: "image" });
+      }
+    }
+  }
   return {
-    ...row,
+    id: row.id,
+    sourceName: row.sourceName,
     kind: row.kind as ImportBatchKind,
-    status: row.status as ImportBatchView["status"],
-    payload: { ...emptyPayload(), ...payload },
+    sourceKind: row.sourceKind as ImportSourceKind,
+    fileName: row.fileName,
+    fileSha256: row.fileSha256,
+    sourceUrl: row.sourceUrl,
+    rightsConfirmed: row.rightsConfirmed,
+    rightsConfirmedAt: row.rightsConfirmedAt,
+    rightsConfirmedBy: row.rightsConfirmedBy,
+    status: row.status as ImportBatchStatus,
+    rowsTotal: row.rowsTotal,
+    created: row.created,
+    updated: row.updated,
+    skipped: row.skipped,
+    failed: row.failed,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt,
+    finishedAt: row.finishedAt,
+    notes: row.notes,
+    payload: {
+      rows,
+      errors: run.parseErrors,
+      mapping: mapping.mapping,
+      mappingSaved: mapping.mappingSaved,
+      categoryMapping: mapping.categoryMapping,
+      defaultCategoryId: mapping.defaultCategoryId,
+      priceOptions: mapping.priceOptions,
+      processed,
+      runErrors: runErrors.slice(-200),
+      overwriteHandEdited: mapping.overwriteHandEdited,
+      runStartedAt: run.runStartedAt,
+      runLeaseUntil: run.runLeaseUntil,
+    },
   };
 }
 
+const BATCH_WITH_ROWS = {
+  include: { rows: { orderBy: { rowIndex: "asc" as const } } },
+} as const;
+
 export async function getImportBatch(id: number): Promise<ImportBatchView | null> {
-  const row = await db.importBatch.findUnique({ where: { id } });
-  return row ? toBatchView(row) : null;
+  const row = await db.importBatch.findUnique({
+    where: { id },
+    ...BATCH_WITH_ROWS,
+  });
+  return row ? toBatchView(row as unknown as BatchRowWithRows) : null;
 }
 
 export async function listImportBatches(limit = 10): Promise<ImportBatchView[]> {
   const rows = await db.importBatch.findMany({
     orderBy: { id: "desc" },
     take: limit,
+    ...BATCH_WITH_ROWS,
   });
-  return rows.map(toBatchView);
+  return rows.map((r) => toBatchView(r as unknown as BatchRowWithRows));
 }
 
 // Đầu ngày theo giờ VN (UTC+7 cố định, không DST) — giới hạn 5 lô/ngày.
@@ -161,7 +389,7 @@ export async function countBatchesToday(now = new Date()): Promise<number> {
 
 export async function getRunningBatch(): Promise<{ id: number; sourceName: string } | null> {
   return db.importBatch.findFirst({
-    where: { status: "running" },
+    where: { status: "RUNNING" },
     select: { id: true, sourceName: true },
   });
 }
@@ -204,6 +432,63 @@ function assignRowLines(
     lines.push((lines[lines.length - 1] ?? first) + 1);
   }
   return lines;
+}
+
+/** Cắt payload từng hàng về ≤ 8 KB (B1): bỏ các cột thô chưa ánh
+ *  xạ (không dùng khi chuẩn hóa lại); vẫn quá thì bỏ hẳn `raw`
+ *  (hàng vẫn chạy được với ánh xạ hiện tại, chỉ không ánh xạ lại
+ *  được sang cột khác). */
+export function trimRowPayload(
+  stored: Record<string, unknown>,
+  mapping: FieldMapping,
+): Record<string, unknown> {
+  if (Buffer.byteLength(JSON.stringify(stored), "utf8") <= IMPORT_ROW_PAYLOAD_MAX_BYTES) {
+    return stored;
+  }
+  const raw = stored.raw;
+  if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
+    const mappedCols = new Set(
+      Object.values(mapping).filter(
+        (c): c is string => typeof c === "string" && c !== "",
+      ),
+    );
+    const kept: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (mappedCols.has(k)) kept[k] = v;
+    }
+    const slimmed = { ...stored, raw: kept };
+    if (Buffer.byteLength(JSON.stringify(slimmed), "utf8") <= IMPORT_ROW_PAYLOAD_MAX_BYTES) {
+      return slimmed;
+    }
+  }
+  const rest = { ...stored };
+  delete rest.raw;
+  return rest;
+}
+
+/** Ánh xạ đã nhớ theo tên nguồn (B3): lần nhập sau cùng nguồn thì
+ *  gợi ý sẵn ánh xạ lần trước. */
+export async function getSavedMapping(
+  sourceName: string,
+): Promise<ImportMappingJson | null> {
+  const row = await db.importMapping.findUnique({
+    where: { sourceName },
+    select: { mappingJson: true },
+  });
+  if (!row) return null;
+  return parseMappingJson(row.mappingJson);
+}
+
+async function saveMappingMemory(
+  tx: Prisma.TransactionClient,
+  sourceName: string,
+  mapping: ImportMappingJson,
+): Promise<void> {
+  await tx.importMapping.upsert({
+    where: { sourceName },
+    create: { sourceName, mappingJson: mapping as unknown as object },
+    update: { mappingJson: mapping as unknown as object },
+  });
 }
 
 export type CreateImportBatchResult =
@@ -266,6 +551,9 @@ export async function createImportBatch(input: {
   }
 
   const format = detectFormat(fileName ?? sourceUrl ?? "", content);
+  const sourceKind: ImportSourceKind =
+    input.kind === "feed" ? "FEED_URL" : format === "json" ? "JSON" : "CSV";
+  const fileSha256 = createHash("sha256").update(content, "utf8").digest("hex");
   const parsed = format === "csv" ? parseCsv(content) : parseJson(content);
   if (parsed.rows.length === 0 && parsed.errors.length > 0) {
     return {
@@ -277,35 +565,60 @@ export async function createImportBatch(input: {
     return { ok: false, error: `Vượt quá ${MAX_IMPORT_ROWS} dòng mỗi lô.` };
   }
 
-  // Ánh xạ mặc định theo alias (bước 2 cho chỉnh lại).
+  // Ánh xạ mặc định: nhớ theo tên nguồn (B3) nếu có, còn không thì
+  // tự khớp theo alias (bước 2 cho chỉnh lại).
   const sampleKeys =
     parsed.rows.length > 0 ? Object.keys(parsed.rows[0].raw) : [];
-  const payload: ImportPayload = {
-    ...emptyPayload(),
-    rows: parsed.rows,
-    lines: assignRowLines(parsed, format),
-    errors: parsed.errors,
+  const saved = await getSavedMapping(sourceName);
+  const mappingJson: ImportMappingJson = saved ?? {
+    ...emptyMappingJson(),
     mapping: detectFieldMapping(sampleKeys),
   };
-  const created = await db.importBatch.create({
-    data: {
-      sourceName,
-      kind: input.kind,
-      fileName,
-      sourceUrl,
-      createdBy: input.createdBy,
-      payload: payload as unknown as object,
-    },
-    select: { id: true },
-  });
-  await db.$transaction(async (tx) => {
+  const lines = assignRowLines(parsed, format);
+  const rowPayloads = parsed.rows.map((row, i) =>
+    trimRowPayload({ ...row, line: lines[i] }, mappingJson.mapping),
+  );
+
+  const created = await db.$transaction(async (tx) => {
+    const batch = await tx.importBatch.create({
+      data: {
+        sourceName,
+        kind: input.kind,
+        sourceKind,
+        fileName,
+        fileSha256,
+        sourceUrl,
+        createdBy: input.createdBy,
+        status: "PREVIEW",
+        rowsTotal: parsed.rows.length,
+        mappingJson: mappingJson as unknown as object,
+        payload: {
+          parseErrors: parsed.errors,
+          runStartedAt: null,
+          runLeaseUntil: null,
+        } as unknown as object,
+      },
+      select: { id: true },
+    });
+    if (rowPayloads.length > 0) {
+      await tx.importRow.createMany({
+        data: rowPayloads.map((payload, i) => ({
+          batchId: batch.id,
+          rowIndex: i,
+          externalId: parsed.rows[i].externalId,
+          status: "PENDING" as const,
+          payload: payload as unknown as object,
+        })),
+      });
+    }
     await writeCatalogAudits(tx, [
       {
-        key: `import:${created.id}`,
+        key: `import:${batch.id}`,
         oldValue: null,
         newValue: `Đã tạo lô "${sourceName}" (${parsed.rows.length} dòng)`,
       },
     ]);
+    return batch;
   });
   return { ok: true, batchId: created.id };
 }
@@ -325,7 +638,7 @@ export async function saveImportMapping(
 ): Promise<SaveMappingResult> {
   const batch = await getImportBatch(batchId);
   if (!batch) return { ok: false, error: "Không tìm thấy lô nhập." };
-  if (batch.status !== "pending") {
+  if (batch.status !== "PREVIEW") {
     return { ok: false, error: "Lô này đã qua bước ánh xạ, không sửa được nữa." };
   }
   if (!mapping.name) return { ok: false, error: "Chưa chọn cột cho tên sản phẩm." };
@@ -367,17 +680,20 @@ export async function saveImportMapping(
       }
     }
   }
-  const payload: ImportPayload = {
-    ...batch.payload,
+  const mappingJson: ImportMappingJson = {
     mapping,
     mappingSaved: true,
     categoryMapping,
     defaultCategoryId,
+    priceOptions: batch.payload.priceOptions,
     overwriteHandEdited,
   };
-  await db.importBatch.update({
-    where: { id: batchId },
-    data: { payload: payload as unknown as object },
+  await db.$transaction(async (tx) => {
+    await tx.importBatch.update({
+      where: { id: batchId },
+      data: { mappingJson: mappingJson as unknown as object },
+    });
+    await saveMappingMemory(tx, batch.sourceName, mappingJson);
   });
   return { ok: true };
 }
@@ -395,25 +711,29 @@ export function distinctCategoryValues(payload: ImportPayload): string[] {
   return [...values].sort();
 }
 
-/** Chuẩn hóa lại toàn bộ dòng theo ánh xạ đã chọn (bước 2). Trả
- *  về dòng hợp lệ + lỗi từng dòng (kèm số dòng gốc). */
-export function renormalizeRows(payload: ImportPayload): {
-  valid: Array<{ row: NormalizedRow; index: number }>;
-  errors: ParseError[];
+/** Chuẩn hóa lại các dòng CHỜ (PENDING) theo ánh xạ đã chọn
+ *  (bước 2 / xem trước / chạy). Trả về dòng hợp lệ + lỗi từng
+ *  dòng (kèm số dòng gốc + id hàng). Hàng đã có trạng thái cuối
+ *  không chuẩn hóa lại. */
+export function renormalizeRows(batch: ImportBatchView): {
+  valid: Array<{ row: NormalizedRow; rowId: number; line: number }>;
+  errors: Array<ParseError & { rowId: number }>;
 } {
-  const valid: Array<{ row: NormalizedRow; index: number }> = [];
-  const errors: ParseError[] = [];
-  payload.rows.forEach((stored, index) => {
-    const re = normalizeMappedRecord(stored.raw, payload.mapping);
+  const valid: Array<{ row: NormalizedRow; rowId: number; line: number }> = [];
+  const errors: Array<ParseError & { rowId: number }> = [];
+  for (const stored of batch.payload.rows) {
+    if (stored.status !== "PENDING") continue;
+    const re = normalizeMappedRecord(stored.raw, batch.payload.mapping);
     if ("errors" in re) {
       errors.push({
-        line: payload.lines[index] ?? index + 2,
+        line: stored.line,
         reason: re.errors.join("; "),
+        rowId: stored.rowId,
       });
     } else {
-      valid.push({ row: re.row, index });
+      valid.push({ row: re.row, rowId: stored.rowId, line: stored.line });
     }
-  });
+  }
   return { valid, errors };
 }
 // --- Phân loại dòng (C5) ---
@@ -438,7 +758,7 @@ async function buildClassifyContext(
   const [existing, skuRows, systemProducts, categories, pages] = await Promise.all([
     db.product.findMany({
       where: { source: "import", sourceName },
-      select: { id: true, externalId: true, slug: true, sku: true, needsReview: true, importedAt: true, updatedAt: true },
+      select: { id: true, sourceExternalId: true, slug: true, sku: true, needsReview: true, importedAt: true, updatedAt: true },
     }),
     skus.length > 0
       ? db.product.findMany({
@@ -455,8 +775,8 @@ async function buildClassifyContext(
   ]);
   const existingByKey = new Map(
     existing
-      .filter((p) => p.externalId !== null)
-      .map((p) => [`${sourceName}\n${p.externalId as string}`, p]),
+      .filter((p) => p.sourceExternalId !== null)
+      .map((p) => [`${sourceName}\n${p.sourceExternalId as string}`, p]),
   );
   const skuOwners = new Map(
     skuRows
@@ -634,7 +954,7 @@ export async function computePreview(batchId: number): Promise<ImportPreview | n
   const batch = await getImportBatch(batchId);
   if (!batch) return null;
   const payload = batch.payload;
-  const { valid, errors: renormErrors } = renormalizeRows(payload);
+  const { valid, errors: renormErrors } = renormalizeRows(batch);
   const ctx = await buildClassifyContext(batch.sourceName, valid.map((v) => v.row));
   const rows: ImportPreviewRow[] = [];
   const errors: ParseError[] = [...payload.errors, ...renormErrors];
@@ -643,8 +963,7 @@ export async function computePreview(batchId: number): Promise<ImportPreview | n
   let toCreate = 0;
   let toUpdate = 0;
   let toSkip = 0;
-  for (const { row, index } of valid) {
-    const line = payload.lines[index] ?? index + 2;
+  for (const { row, line } of valid) {
     const d = classifyRow(row, payload, ctx, batch.sourceName);
     if (d.action === "create") toCreate += 1;
     else if (d.action === "update") toUpdate += 1;
@@ -674,11 +993,10 @@ export async function computePreview(batchId: number): Promise<ImportPreview | n
     errorReasons[e.reason] = (errorReasons[e.reason] ?? 0) + 1;
   }
   return {
-    // Tổng dòng = mọi dòng dữ liệu trong nguồn: dòng đọc được
-    // (payload.rows) + dòng rớt lúc parse (payload.errors). Dòng
-    // lỗi lúc chuẩn hóa lại (renorm) vẫn nằm trong payload.rows
-    // nên không cộng thêm — tránh đếm trùng.
-    total: payload.rows.length + payload.errors.length,
+    // Tổng dòng = mọi dòng dữ liệu trong nguồn: dòng đã đọc
+    // (rowsTotal) + dòng rớt lúc parse (payload.errors). Dòng lỗi
+    // lúc chuẩn hóa lại vẫn nằm trong rowsTotal nên không cộng thêm.
+    total: batch.rowsTotal + payload.errors.length,
     valid: valid.length,
     toCreate,
     toUpdate,
@@ -701,7 +1019,7 @@ export async function confirmImportRights(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const batch = await getImportBatch(batchId);
   if (!batch) return { ok: false, error: "Không tìm thấy lô nhập." };
-  if (batch.status !== "pending") {
+  if (batch.status !== "PREVIEW") {
     return { ok: false, error: "Lô này đã qua bước xác nhận." };
   }
   if (!rightsConfirmed) {
@@ -712,7 +1030,20 @@ export async function confirmImportRights(
   }
   await db.importBatch.update({
     where: { id: batchId },
-    data: { rightsConfirmed: true },
+    data: {
+      rightsConfirmed: true,
+      rightsConfirmedAt: new Date(),
+      rightsConfirmedBy: batch.createdBy,
+    },
+  });
+  await db.$transaction(async (tx) => {
+    await writeCatalogAudits(tx, [
+      {
+        key: `import:${batchId}`,
+        oldValue: null,
+        newValue: `Đã xác nhận quyền sử dụng dữ liệu lô "${batch.sourceName}"`,
+      },
+    ]);
   });
   return { ok: true };
 }
@@ -767,10 +1098,86 @@ export type RunChunkResult =
     }
   | { ok: false; error: string };
 
+/** Ghi trạng thái cuối của một hàng, CÓ ĐIỀU KIỆN chỉ khi hàng còn
+ *  PENDING (chống hai lần chạy trùng xử lý trùng hàng). Trả false
+ *  khi hàng đã được lần chạy khác nhận (không đếm lại). Chạy trong
+ *  transaction truyền vào (để gộp với ghi sản phẩm) hoặc trực tiếp. */
+async function markRowTerminal(
+  client: Prisma.TransactionClient | typeof db,
+  rowId: number,
+  status: ImportRowStatus,
+  message: string | null,
+  productId: number | null,
+  imageWarnings?: string[],
+): Promise<boolean> {
+  const warningsJson =
+    imageWarnings !== undefined && imageWarnings.length > 0
+      ? JSON.stringify(imageWarnings)
+      : null;
+  const affected = await client.$executeRaw`
+    UPDATE "import_rows"
+    SET "status" = ${status}::"ImportRowStatus",
+        "message" = ${message},
+        "productId" = ${productId},
+        "payload" = CASE WHEN ${warningsJson}::jsonb IS NULL THEN "payload"
+                         ELSE jsonb_set(COALESCE("payload", '{}'::jsonb), '{imageWarnings}', ${warningsJson}::jsonb) END
+    WHERE "id" = ${rowId} AND "status" = 'PENDING'`;
+  return affected === 1;
+}
+
+const ROW_CLAIMED_ERROR = "hàng đã được lần chạy khác nhận";
+
+/** Giữ lô để chạy (khóa hàng lô + kiểm hạn giữ). Trả "ok" khi giữ
+ *  được, "busy" khi lô đang chạy ở yêu cầu khác, "finished" khi lô
+ *  đã kết thúc, "timeout" khi lô chạy quá 20 phút (tự chuyển
+ *  FAILED). */
+async function claimBatchForRun(
+  batchId: number,
+): Promise<"ok" | "busy" | "finished" | "timeout" | "not-found"> {
+  return db.$transaction(async (tx) => {
+    const found = await tx.$queryRaw<Array<{ status: string; payload: unknown }>>`
+      SELECT "status", "payload" FROM "import_batches" WHERE "id" = ${batchId} FOR UPDATE`;
+    if (found.length === 0) return "not-found";
+    const current = found[0];
+    if (current.status === "DONE" || current.status === "ROLLED_BACK") {
+      return "finished";
+    }
+    const run = parseRunPayload(current.payload);
+    const nowMs = Date.now();
+    if (run.runStartedAt) {
+      const elapsed = nowMs - new Date(run.runStartedAt).getTime();
+      if (elapsed > IMPORT_RUN_TIMEOUT_MS) {
+        await tx.importBatch.update({
+          where: { id: batchId },
+          data: {
+            status: "FAILED",
+            finishedAt: new Date(),
+            notes: "Quá 20 phút — tự hủy.",
+            payload: { ...run, runLeaseUntil: null } as unknown as object,
+          },
+        });
+        return "timeout";
+      }
+    }
+    if (run.runLeaseUntil && new Date(run.runLeaseUntil).getTime() > nowMs) {
+      return "busy";
+    }
+    const leaseUntil = new Date(nowMs + IMPORT_RUN_LEASE_MS).toISOString();
+    await tx.importBatch.update({
+      where: { id: batchId },
+      data: {
+        status: "RUNNING",
+        payload: { ...run, runLeaseUntil: leaseUntil } as unknown as object,
+      },
+    });
+    return "ok";
+  });
+}
+
 export async function runImportChunk(batchId: number): Promise<RunChunkResult> {
   const batch = await getImportBatch(batchId);
   if (!batch) return { ok: false, error: "Không tìm thấy lô nhập." };
-  if (batch.status === "done" || batch.status === "cancelled") {
+  if (batch.status === "DONE" || batch.status === "ROLLED_BACK") {
     return { ok: false, error: "Lô này đã kết thúc, không chạy tiếp được." };
   }
   if (!batch.rightsConfirmed) {
@@ -783,30 +1190,40 @@ export async function runImportChunk(batchId: number): Promise<RunChunkResult> {
       error: `Đang có lô "${other.sourceName}" chạy — một lúc chỉ chạy một lô.`,
     };
   }
-  const payload = batch.payload;
-  const startedAt = Date.now();
-  if (payload.runStartedAt) {
-    const elapsed = startedAt - new Date(payload.runStartedAt).getTime();
-    if (elapsed > IMPORT_RUN_TIMEOUT_MS) {
-      await db.importBatch.update({
-        where: { id: batchId },
-        data: { status: "cancelled", finishedAt: new Date(), notes: "Quá 20 phút — tự hủy." },
-      });
-      return { ok: false, error: "Lô chạy quá 20 phút nên đã tự hủy." };
-    }
+  const claim = await claimBatchForRun(batchId);
+  if (claim === "not-found") return { ok: false, error: "Không tìm thấy lô nhập." };
+  if (claim === "finished") {
+    return { ok: false, error: "Lô này đã kết thúc, không chạy tiếp được." };
+  }
+  if (claim === "timeout") {
+    return { ok: false, error: "Lô chạy quá 20 phút nên đã tự hủy." };
+  }
+  if (claim === "busy") {
+    return {
+      ok: false,
+      error: "Lô đang chạy ở một yêu cầu khác, thử lại sau.",
+    };
   }
 
-  const { valid } = renormalizeRows(payload);
-  const ctx = await buildClassifyContext(batch.sourceName, valid.map((v) => v.row));
-  const now = new Date();
+  const startedAt = Date.now();
+  const payload = batch.payload;
+  // Bộ đếm suy từ import_rows (đúng cả khi khối trước chết giữa
+  // chừng mà chưa kịp cập nhật bộ đếm trên lô).
+  let created = payload.rows.filter((r) => r.status === "CREATED").length;
+  let updated = payload.rows.filter((r) => r.status === "UPDATED").length;
+  let skipped = payload.rows.filter((r) => r.status === "SKIPPED").length;
+  let errors = payload.rows.filter((r) => r.status === "ERROR").length;
+  for (const r of payload.rows) {
+    if (
+      (r.status === "CREATED" || r.status === "UPDATED") &&
+      r.imageWarnings !== undefined
+    ) {
+      errors += r.imageWarnings.length;
+    }
+  }
   let processed = payload.processed;
-  let created = batch.createdCount;
-  let updated = batch.updatedCount;
-  let skipped = batch.skippedCount;
-  let errors = batch.errorCount;
-  const runErrors = [...payload.runErrors];
   const auditRows: Array<{ key: string; oldValue: string | null; newValue: string }> = [];
-  const isFirstChunk = processed === 0 && batch.status === "pending";
+  const isFirstChunk = processed === 0 && batch.status === "PREVIEW";
   if (isFirstChunk) {
     auditRows.push({
       key: `import:${batchId}`,
@@ -815,103 +1232,138 @@ export async function runImportChunk(batchId: number): Promise<RunChunkResult> {
     });
   }
 
-  type PendingWrite =
-    | { type: "create"; row: NormalizedRow; categoryId: number; slug: string; sku: string | null; images: string[] }
-    | { type: "update"; productId: number; row: NormalizedRow; categoryId: number; sku: string | null; images: string[] };
-  const writes: PendingWrite[] = [];
-  const endIndex = Math.min(valid.length, processed + IMPORT_CHUNK_ROWS);
-  while (processed < endIndex) {
-    const { row, index } = valid[processed];
-    const line = payload.lines[index] ?? index + 2;
+  // Dòng lỗi lúc chuẩn hóa lại: ghi ERROR luôn để không kẹt lô.
+  const { valid, errors: renormErrors } = renormalizeRows(batch);
+  for (const e of renormErrors) {
+    const claimed = await markRowTerminal(db, e.rowId, "ERROR", e.reason, null);
+    if (claimed) {
+      errors += 1;
+      processed += 1;
+    }
+  }
+
+  const ctx = await buildClassifyContext(batch.sourceName, valid.map((v) => v.row));
+  const now = new Date();
+  const endIndex = Math.min(valid.length, IMPORT_CHUNK_ROWS);
+  let i = 0;
+  while (i < endIndex) {
+    const { row, rowId, line } = valid[i];
+    i += 1;
     const d = classifyRow(row, payload, ctx, batch.sourceName);
     if (d.action === "skip") {
-      skipped += 1;
-      runErrors.push({ line, reason: d.reason, kind: "row" });
-      processed += 1;
+      if (await markRowTerminal(db, rowId, "SKIPPED", d.reason, null)) {
+        skipped += 1;
+        processed += 1;
+      }
       continue;
     }
     if (d.action === "error") {
-      errors += 1;
-      runErrors.push({ line, reason: d.reason, kind: "row" });
-      processed += 1;
+      if (await markRowTerminal(db, rowId, "ERROR", d.reason, null)) {
+        errors += 1;
+        processed += 1;
+      }
       continue;
     }
     // Lỗi ảnh không hỏng dòng: vẫn tạo/cập nhật với ảnh tải được.
-    // Nhưng lỗi ảnh VẪN đếm vào tổng lỗi của lô (ô "Lỗi" ở kết quả
-    // và batch.errorCount) — nếu không, lô có ảnh lỗi vẫn hiện "Lỗi 0".
+    // Nhưng lỗi ảnh VẪN đếm vào tổng lỗi của lô (ô "Lỗi" ở kết quả)
+    // — nếu không, lô có ảnh lỗi vẫn hiện "Lỗi 0".
     const { urls, imageErrors } = await fetchRowImages(row, line);
-    runErrors.push(...imageErrors);
-    errors += imageErrors.length;
-    if (d.action === "create") {
-      created += 1;
-      writes.push({ type: "create", row, categoryId: d.categoryId, slug: d.slug, sku: d.sku, images: urls });
-    } else {
-      updated += 1;
-      writes.push({ type: "update", productId: d.productId, row, categoryId: d.categoryId, sku: d.sku, images: urls });
-    }
-    processed += 1;
-    if (Date.now() - startedAt > IMPORT_CHUNK_MAX_MS && processed < endIndex) break;
-  }
-
-  const done = processed >= valid.length;
-  await db.$transaction(async (tx) => {
-    for (const w of writes) {
-      const data = {
-        name: w.row.name,
-        description: w.row.description,
-        price: w.row.price,
-        salePrice: w.row.salePrice,
-        categoryId: w.categoryId,
-        images: w.images,
-        inStock: w.row.stock === null ? true : w.row.stock > 0,
-        sku: w.sku,
-        source: "import",
-        sourceName: batch.sourceName,
-        sourceUrl: batch.sourceUrl,
-        externalId: w.row.externalId,
-        importedAt: now,
-        importBatchId: batchId,
-      };
-      if (w.type === "create") {
-        // Hàng nhập MỚI luôn needsReview=true, isActive=false (ẩn
-        // khỏi shop cho tới khi duyệt). Hàng CẬP NHẬT giữ nguyên
-        // needsReview/isActive hiện có — SP đã duyệt không bị ẩn
-        // lại chỉ vì feed nhập lại.
-        const createdRow = await tx.product.create({
-          data: { ...data, slug: w.slug, isActive: false, needsReview: true, sortOrder: 0, tags: [], seoTitle: "", seoDescription: "" },
-          select: { id: true, sku: true },
-        });
-        auditRows.push(lifecycleAuditRow(productAuditPrefix(createdRow), null, "created"));
-      } else {
-        await tx.product.update({
-          where: { id: w.productId },
-          data,
-        });
-        const target = await tx.product.findUnique({
-          where: { id: w.productId },
-          select: { id: true, sku: true },
-        });
-        if (target) {
-          auditRows.push(lifecycleAuditRow(productAuditPrefix(target), null, "updated"));
+    const imageWarnings = imageErrors.map((e) => e.reason);
+    try {
+      const productId = await db.$transaction(async (tx) => {
+        const data = {
+          name: row.name,
+          description: row.description,
+          price: row.price,
+          salePrice: row.salePrice,
+          categoryId: d.categoryId,
+          images: urls,
+          inStock: row.stock === null ? true : row.stock > 0,
+          sku: d.sku,
+          source: "import",
+          sourceName: batch.sourceName,
+          sourceUrl: batch.sourceUrl,
+          sourceExternalId: row.externalId,
+          importedAt: now,
+          importBatchId: batchId,
+        };
+        let id: number;
+        if (d.action === "create") {
+          // Hàng nhập MỚI luôn needsReview=true, isActive=false (ẩn
+          // khỏi shop cho tới khi duyệt). Hàng CẬP NHẬT giữ nguyên
+          // needsReview/isActive hiện có — SP đã duyệt không bị ẩn
+          // lại chỉ vì feed nhập lại.
+          const createdRow = await tx.product.create({
+            data: { ...data, slug: d.slug, isActive: false, needsReview: true, sortOrder: 0, tags: [], seoTitle: "", seoDescription: "" },
+            select: { id: true, sku: true },
+          });
+          id = createdRow.id;
+          auditRows.push(lifecycleAuditRow(productAuditPrefix(createdRow), null, "created"));
+        } else {
+          await tx.product.update({
+            where: { id: d.productId },
+            data,
+          });
+          const target = await tx.product.findUnique({
+            where: { id: d.productId },
+            select: { id: true, sku: true },
+          });
+          id = d.productId;
+          if (target) {
+            auditRows.push(lifecycleAuditRow(productAuditPrefix(target), null, "updated"));
+          }
         }
+        const terminalStatus = d.action === "create" ? "CREATED" : "UPDATED";
+        const claimed = await markRowTerminal(
+          tx,
+          rowId,
+          terminalStatus,
+          imageWarnings.length > 0 ? imageWarnings[0] : null,
+          id,
+          imageWarnings,
+        );
+        if (!claimed) throw new Error(ROW_CLAIMED_ERROR);
+        return id;
+      });
+      void productId;
+      if (d.action === "create") created += 1;
+      else updated += 1;
+      errors += imageErrors.length;
+      processed += 1;
+    } catch (err) {
+      if (err instanceof Error && err.message === ROW_CLAIMED_ERROR) {
+        // Lần chạy khác đã nhận hàng này — không đếm lại.
+        continue;
+      }
+      // Ghi sản phẩm lỗi (vd trùng khóa): ghi ERROR cho hàng để
+      // khối chạy tiếp, không hỏng cả lô.
+      const reason = err instanceof Error ? err.message : "không ghi được sản phẩm";
+      if (await markRowTerminal(db, rowId, "ERROR", reason.slice(0, 300), null)) {
+        errors += 1;
+        processed += 1;
       }
     }
+    if (Date.now() - startedAt > IMPORT_CHUNK_MAX_MS && i < endIndex) break;
+  }
+
+  const done = processed >= batch.rowsTotal;
+  const runPayload: ImportRunPayload = {
+    parseErrors: payload.errors,
+    runStartedAt: payload.runStartedAt ?? new Date(startedAt).toISOString(),
+    runLeaseUntil: null,
+  };
+  await db.$transaction(async (tx) => {
     await writeCatalogAudits(tx, auditRows);
     await tx.importBatch.update({
       where: { id: batchId },
       data: {
-        status: done ? "done" : "running",
-        createdCount: created,
-        updatedCount: updated,
-        skippedCount: skipped,
-        errorCount: errors,
+        status: done ? "DONE" : "RUNNING",
+        created,
+        updated,
+        skipped,
+        failed: errors,
         finishedAt: done ? now : null,
-        payload: {
-          ...payload,
-          processed,
-          runErrors: runErrors.slice(-200),
-          runStartedAt: payload.runStartedAt ?? new Date(startedAt).toISOString(),
-        } as unknown as object,
+        payload: runPayload as unknown as object,
       },
     });
     if (done) {
@@ -924,7 +1376,16 @@ export async function runImportChunk(batchId: number): Promise<RunChunkResult> {
       ]);
     }
   });
-  return { ok: true, processed, total: valid.length, created, updated, skipped, errors, done };
+  return {
+    ok: true,
+    processed,
+    total: batch.rowsTotal,
+    created,
+    updated,
+    skipped,
+    errors,
+    done,
+  };
 }
 
 export async function cancelImportBatch(
@@ -932,13 +1393,21 @@ export async function cancelImportBatch(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const batch = await getImportBatch(batchId);
   if (!batch) return { ok: false, error: "Không tìm thấy lô nhập." };
-  if (batch.status !== "running" && batch.status !== "pending") {
+  if (batch.status !== "RUNNING" && batch.status !== "PREVIEW") {
     return { ok: false, error: "Lô này đã kết thúc." };
   }
   await db.$transaction(async (tx) => {
     await tx.importBatch.update({
       where: { id: batchId },
-      data: { status: "cancelled", finishedAt: new Date() },
+      data: {
+        status: "PREVIEW",
+        finishedAt: null,
+        payload: {
+          parseErrors: batch.payload.errors,
+          runStartedAt: batch.payload.runStartedAt,
+          runLeaseUntil: null,
+        } as unknown as object,
+      },
     });
     await writeCatalogAudits(tx, [
       {
@@ -1047,7 +1516,7 @@ export type UndoBatchResult =
 export async function undoImportBatch(batchId: number): Promise<UndoBatchResult> {
   const batch = await getImportBatch(batchId);
   if (!batch) return { ok: false, error: "Không tìm thấy lô nhập." };
-  if (batch.status === "running") {
+  if (batch.status === "RUNNING") {
     return { ok: false, error: "Lô đang chạy — hủy chạy trước rồi mới hoàn tác." };
   }
   const products = await db.product.findMany({
@@ -1084,7 +1553,7 @@ export async function undoImportBatch(batchId: number): Promise<UndoBatchResult>
     await tx.importBatch.update({
       where: { id: batchId },
       data: {
-        status: "cancelled",
+        status: "ROLLED_BACK",
         notes: `Đã hoàn tác: xóa ${deletable.length} SP, giữ lại ${kept.length} SP.`,
       },
     });

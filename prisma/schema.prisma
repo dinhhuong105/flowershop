@@ -56,42 +56,102 @@ model Category {
   @@map("categories")
 }
 
-// Lô nhập sản phẩm (Ngày 20 C1/C4): một lần nhập (tệp hoặc feed) là
-// một lô; fileName hoặc sourceUrl đúng một (kiểm ở tầng ứng dụng).
-// payload giữ các dòng đã chuẩn hóa + ánh xạ để chạy tiếp được sau
-// khi tải lại trang (tệp gốc đã mất).
+// Lô nhập sản phẩm (Ngày 20 C1/C4, căn chỉnh B1 bản sau Retry):
+// một lần nhập (tệp hoặc feed) là một lô; fileName hoặc sourceUrl
+// đúng một (kiểm ở tầng ứng dụng). Trạng thái từng hàng nằm ở bảng
+// import_rows (không còn trong payload JSON); mappingJson giữ ánh
+// xạ + tùy chọn giá; payload chỉ còn dữ liệu chạy tạm (thời điểm
+// bắt đầu, hạn giữ lô, lỗi đọc ban đầu).
 enum ImportBatchKind {
   file
   feed
 }
 
+// Định dạng dữ liệu của nguồn (B1): tệp CSV/JSON hay URL feed.
+enum ImportSourceKind {
+  CSV
+  JSON
+  FEED_URL
+}
+
 enum ImportBatchStatus {
-  pending
-  running
-  done
-  cancelled
+  PREVIEW
+  RUNNING
+  DONE
+  FAILED
+  ROLLED_BACK
+}
+
+// Trạng thái từng hàng trong một lô (B1).
+enum ImportRowStatus {
+  PENDING
+  CREATED
+  UPDATED
+  SKIPPED
+  ERROR
 }
 
 model ImportBatch {
-  id              Int               @id @default(autoincrement())
-  sourceName      String
-  kind            ImportBatchKind
-  fileName        String?
-  sourceUrl       String?
-  rightsConfirmed Boolean           @default(false)
-  status          ImportBatchStatus @default(pending)
-  createdCount    Int               @default(0)
-  updatedCount    Int               @default(0)
-  skippedCount    Int               @default(0)
-  errorCount      Int               @default(0)
-  createdBy       String
-  createdAt       DateTime          @default(now())
-  finishedAt      DateTime?
-  notes           String?
-  payload         Json?
-  products        Product[]
+  id                Int               @id @default(autoincrement())
+  sourceName        String
+  kind              ImportBatchKind
+  sourceKind        ImportSourceKind  @default(CSV)
+  fileName          String?
+  fileSha256        String?
+  sourceUrl         String?
+  rightsConfirmed   Boolean           @default(false)
+  rightsConfirmedAt DateTime?
+  rightsConfirmedBy String?
+  status            ImportBatchStatus @default(PREVIEW)
+  mappingJson       Json?
+  rowsTotal         Int               @default(0)
+  created           Int               @default(0)
+  updated           Int               @default(0)
+  skipped           Int               @default(0)
+  failed            Int               @default(0)
+  createdBy         String
+  createdAt         DateTime          @default(now())
+  finishedAt        DateTime?
+  notes             String?
+  payload           Json?
+  products          Product[]
+  rows              ImportRow[]
 
   @@map("import_batches")
+}
+
+// Một hàng dữ liệu trong lô nhập (B1): trạng thái từng hàng để
+// chạy theo khối, tiếp tục sau khi tải lại trang, và chống hai lần
+// chạy trùng xử lý trùng hàng (ghi trạng thái cuối có điều kiện
+// WHERE status='PENDING'). payload = dòng đã chuẩn hóa (raw + số
+// dòng gốc + cờ công thức), ≤ 8 KB/hàng; xóa khi lô xong hoặc sau
+// 7 ngày (B2). message ≤ 300 ký tự.
+model ImportRow {
+  id         Int             @id @default(autoincrement())
+  batchId    Int
+  batch      ImportBatch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  rowIndex   Int
+  externalId String
+  status     ImportRowStatus @default(PENDING)
+  message    String?
+  productId  Int?
+  product    Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  payload    Json?
+
+  @@unique([batchId, rowIndex])
+  @@index([batchId, status])
+  @@map("import_rows")
+}
+
+// Ánh xạ cột đã nhớ theo tên nguồn (B3): lần nhập sau cùng nguồn
+// thì gợi ý sẵn ánh xạ lần trước (cột → trường, ánh xạ danh mục,
+// danh mục mặc định, tùy chọn giá).
+model ImportMapping {
+  sourceName  String   @id
+  mappingJson Json
+  updatedAt   DateTime @updatedAt
+
+  @@map("import_mappings")
 }
 
 model Product {
@@ -115,29 +175,32 @@ model Product {
   seoDescription String     @default("")
   // Nguồn dữ liệu (Ngày 17 P1): như Category.source.
   source         String     @default("seed")
-  // Nhập sản phẩm (Ngày 20 C1): chỉ có nghĩa khi source = "import".
-  // sourceName/sourceUrl/externalId/importedAt nullable; needsReview
-  // = true khi mới nhập (chờ duyệt, ẩn khỏi shop). importBatchId
-  // nối về lô nhập để hoàn tác (C6). Khóa (sourceName, externalId)
-  // ở @@unique dưới: NULL khác nhau trong Postgres nên SP hệ thống
+  // Nhập sản phẩm (Ngày 20 C1, căn chỉnh B1 bản sau Retry):
+  // chỉ có nghĩa khi source = "import". sourceName/sourceUrl/
+  // sourceExternalId/importedAt nullable; needsReview = true khi
+  // mới nhập (chờ duyệt, ẩn khỏi shop). importBatchId nối về lô
+  // nhập để hoàn tác (C6). Khóa (sourceName, sourceExternalId) ở
+  // @@unique dưới: NULL khác nhau trong Postgres nên SP hệ thống
   // (sourceName null) không xung đột.
-  sourceName     String?
-  sourceUrl      String?
-  externalId     String?
-  importedAt     DateTime?
-  needsReview    Boolean    @default(false)
-  importBatchId  Int?
-  importBatch    ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  sourceName       String?
+  sourceUrl        String?
+  sourceExternalId String?
+  importedAt       DateTime?
+  needsReview      Boolean    @default(false)
+  importBatchId    Int?
+  importBatch      ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importRows       ImportRow[]
   cartItems      CartItem[]
   orderItems     OrderItem[]
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
   @@unique([categoryId, slug])
-  @@unique([sourceName, externalId])
+  @@unique([sourceName, sourceExternalId])
   @@index([categoryId, isActive, sortOrder])
   @@index([importBatchId])
   @@index([needsReview])
+  @@index([source])
   @@map("products")
 }
 

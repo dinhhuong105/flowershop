@@ -1,9 +1,10 @@
-// Trình hướng dẫn nhập sản phẩm 6 bước (Ngày 20 C4) — client.
-// Bước 1 nguồn → 2 ánh xạ → 3 xem trước → 4 xác nhận quyền →
-// 5 chạy theo khối → 6 kết quả. Dữ liệu lô lưu ở DB (payload JSON)
-// nên tải lại trang vẫn tiếp tục được từ bước đang dở (bước suy ra
-// từ trạng thái lô: pending + chưa lưu ánh xạ → 2; đã lưu ánh xạ +
-// chưa xác nhận quyền → 3; đang chạy → 5; xong/hủy → 6).
+// Trình hướng dẫn nhập sản phẩm 6 bước (Ngày 20 C4, căn chỉnh B1
+// bản sau Retry) — client. Bước 1 nguồn → 2 ánh xạ → 3 xem trước →
+// 4 xác nhận quyền → 5 chạy theo khối → 6 kết quả. Dữ liệu lô lưu
+// ở DB (import_rows + mappingJson) nên tải lại trang vẫn tiếp tục
+// được từ bước đang dở (bước suy ra từ trạng thái lô: PREVIEW +
+// chưa lưu ánh xạ → 2; đã lưu ánh xạ + chưa xác nhận quyền → 3;
+// đang chạy → 5; xong/hoàn tác/lỗi → 6).
 // Mọi giá trị hiển thị đều là text (React escape mặc định) —
 // không chèn HTML trực tiếp với dữ liệu nhập.
 
@@ -43,16 +44,17 @@ const FIELD_LABELS: Array<{ field: keyof FieldMapping; label: string; required: 
 ];
 
 const BATCH_STATUS_LABELS: Record<ImportBatchView["status"], string> = {
-  pending: "Chờ xử lý",
-  running: "Đang chạy",
-  done: "Xong",
-  cancelled: "Đã hủy",
+  PREVIEW: "Chờ xử lý",
+  RUNNING: "Đang chạy",
+  DONE: "Xong",
+  FAILED: "Lỗi",
+  ROLLED_BACK: "Đã hoàn tác",
 };
 
 function initialStep(batch: ImportBatchView | null): number {
   if (!batch) return 1;
-  if (batch.status === "running") return 5;
-  if (batch.status === "done" || batch.status === "cancelled") return 6;
+  if (batch.status === "RUNNING") return 5;
+  if (batch.status === "DONE" || batch.status === "ROLLED_BACK" || batch.status === "FAILED") return 6;
   if (!batch.payload.mappingSaved) return 2;
   if (!batch.rightsConfirmed) return 3;
   return 5;
@@ -238,7 +240,7 @@ export default function ImportWizard({
     stopRef.current = false;
     setRunState({
       processed: batch.payload.processed,
-      total: batch.payload.rows.length,
+      total: batch.rowsTotal,
       error: null,
       running: true,
     });
@@ -248,7 +250,7 @@ export default function ImportWizard({
         setRunState((s) => (s ? { ...s, running: false, error: "Đã yêu cầu dừng — lô sẽ dừng sau khối hiện tại." } : s));
         break;
       }
-      if (current >= batch.payload.rows.length) break;
+      if (current >= batch.rowsTotal) break;
       const res = await runImportChunkAction(batch.id);
       if (!res.ok) {
         setRunState((s) => (s ? { ...s, running: false, error: res.error } : s));
@@ -260,11 +262,11 @@ export default function ImportWizard({
         b
           ? {
               ...b,
-              createdCount: res.created,
-              updatedCount: res.updated,
-              skippedCount: res.skipped,
-              errorCount: res.errors,
-              status: res.done ? "done" : "running",
+              created: res.created,
+              updated: res.updated,
+              skipped: res.skipped,
+              failed: res.errors,
+              status: res.done ? "DONE" : "RUNNING",
               payload: { ...b.payload, processed: res.processed },
             }
           : b,
@@ -371,7 +373,7 @@ export default function ImportWizard({
         <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-5">
           <h2 className="text-lg font-bold">Bước 2 — Ánh xạ cột</h2>
           <p className="text-sm text-slate-600">
-            Lô “{batch.sourceName}” — {batch.payload.rows.length + batch.payload.errors.length} dòng đã đọc
+            Lô “{batch.sourceName}” — {batch.rowsTotal + batch.payload.errors.length} dòng đã đọc
             {batch.payload.errors.length > 0 ? `, ${batch.payload.errors.length} lỗi đọc (xem ở bước xem trước)` : ""}.
             Chỉnh cột nguồn cho từng trường; cột đã tự khớp theo tên thường gặp.
           </p>
@@ -572,7 +574,7 @@ export default function ImportWizard({
           <h2 className="text-lg font-bold">Bước 5 — Chạy nhập</h2>
           <p className="text-sm text-slate-600">
             Lô “{batch.sourceName}” — chạy theo khối ~25 dòng/lần gọi. Tải lại trang vẫn tiếp tục được
-            (đã nhập {batch.payload.processed}/{batch.payload.rows.length} dòng).
+            (đã nhập {batch.payload.processed}/{batch.rowsTotal} dòng).
           </p>
           {runState?.error && (
             <p role="alert" className="rounded-lg border border-danger/40 bg-danger/5 px-4 py-3 text-sm font-medium text-danger">
@@ -581,13 +583,13 @@ export default function ImportWizard({
           )}
           <div>
             <div className="flex justify-between text-sm">
-              <span>Đã xử lý {runState?.processed ?? batch.payload.processed}/{batch.payload.rows.length} dòng</span>
-              <span>Tạo {batch.createdCount} · Cập nhật {batch.updatedCount} · Bỏ qua {batch.skippedCount} · Lỗi {batch.errorCount}</span>
+              <span>Đã xử lý {runState?.processed ?? batch.payload.processed}/{batch.rowsTotal} dòng</span>
+              <span>Tạo {batch.created} · Cập nhật {batch.updated} · Bỏ qua {batch.skipped} · Lỗi {batch.failed}</span>
             </div>
             <div className="mt-1 h-3 overflow-hidden rounded-full bg-slate-200">
               <div
                 className="h-full bg-blue-600 transition-all"
-                style={{ width: `${batch.payload.rows.length === 0 ? 0 : Math.round(((runState?.processed ?? batch.payload.processed) / batch.payload.rows.length) * 100)}%` }}
+                style={{ width: `${batch.rowsTotal === 0 ? 0 : Math.round(((runState?.processed ?? batch.payload.processed) / batch.rowsTotal) * 100)}%` }}
               />
             </div>
           </div>
@@ -621,10 +623,10 @@ export default function ImportWizard({
             </p>
           )}
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-lg bg-green-50 px-3 py-2"><dt className="text-xs text-green-700">Tạo mới</dt><dd className="text-lg font-bold text-green-800">{batch.createdCount}</dd></div>
-            <div className="rounded-lg bg-blue-50 px-3 py-2"><dt className="text-xs text-blue-700">Cập nhật</dt><dd className="text-lg font-bold text-blue-800">{batch.updatedCount}</dd></div>
-            <div className="rounded-lg bg-amber-50 px-3 py-2"><dt className="text-xs text-amber-700">Bỏ qua</dt><dd className="text-lg font-bold text-amber-800">{batch.skippedCount}</dd></div>
-            <div className="rounded-lg bg-red-50 px-3 py-2"><dt className="text-xs text-red-700">Lỗi</dt><dd className="text-lg font-bold text-red-800">{batch.errorCount}</dd></div>
+            <div className="rounded-lg bg-green-50 px-3 py-2"><dt className="text-xs text-green-700">Tạo mới</dt><dd className="text-lg font-bold text-green-800">{batch.created}</dd></div>
+            <div className="rounded-lg bg-blue-50 px-3 py-2"><dt className="text-xs text-blue-700">Cập nhật</dt><dd className="text-lg font-bold text-blue-800">{batch.updated}</dd></div>
+            <div className="rounded-lg bg-amber-50 px-3 py-2"><dt className="text-xs text-amber-700">Bỏ qua</dt><dd className="text-lg font-bold text-amber-800">{batch.skipped}</dd></div>
+            <div className="rounded-lg bg-red-50 px-3 py-2"><dt className="text-xs text-red-700">Lỗi</dt><dd className="text-lg font-bold text-red-800">{batch.failed}</dd></div>
           </dl>
           <p className="text-sm text-slate-600">
             Trạng thái: {BATCH_STATUS_LABELS[batch.status]}
@@ -648,7 +650,7 @@ export default function ImportWizard({
             >
               Xem hàng chờ duyệt
             </Link>
-            {batch.status === "done" && (
+            {batch.status === "DONE" && (
               <form action={undoDispatch} className="inline-flex flex-wrap items-center gap-2">
                 <input type="hidden" name="batchId" value={batch.id} />
                 {totpEnabled && (
@@ -708,7 +710,7 @@ export default function ImportWizard({
                     <td className="px-2 py-2 font-medium">{b.sourceName}</td>
                     <td className="px-2 py-2">{b.kind === "file" ? `Tệp (${b.fileName ?? ""})` : "Feed"}</td>
                     <td className="px-2 py-2">{BATCH_STATUS_LABELS[b.status]}</td>
-                    <td className="px-2 py-2">{b.createdCount}/{b.updatedCount}/{b.skippedCount}/{b.errorCount}</td>
+                    <td className="px-2 py-2">{b.created}/{b.updated}/{b.skipped}/{b.failed}</td>
                     <td className="px-2 py-2">{b.createdAt.toLocaleString("vi-VN")}</td>
                     <td className="px-2 py-2">
                       <Link href={`/admin/products/import?batch=${b.id}`} className="font-medium text-blue-700 hover:underline">

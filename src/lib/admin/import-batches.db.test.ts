@@ -27,6 +27,7 @@ import { db } from "@/lib/db";
 import { searchProducts } from "../search";
 import {
   approveImportedProducts,
+  cancelImportBatch,
   computePreview,
   confirmImportRights,
   createImportBatch,
@@ -261,7 +262,7 @@ describe("import sản phẩm (Ngày 20 C5/C6)", () => {
     assert.equal(await db.product.count({ where: { id: prod3 } }), 0);
     assert.equal(await db.product.count({ where: { id: prod1 } }), 1);
     const batch = await getImportBatch(batch2);
-    assert.equal(batch?.status, "cancelled");
+    assert.equal(batch?.status, "ROLLED_BACK");
     const audit = await db.settingsAudit.findMany({
       where: { key: `import:${batch2}` },
     });
@@ -279,6 +280,36 @@ describe("import sản phẩm (Ngày 20 C5/C6)", () => {
       `SP đã duyệt phải nằm trong danh sách giữ lại: ${JSON.stringify(res3.kept)}`,
     );
     assert.equal(await db.product.count({ where: { id: prod1 } }), 1);
+  });
+
+  it("B1: lô mới ghi import_rows + sourceKind/fileSha256/rowsTotal", async () => {
+    const rows = await db.importRow.findMany({
+      where: { batchId: batch1 },
+      orderBy: { rowIndex: "asc" },
+    });
+    assert.equal(rows.length, 2, "lô 1 có 2 dòng");
+    assert.ok(rows.every((r) => r.status === "CREATED"), "sau khi chạy xong, các hàng là CREATED");
+    assert.equal(rows[0].externalId, "IMP-001");
+    assert.ok(rows[0].productId !== null, "hàng CREATED phải nối productId");
+    const batch = await getImportBatch(batch1);
+    assert.equal(batch?.sourceKind, "CSV");
+    assert.equal(batch?.rowsTotal, 2);
+    assert.equal(batch?.fileSha256?.length, 64, "sha256 hex 64 ký tự");
+    assert.equal(batch?.status, "DONE");
+    assert.equal(batch?.created, 2);
+  });
+
+  it("B1: hủy lô chưa chạy → vẫn PREVIEW (chạy tiếp được), không mất hàng", async () => {
+    // Dùng lô 4 (đã tạo, chưa chạy) để không chạm giới hạn 5 lô/ngày.
+    const before = await getImportBatch(batch4);
+    assert.equal(before?.status, "PREVIEW");
+    const res = await cancelImportBatch(batch4);
+    assert.equal(res.ok, true);
+    const batch = await getImportBatch(batch4);
+    assert.equal(batch?.status, "PREVIEW");
+    const rows = await db.importRow.findMany({ where: { batchId: batch4 } });
+    assert.equal(rows.length, 2, "hủy không xóa hàng");
+    assert.ok(rows.every((r) => r.status === "PENDING"), "hàng vẫn PENDING để chạy tiếp");
   });
 
   it("giới hạn 5 lô/ngày: lô thứ 5 được tạo, lô thứ 6 bị từ chối", async () => {
