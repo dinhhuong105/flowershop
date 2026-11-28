@@ -18,6 +18,7 @@ import { db } from "@/lib/db";
 import {
   MAX_IMPORT_ROWS,
   detectFieldMapping,
+  mergeSavedMapping,
   normalizeMappedRecord,
   parseCsv,
   parseJson,
@@ -669,14 +670,20 @@ export async function createImportBatch(input: {
   }
 
   // Ánh xạ mặc định: nhớ theo tên nguồn (B3) nếu có, còn không thì
-  // tự khớp theo alias (bước 2 cho chỉnh lại).
+  // tự khớp theo alias (bước 2 cho chỉnh lại). Ánh xạ nhớ được
+  // HỢP NHẤT với tự nhận diện theo cột của tệp MỚI: cột đã nhớ
+  // chỉ giữ khi còn tồn tại trong tệp mới; trường nào nhớ là null
+  // (tệp cũ không có cột đó) thì tự nhận diện lại — nếu không, tệp
+  // mới có thêm cột salePrice/description sẽ bị bỏ qua âm thầm.
   const sampleKeys =
     parsed.rows.length > 0 ? Object.keys(parsed.rows[0].raw) : [];
   const saved = await getSavedMapping(sourceName);
-  const mappingJson: ImportMappingJson = saved ?? {
-    ...emptyMappingJson(),
-    mapping: detectFieldMapping(sampleKeys),
-  };
+  const mappingJson: ImportMappingJson = saved
+    ? { ...saved, mapping: mergeSavedMapping(saved.mapping, sampleKeys) }
+    : {
+        ...emptyMappingJson(),
+        mapping: mergeSavedMapping(null, sampleKeys),
+      };
   const lines = assignRowLines(parsed, format);
   const rowPayloads = parsed.rows.map((row, i) =>
     trimRowPayload({ ...row, line: lines[i] }, mappingJson.mapping),
@@ -746,10 +753,18 @@ export async function saveImportMapping(
   }
   if (!mapping.name) return { ok: false, error: "Chưa chọn cột cho tên sản phẩm." };
   if (!mapping.price) return { ok: false, error: "Chưa chọn cột cho giá." };
-  // B3: externalId là trường ánh xạ BẮT BUỘC (SKU chỉ tùy chọn,
-  // không thay thế externalId được).
-  if (!mapping.externalId) {
-    return { ok: false, error: "Chưa chọn cột cho mã ngoài (externalId)." };
+  // B3: externalId là trường BẮT BUỘC Ở MỨC HÀNG — mọi hàng phải có
+  // mã ngoài để lần nhập sau cập nhật đúng sản phẩm. Cột ánh xạ
+  // được chấp nhận là externalId HOẶC sku (parser lấy externalId
+  // từ cột SKU khi không có cột mã ngoài riêng — file nguồn thường
+  // chỉ có SKU làm mã duy nhất). Đây là diễn giải thực tế của "bắt
+  // buộc": hàng nào cũng phải có externalId, không phải cột ánh xạ
+  // phải đúng tên externalId.
+  if (!mapping.externalId && !mapping.sku) {
+    return {
+      ok: false,
+      error: "Chưa chọn cột cho mã ngoài (externalId) hoặc SKU.",
+    };
   }
   const priceError = validatePriceOptions(priceOptions);
   if (priceError) return { ok: false, error: priceError };
@@ -1462,10 +1477,17 @@ export async function runImportChunk(batchId: number): Promise<RunChunkResult> {
           id = createdRow.id;
           auditRows.push(lifecycleAuditRow(productAuditPrefix(createdRow), null, "created"));
         } else if (d.priceOnly) {
-          // B5: SP đã duyệt — chỉ cập nhật price/salePrice.
+          // B5: SP đã duyệt — chỉ cập nhật price/salePrice (và
+          // importBatchId để "lô nhập gần nhất" + hoàn tác theo
+          // đúng lô đã chạm SP; không đụng tên/mô tả/ảnh/danh mục).
           await tx.product.update({
             where: { id: d.productId },
-            data: { price: row.price, salePrice: row.salePrice, importedAt: now },
+            data: {
+              price: row.price,
+              salePrice: row.salePrice,
+              importedAt: now,
+              importBatchId: batchId,
+            },
           });
           id = d.productId;
           auditRows.push(

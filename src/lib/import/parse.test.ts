@@ -1,7 +1,7 @@
 // Test bộ đọc dữ liệu nhập sản phẩm (Ngày 20, phần C2).
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseCsv, parseJson, parseImport, isFormulaCell } from "./parse";
+import { parseCsv, parseJson, parseImport, isFormulaCell, detectFieldMapping, mergeSavedMapping } from "./parse";
 import type { ParseResult } from "./parse";
 
 const HEADER = "externalId,name,description,price,salePrice,categoryName,imageUrls,stock,sku";
@@ -499,5 +499,41 @@ describe("giới hạn đầu vào + làm sạch (Ngày 20 bản sau Retry B2/B5
     assert.ok(csv.startsWith("Dòng,Lý do"));
     assert.ok(csv.includes("'=cmd|calc"), "ô công thức phải có dấu nháy đơn");
     assert.ok(csv.includes("thiếu tên"));
+  });
+});
+
+describe("ánh xạ cột: tự nhận diện + hợp nhất ánh xạ đã nhớ (B3)", () => {
+  it("chỉ có cột SKU → externalId tự điền bằng cột SKU", () => {
+    const m = detectFieldMapping(["sku", "name", "price"]);
+    assert.equal(m.externalId, "sku");
+    assert.equal(m.sku, "sku");
+  });
+
+  it("ánh xạ nhớ thiếu salePrice/description → tự nhận diện lại theo cột tệp mới", () => {
+    const saved = {
+      externalId: "sku",
+      sku: "sku",
+      name: "name",
+      description: null,
+      price: "price",
+      salePrice: null,
+      categoryName: "category",
+      imageUrls: null,
+      stock: "stock",
+    };
+    const merged = mergeSavedMapping(
+      saved,
+      ["sku", "name", "description", "price", "salePrice", "category", "stock"],
+    );
+    assert.equal(merged.salePrice, "salePrice", "tệp mới có cột salePrice → nhận lại");
+    assert.equal(merged.description, "description");
+    assert.equal(merged.price, "price", "cột đã nhớ còn tồn tại thì giữ");
+  });
+
+  it("cột đã nhớ không còn trong tệp mới → tự nhận diện lại", () => {
+    const saved = { name: "ten_cu", price: "gia_cu" };
+    const merged = mergeSavedMapping(saved, ["name", "price"]);
+    assert.equal(merged.name, "name");
+    assert.equal(merged.price, "price");
   });
 });

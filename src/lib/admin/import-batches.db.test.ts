@@ -372,11 +372,11 @@ describe("import sản phẩm (Ngày 20 C5/C6)", () => {
   });
 
   it("B3: tùy chọn giá — hệ số + làm tròn; salePrice bằng giá gốc → lỗi", async () => {
-    const csv = `sku,name,price,salePrice,category,stock
-IMP-P1,Bó Hoa Giá Test Một,100000,90000,Hoa tươi,2
-IMP-P2,Bó Hoa Giá Test Hai,99900,99900,Hoa tươi,2
-IMP-P3,Bó Hoa Giá Test Ba,500,,Hoa tươi,2
-IMP-P4,"Bó Hoa SQLi Test "'; DROP TABLE products; --",100000,"'; DROP TABLE products; --",Hoa tươi,1
+    const csv = `sku,name,description,price,salePrice,category,stock
+IMP-P1,Bó Hoa Giá Test Một,,100000,90000,Hoa tươi,2
+IMP-P2,Bó Hoa Giá Test Hai,,99900,99900,Hoa tươi,2
+IMP-P3,Bó Hoa Giá Test Ba,,500,,Hoa tươi,2
+IMP-P4,"Bó Hoa SQLi Test ""'; DROP TABLE products; --","'; DROP TABLE products; --",100000,,Hoa tươi,1
 `;
     const created = await createImportBatch({
       sourceName: SRC,
@@ -462,19 +462,31 @@ IMP-P4,"Bó Hoa SQLi Test "'; DROP TABLE products; --",100000,"'; DROP TABLE pro
       where: { batchId: batch5 },
       orderBy: { rowIndex: "asc" },
     });
+    // Lỗi đọc ban đầu (IMP-P2 salePrice bằng giá gốc) là lỗi PARSE:
+    // không tạo import_row, sống ở batch.payload.parseErrors và
+    // hiện riêng ở bước 6 ("Lỗi đọc dữ liệu ban đầu"), không cộng
+    // vào batch.failed — failed chỉ đếm hàng lỗi trong lúc chạy.
     assert.deepEqual(
       rows.map((r) => r.status),
-      ["CREATED", "ERROR", "CREATED", "CREATED"],
+      ["CREATED", "CREATED", "CREATED"],
     );
     const batch = await getImportBatch(batch5);
     assert.equal(batch?.status, "DONE");
     assert.equal(batch?.created, 3);
-    assert.equal(batch?.failed, 1);
+    assert.equal(batch?.failed, 0, "lỗi parse không cộng vào failed");
+    assert.ok(
+      batch?.payload.errors.some((e) => e.reason.includes("nhỏ hơn giá gốc")),
+      "lỗi parse của IMP-P2 vẫn phải còn trong payload",
+    );
   });
 
   it("B11: hạn giữ (lease) chặn lần chạy thứ hai khi lô đang chạy", async () => {
     const before = await getImportBatch(batch4);
     assert.ok(before);
+    // Quyền là điều kiện tiên quyết của mọi lần chạy nên xác nhận
+    // trước — ca này chỉ kiểm hạn giữ chặn lần chạy thứ hai.
+    const rights = await confirmImportRights(batch4, true, SRC);
+    assert.equal(rights.ok, true, rights.ok ? "" : rights.error);
     await db.importBatch.update({
       where: { id: batch4 },
       data: {

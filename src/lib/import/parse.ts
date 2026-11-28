@@ -795,7 +795,32 @@ export function detectFieldMapping(keys: string[]): FieldMapping {
     }
     mapping[field] = found;
   }
+  // B3: file nguồn thường chỉ có cột SKU mà không có cột mã ngoài
+  // riêng — tự điền externalId = cột SKU để hàng nào cũng có mã
+  // ngoài (parser cũng fallback SKU → externalId ở mức hàng).
+  if (!mapping.externalId && mapping.sku) mapping.externalId = mapping.sku;
   return mapping;
+}
+
+/** Hợp nhất ánh xạ đã nhớ theo tên nguồn với tự nhận diện theo cột
+ *  của tệp mới (B3): cột đã nhớ chỉ giữ khi còn tồn tại trong tệp
+ *  mới; trường nào nhớ là null (tệp cũ không có cột đó) thì tự nhận
+ *  diện lại — nếu không, tệp mới có thêm cột (vd salePrice,
+ *  description) sẽ bị bỏ qua âm thầm. */
+export function mergeSavedMapping(
+  saved: FieldMapping | null | undefined,
+  keys: string[],
+): FieldMapping {
+  const detected = detectFieldMapping(keys);
+  const merged: FieldMapping = {};
+  for (const field of Object.keys(FIELD_ALIASES) as CanonicalField[]) {
+    const savedCol = saved?.[field];
+    merged[field] =
+      typeof savedCol === "string" && savedCol !== "" && keys.includes(savedCol)
+        ? savedCol
+        : detected[field];
+  }
+  return merged;
 }
 
 /** Chuẩn hóa lại một dòng theo ánh xạ đã chọn: dựng record với key
