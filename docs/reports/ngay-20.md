@@ -785,7 +785,7 @@ Pi Em kiểm lại toàn bộ trên cây cuối, không tin số của coordinat
 | Indexing | Vẫn TẮT (home `noindex, nofollow`, `robots.txt` `Disallow: /`) |
 | `/admin/security`, `/login/verify`, `/admin/products/import` (chưa đăng nhập) | 307 → `/login` |
 | `/tin-tuc` trong sitemap | Có (1) |
-| Checkout COD-only | Đang kiểm bằng trình duyệt đám mây (chỉ xem, không đặt hàng) — cập nhật sau |
+| Checkout COD-only | **ĐÃ KIỂM 15:58** (trình duyệt đám mây, chỉ xem, không đặt hàng): chỉ có duy nhất 1 phương thức "Thanh toán khi nhận hàng (COD)" — "Thanh toán bằng tiền mặt khi nhận hoa."; toàn trang không có chữ "Chuyển khoản"/"ngân hàng"/"QR", không có mã QR; dừng ở bước 2 "Thanh toán", 0 đơn tạo |
 
 **Nhận xét hiệu năng:** chuyển vùng hàm về `sin1` là thay đổi duy nhất có tác động đo được lên live (EXPLAIN xác nhận không thiếu chỉ mục; truy vấn danh mục đã 4 → 3 từ Ngày 20 v1). `/hoa-tuoi` đạt mục tiêu 1,05 s nhưng sát nút (1,00 s); `/` hơi chậm hơn vòng đo Ngày 19 (0,94 s so với 0,76 s — trong biên độ dao động giữa các vòng đo, không kết luận hồi quy). Nguyên nhân còn lại nếu cần nhanh hơn nữa: render động toàn trang do root layout gọi `await headers()` lấy `x-nonce` (nonce/ISR để ngày riêng, theo đặc tả).
 
