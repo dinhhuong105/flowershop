@@ -720,6 +720,73 @@ sạch: 21 SP (20 seed + TEST-001), 0 lô, 0 hàng nhập, 0 phiên,
 
 ## 18. Chờ Henry
 
-- **S0: thu hồi token GitHub đã dán trong chat + tạo token fine-grained** với Contents AND **Workflows** read/write để đẩy được `.github/workflows/ci.yml`; tới lúc đó ci.yml vẫn chỉ local (commit `8599fec`) và CI chưa từng chạy. Đường khác (B6 bản cũ): thêm ci.yml thủ công qua giao diện web GitHub khi trình duyệt Henry đã đăng nhập, rồi `git pull` đồng bộ — không cần token mới.
+- **S0: thu hồi token GitHub đã dán trong chat + tạo token fine-grained** với Contents AND **Workflows** read/write để đẩy được `.github/workflows/ci.yml`; tới lúc đó ci.yml vẫn chỉ local (commit `b8f9735`) và CI chưa từng chạy. Đường khác (B6 bản cũ): thêm ci.yml thủ công qua giao diện web GitHub khi trình duyệt Henry đã đăng nhập, rồi `git pull` đồng bộ — không cần token mới.
 - **Bật 2FA trên production:** đặt `AUTH_ENCRYPTION_KEY` trên Vercel (lệnh sinh khóa trong `docs/van-hanh.md` §3.1 — giá trị production phải **khác** khóa local), quét QR ở `/admin/security`, cất 10 mã khôi phục + cất bản sao khóa vào trình quản lý mật khẩu. Không bật 2FA trên live trước khi có khóa đúng (A2: thiếu khóa thì chỉ đăng nhập được bằng mã khôi phục).
 - ~~Vùng Neon + pooler~~ — ĐÃ XÁC ĐỊNH (§13.1), không còn chờ.
+
+---
+
+# Phụ lục: kiểm độc lập của Pi Em + đẩy + số live (28/11/2026 ~16:xx)
+
+## 19. Kiểm độc lập cây cuối `bc7b49d` (trước khi đẩy)
+
+Pi Em kiểm lại toàn bộ trên cây cuối, không tin số của coordinator:
+
+| Kiểm | Kết quả Pi Em | Khớp báo cáo? |
+| --- | --- | --- |
+| Unit (`npm test`) | **516/516** (fail 0) | Khớp |
+| test:db (`--test-concurrency=1`) | **139/139 × 3 lần liên tiếp** (fail 0) | Khớp |
+| Typecheck | 0 lỗi | Khớp |
+| Lint | 0 lỗi / **4 cảnh báo** (2 `<img>` cũ + 2 `_req`/`_res` trong `safe-fetch.test.ts`) | Khớp — lần đếm trước của Pi Em ra 6 là do đếm nhầm cả 2 dòng cảnh báo runtime của Node (`EnvHttpProxyAgent`), không phải cảnh báo ESLint |
+| Build | OK; First Load JS `/` **115 kB** (≤135 kB) | Khớp |
+| `npm audit --omit=dev` | 0 | Khớp |
+| `npm run test:security` | **TẤT CẢ ĐẠT** (tĩnh 76, live-check 63/63, live scan 21/21) | Khớp |
+| Smoke local | **20/21** (chỉ sitemap-localhost, như trước) | Khớp |
+| `<head>` 4/4 | PASS (title, description, robots noindex, og:title) | Khớp |
+| Header B1 | `/order/TEST123456` → 404 + `Cache-Control: no-store` + `X-Robots-Tag: noindex` | Khớp |
+| CDP A2 (fail-closed 2FA) | **8/8 PASS** (khóa thiếu → biểu ngữ đỏ đúng câu, mã 6 số bị từ chối, mã khôi phục vào được, audit `totp.key-unavailable` = 1 dòng, khôi phục khóa → mã 6 số lại vào được, tắt 2FA được) | Khớp (probe báo 8/9 — mục thứ 9 là kiểm DB sạch của probe, xem §19.1) |
+| CDP A3 (bank replay) | **5/5 PASS** (lưu ngân hàng KHÔNG mật khẩu bị từ chối, có mật khẩu + mã đúng lưu được, dùng lại mã vừa dùng bị từ chối) | Khớp (probe báo 5/6 — mục thứ 6 là kiểm DB sạch của probe) |
+| CDP đặt hàng fail-closed | **4/4 PASS** (bộ đếm lỗi → "Hệ thống đang bận, vui lòng thử lại sau.", 0 đơn mới) | Khớp sau khi dọn đơn thừa (xem §19.1) |
+| CDP Phần B (tiêu chí chấp nhận) | **30/30 PASS** (CSV 30 dòng: xem trước 30/25/25/5, chạy 25 tạo, chạy lại 25 cập nhật không trùng, duyệt 3 hiện luôn với "Hiện luôn" mặc định KHÔNG tick, từ chối 2 còn 23, feed URL tạo lô, feed HTML bị từ chối đúng câu, URL nội bộ 169.254.169.254 bị chặn, XSS `&lt;3`) | Khớp sau 3 lần chạy (xem §19.2) |
+| Spot-check code | `sourceExternalId` + bảng `import_rows` + enum `PREVIEW\|RUNNING\|DONE\|FAILED\|ROLLED_BACK` trong schema; "890.000" = 890.000 trong `parse.ts` + test; B9 5/giờ + 20/ngày; `totp.key-unavailable` 1 dòng/giờ + biểu ngữ đỏ | Khớp |
+| `vercel.json` | `{"regions": ["sin1"]}` | Khớp |
+| `safe-fetch` | Đã chuyển về `src/lib/safe-fetch.ts` (đúng B11 bản mới) | Khớp |
+
+### 19.1 Kiểm "DB cuối sạch" của các probe — 3 điểm cần nói rõ (không phải lỗi sản phẩm)
+
+1. **21 SP thay vì 20:** `TEST-001` ("Bó Hoa Đồng Tiền Thử Nghiệm") là fixture bắt buộc của suite `products.db.test.ts` ("SP TEST-001 phải tồn tại — chạy `scripts/recreate-test-data.ts` trước") — coordinator đã khôi phục nó sau lần dựng lại DB. Các probe viết kỳ vọng "20 SP" từ trước khi fixture này tồn tại nên kiểm DB sạch của chúng báo FAIL, trong khi chức năng đều PASS. Trạng thái DB local cuối đúng là **21 SP**.
+2. **3 đơn "Người Đặt Test":** đơn thử do probe của coordinator tạo lúc 15:04 (kiểm "bán được" sau khi duyệt SP nhập) — probe không dọn. Pi Em đã xóa 3 đơn này (+ `order_items`/`order_events`) trước khi chạy lại probe đặt hàng fail-closed, lúc đó B3c-4 PASS với `orders=0`.
+3. **`seo.allowIndexing` local bị đặt lại `true`:** sau các lần chạy test:db, dòng này trong DB local về `true` → lần chạy probe Phần B đầu tiên của Pi Em rớt kiểm `<head>` 4/4. Pi Em đặt lại `false` bằng SQL (khớp production) + khởi động lại server thì PASS. Đây là trạng thái DB local, không phải code.
+
+### 19.2 Probe Phần B chạy 3 lần — 2 lần đầu rớt vì môi trường, lần 3 PASS 30/30
+
+- **Lần 1 (26/28):** HEAD rớt (lý do §19.1.3) + bước feed hết giờ — server lúc đó chạy KHÔNG có `SAFE_FETCH_ALLOW_LOOPBACK=1` nên fetch mock 127.0.0.1 bị chặn (đúng thiết kế SSRF). Lỗi của Pi Em khi chạy probe, không phải lỗi sản phẩm.
+- **Lần 2 (26/28):** HEAD PASS; B6.9 rớt (từ chối 2 nhưng còn 24 thay vì 23) + bước feed bị chặn bởi giới hạn tốc độ ("Bạn thao tác nhập quá nhiều lần trong thời gian ngắn"). B6.9: mỗi SP render 2 nút "Từ chối" (bảng desktop + thẻ mobile); lần bấm thứ 2 có thể trúng nút của cùng 1 SP đã xóa — server trả "Không tìm thấy sản phẩm." và không xóa gì thêm (hành vi đúng, code `rejectImportedProduct` xử lý êm). Giới hạn tốc độ: probe chạy 2 lần đầy đủ trong cùng cửa sổ 10 phút chạm trần 30 thao tác/10 phút theo IP (đúng thiết kế — coordinator cũng ghi nhận).
+- **Lần 3 (30/30):** sau khi đặt `seo.allowIndexing=false`, chạy server với `SAFE_FETCH_ALLOW_LOOPBACK=1`, xóa 31 dòng `rate_limit_events` nhóm `import:` trong DB local — PASS toàn bộ, kể cả B6.9 (còn 23) và 3 bước feed (B2.4/B2.5/B11.2).
+- **Sau probe:** server khởi động lại KHÔNG có `SAFE_FETCH_ALLOW_LOOPBACK` (trạng thái như production); DB cuối sạch **21|0|3|0|4|24|0|0|0|0|0|0** (SP|đơn|trang|tin|danh mục|cài đặt|phiên|nhật ký|giới hạn tốc độ|2FA|phiên chờ|giỏ).
+
+## 20. Đẩy live
+
+- Nhánh đẩy tách ci.yml: cherry-pick 11 commit Ngày 20 (v1 4 commit + delta 7 commit) từ `4b5eb52` lên nhánh riêng, diff so với cây đã kiểm `bc7b49d` = **chỉ thiếu `.github/workflows/ci.yml`** (191 dòng, local-only do token không có scope `workflow`).
+- **Remote HEAD sau đẩy: `d8856b7`** (`4b5eb52..d8856b7`). Token lấy từ lịch sử chat qua askpass tạm, đã xóa ngay sau khi đẩy.
+- Local main dựng lại: `b8f9735` (ci.yml local-only) trên `d8856b7`.
+- Deploy: `x-vercel-id` chuyển `iad1` → **`iad1::sin1`** (hàm đã về cùng vùng Singapore với Neon) sau ~2 phút.
+
+## 21. Số live sau đẩy (28/11/2026 ~16:xx, cùng VM)
+
+| Kiểm | Kết quả |
+| --- | --- |
+| Smoke live | **21/21 PASS** |
+| F2 (go-live-check) | **6 PASS, 0 FAIL** |
+| `security-scan-live` | **22 PASS, 0 FAIL** |
+| TTFB ấm (trung vị 5×) `/` | **0,94 s** (0,999 / 0,943 / 0,727 / 0,761 / 1,015) |
+| TTFB ấm (trung vị 5×) `/hoa-tuoi` | **1,00 s** (0,950 / 0,998 / 1,136 / 1,067 / 0,776) — **ĐẠT mục tiêu ≤1,05 s** (−43% so với nền 1,75 s trong đặc tả; −32% so với 1,47 s vòng đo Ngày 19) |
+| TTFB ấm (trung vị 5×) `/tin-tuc` | **0,71 s** (0,722 / 0,706 / 0,703 / 0,692 / 0,693) — −33% so với 1,06 s Ngày 19 |
+| Indexing | Vẫn TẮT (home `noindex, nofollow`, `robots.txt` `Disallow: /`) |
+| `/admin/security`, `/login/verify`, `/admin/products/import` (chưa đăng nhập) | 307 → `/login` |
+| `/tin-tuc` trong sitemap | Có (1) |
+| Checkout COD-only | Đang kiểm bằng trình duyệt đám mây (chỉ xem, không đặt hàng) — cập nhật sau |
+
+**Nhận xét hiệu năng:** chuyển vùng hàm về `sin1` là thay đổi duy nhất có tác động đo được lên live (EXPLAIN xác nhận không thiếu chỉ mục; truy vấn danh mục đã 4 → 3 từ Ngày 20 v1). `/hoa-tuoi` đạt mục tiêu 1,05 s nhưng sát nút (1,00 s); `/` hơi chậm hơn vòng đo Ngày 19 (0,94 s so với 0,76 s — trong biên độ dao động giữa các vòng đo, không kết luận hồi quy). Nguyên nhân còn lại nếu cần nhanh hơn nữa: render động toàn trang do root layout gọi `await headers()` lấy `x-nonce` (nonce/ISR để ngày riêng, theo đặc tả).
+
+**Chưa kiểm trên live (cố ý không làm):** chạy nhập thật trên production (sẽ tạo/xóa SP trong DB thật) — C7 trên live chỉ kiểm ở mức route: `/admin/products/import` chưa đăng nhập → 307. Chức năng nhập đã PASS 30/30 CDP local trên đúng commit đã đẩy; Claude quyết có cần chạy thử trên live không.
