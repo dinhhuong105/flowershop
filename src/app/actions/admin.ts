@@ -549,6 +549,9 @@ function newsFormDataToInput(formData: FormData): NewsFormInput {
     author: get("author"),
     seoTitle: get("seoTitle"),
     seoDescription: get("seoDescription"),
+    // Hẹn giờ đăng (Ngày 19 A1): chuỗi datetime-local theo giờ VN,
+    // rỗng = không hẹn.
+    publishedAt: get("publishedAt"),
     // Checkbox: chỉ gửi khi được chọn ("on").
     isPublished: formData.get("isPublished") === "on",
   };

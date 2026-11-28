@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { hashIp } from "@/lib/admin/rate-limit";
 import { clientIpFromHeaders } from "@/lib/admin/ip";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimitFailClosed } from "@/lib/rate-limit";
 import { getBankInfoFromSettings, getTransferContent } from "@/lib/bank";
 import { getSettings } from "@/lib/settings-cache";
 import Steps from "@/components/checkout/Steps";
@@ -27,44 +27,50 @@ export const metadata: Metadata = {
 // Mã đơn: 10 ký tự Crockford base32 (mục 7) — sai định dạng → 404.
 const ORDER_CODE_RE = /^[0-9A-HJKMNP-TV-Z]{10}$/;
 
-// Ngày 17 S7: giới hạn tra cứu theo IP — 30 lần/phút, dùng module
-// rate-limit chung (S9), khóa là IP đã băm (không lưu IP thô).
-// Kiểm TRƯỚC cả kiểm định dạng mã để cơn flood mã sai định dạng
-// cũng bị chặn, không chỉ mã đúng định dạng. Lỗi DB của bộ đếm thì
-// cho qua (fail-open, có log) để trang tra cứu không sập vì bộ đếm.
-// Khi bị chặn: hiện thông báo (không lộ dữ liệu đơn). Lưu ý: page
-// trong App Router không đặt được mã trạng thái 429 — thông báo này
-// trả kèm 200; việc chặn nằm ở chỗ không còn truy vấn DB nữa (kẻ
-// dò mã không lấy được thêm thông tin).
-async function isLookupRateLimited(): Promise<boolean> {
-  try {
-    const ip = clientIpFromHeaders(await headers());
-    const result = await checkRateLimit({
-      key: `lookup:ip:${hashIp(ip)}`,
-      limit: 30,
-      windowMs: 60 * 1000,
-    });
-    return !result.allowed;
-  } catch (error) {
-    console.error(
-      "[order lookup] Lỗi kiểm tra giới hạn tốc độ, cho qua:",
-      error instanceof Error ? error.message : error,
-    );
-    return false;
-  }
+// Ngày 17 S7 + Ngày 19 A4: giới hạn tra cứu theo IP — 30
+// lần/phút, dùng module rate-limit chung (S9), khóa là IP đã băm
+// (không lưu IP thô). Kiểm TRƯỚC cả kiểm định dạng mã để cơn flood
+// mã sai định dạng cũng bị chặn, không chỉ mã đúng định dạng.
+// Bộ đếm DB lỗi thì ĐÓNG (A4): hiện "Hệ thống đang bận, vui lòng
+// thử lại sau." thay vì cho qua — không lộ dữ liệu đơn.
+// GIỚI HẠN ĐÃ BIẾT (Ngày 19 A4.1 KHÔNG ĐẠT): page trong App Router
+// không đặt được mã trạng thái 429 nên thông báo này trả kèm 200;
+// đã thử chặn ở middleware bằng fetch route nội bộ nhưng fetch của
+// Edge runtime tới chính server local hỏng (không proxy: fail nhanh
+// "fetch failed" với cause HTTPParserError; có proxy: treo tới
+// timeout 3 s; cả hai host localhost/127.0.0.1 lẫn IP LAN đều hỏng,
+// trong khi curl/Node fetch tới cùng URL trả 200 trong 0,015–
+// 0,13 s) — nên middleware-fetch đã gỡ, giữ kiểm tra ở page.
+// Trên Vercel, fetch Edge tới domain deploy đi qua hạ tầng nội bộ
+// của Vercel nên cách middleware-fetch có thể chạy được, nhưng
+// CHƯA kiểm chứng — không khẳng định.
+async function lookupLimitState(): Promise<
+  { limited: false } | { limited: true; counterUnavailable: boolean }
+> {
+  const ip = clientIpFromHeaders(await headers());
+  const result = await checkRateLimitFailClosed({
+    key: `lookup:ip:${hashIp(ip)}`,
+    limit: 30,
+    windowMs: 60 * 1000,
+  });
+  if (result.counterUnavailable) return { limited: true, counterUnavailable: true };
+  if (!result.allowed) return { limited: true, counterUnavailable: false };
+  return { limited: false };
 }
 
 export default async function OrderPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
-  if (await isLookupRateLimited()) {
+  const limit = await lookupLimitState();
+  if (limit.limited) {
     return (
       <div className="shell pb-12 pt-6">
         <h1 className="font-display text-3xl font-semibold text-ink sm:text-4xl">
-          Tra cứu quá nhiều lần
+          {limit.counterUnavailable ? "Hệ thống đang bận" : "Tra cứu quá nhiều lần"}
         </h1>
         <p role="alert" className="mt-6 max-w-2xl rounded-[3px] border border-line bg-white p-5 text-sm text-ink-soft">
-          Bạn đã tra cứu quá nhiều lần trong thời gian ngắn. Vui lòng
-          đợi một lát rồi thử lại.
+          {limit.counterUnavailable
+            ? "Hệ thống đang bận, vui lòng thử lại sau."
+            : "Bạn đã tra cứu quá nhiều lần trong thời gian ngắn. Vui lòng đợi một lát rồi thử lại."}
         </p>
         <p className="mt-6">
           <Link

@@ -115,3 +115,88 @@ export async function pruneRateLimitEvents(
   });
   return count;
 }
+
+// ---------------------------------------------------------------------------
+// Ngày 19 A4 — lỗi bộ đếm DB: ĐÓNG hay MỞ tùy nhóm.
+//
+// `checkRateLimit` gốc NÉM lỗi khi DB bộ đếm lỗi; tầng gọi trước đây
+// tự chọn fail-open (tra cứu, đặt hàng) hay không bắt gì cả. Từ
+// Ngày 19, chính sách tập trung ở đây — tầng gọi chỉ chọn một trong
+// hai hàm dưới, không tự try/catch lén:
+//
+// - `checkRateLimitFailClosed`: ĐÓNG khi bộ đếm lỗi (trả allowed:
+//   false + counterUnavailable: true). Dùng cho: đăng nhập, đặt
+//   hàng, tra cứu đơn, nhập sản phẩm, TOTP (Phần C: khóa
+//   "totp:ip:<hash>" / "totp:admin", vd limit 5/15 phút — dùng đúng
+//   hàm này, không viết bộ đếm riêng).
+// - `checkRateLimitFailOpen`: MỞ khi bộ đếm lỗi (trả allowed: true
+//   + counterUnavailable: true). CHỈ dùng cho tìm kiếm công khai.
+//
+// Cả hai đều ghi log lỗi (để S12 thấy bộ đếm sập) và KHÔNG ném.
+export type RateLimitCheckWithAvailability = RateLimitCheck & {
+  // true khi bộ đếm DB lỗi và kết quả là giá trị dự phòng.
+  counterUnavailable: boolean;
+};
+
+function rateLimitUnavailableFallback(opts: {
+  limit: number;
+  windowMs: number;
+  now: Date;
+  allowed: boolean;
+}): RateLimitCheckWithAvailability {
+  return {
+    allowed: opts.allowed,
+    remaining: opts.allowed ? opts.limit : 0,
+    // Cho phép thử lại sau 60 s khi bộ đếm sập (tầng gọi đặt
+    // Retry-After theo số này).
+    retryAfterSeconds: opts.allowed ? 0 : 60,
+    resetAt: new Date(opts.now.getTime() + opts.windowMs),
+    counterUnavailable: true,
+  };
+}
+
+export async function checkRateLimitFailClosed(opts: {
+  key: string;
+  limit: number;
+  windowMs: number;
+  now?: Date;
+}): Promise<RateLimitCheckWithAvailability> {
+  const now = opts.now ?? new Date();
+  try {
+    return { ...(await checkRateLimit(opts)), counterUnavailable: false };
+  } catch (error) {
+    console.error(
+      "[rate-limit] Bộ đếm DB lỗi, ĐÓNG (fail-closed):",
+      error instanceof Error ? error.message : error,
+    );
+    return rateLimitUnavailableFallback({
+      limit: opts.limit,
+      windowMs: opts.windowMs,
+      now,
+      allowed: false,
+    });
+  }
+}
+
+export async function checkRateLimitFailOpen(opts: {
+  key: string;
+  limit: number;
+  windowMs: number;
+  now?: Date;
+}): Promise<RateLimitCheckWithAvailability> {
+  const now = opts.now ?? new Date();
+  try {
+    return { ...(await checkRateLimit(opts)), counterUnavailable: false };
+  } catch (error) {
+    console.error(
+      "[rate-limit] Bộ đếm DB lỗi, MỞ (fail-open, chỉ tìm kiếm công khai):",
+      error instanceof Error ? error.message : error,
+    );
+    return rateLimitUnavailableFallback({
+      limit: opts.limit,
+      windowMs: opts.windowMs,
+      now,
+      allowed: true,
+    });
+  }
+}

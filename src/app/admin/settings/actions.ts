@@ -12,8 +12,8 @@ import { headers } from "next/headers";
 import { requireAdmin, clientIpFromHeaders, getAdminConfig } from "@/lib/admin/auth";
 import { verifyAdminPassword } from "@/lib/admin/password";
 import {
+  checkAdminLoginLimit,
   hashIp,
-  isAdminLoginRateLimited,
   recordAdminLoginAttempt,
 } from "@/lib/admin/rate-limit";
 import {
@@ -103,10 +103,14 @@ export async function saveBankSettingsAction(
   const confirmPassword = formDataString(formData, "confirmPassword");
   const headersList = await headers();
   const ipHash = hashIp(clientIpFromHeaders(headersList));
-  if (await isAdminLoginRateLimited(ipHash)) {
+  // Ngày 19 A4: bộ đếm DB lỗi → ĐÓNG (từ chối lưu, "Thử lại sau").
+  const loginLimit = await checkAdminLoginLimit(ipHash);
+  if (loginLimit.limited) {
     return {
       ok: false,
-      message: "Quá nhiều lần thử sai, vui lòng thử lại sau 15 phút.",
+      message: loginLimit.unavailable
+        ? "Hệ thống đang bận, vui lòng thử lại sau."
+        : "Quá nhiều lần thử sai, vui lòng thử lại sau 15 phút.",
       errors: {},
     };
   }
@@ -116,7 +120,13 @@ export async function saveBankSettingsAction(
     confirmPassword !== "" &&
     (await verifyAdminPassword(confirmPassword, config.passwordHash));
   if (!passwordOk) {
-    await recordAdminLoginAttempt(ipHash);
+    // Ghi lần sai vào bộ đếm; ghi lỗi thì chỉ log (đã từ chối lưu).
+    await recordAdminLoginAttempt(ipHash).catch((error: unknown) => {
+      console.error(
+        "[bank save] Không ghi được lần sai vào bộ đếm:",
+        error instanceof Error ? error.message : error,
+      );
+    });
     return { ok: false, message: "Mật khẩu không đúng, chưa lưu thay đổi.", errors: {} };
   }
   const { values, errors } = validateBankValues({

@@ -7,6 +7,8 @@ import assert from "node:assert/strict";
 import { db } from "./db";
 import {
   checkRateLimit,
+  checkRateLimitFailClosed,
+  checkRateLimitFailOpen,
   pruneRateLimitEvents,
   resetRateLimit,
 } from "./rate-limit";
@@ -90,5 +92,50 @@ describe("checkRateLimit (DB, cửa sổ trượt)", () => {
     await assert.rejects(checkRateLimit({ key: "   ", limit: 5, windowMs: 60_000 }));
     await assert.rejects(checkRateLimit({ key: `${PREFIX}x`, limit: 0, windowMs: 60_000 }));
     await assert.rejects(checkRateLimit({ key: `${PREFIX}x`, limit: 5, windowMs: 0 }));
+  });
+});
+
+describe("fail-closed / fail-open khi bộ đếm lỗi (Ngày 19 A4)", () => {
+  // Mô phỏng bộ đếm lỗi bằng tham số sai (checkRateLimit ném TRƯỚC
+  // khi chạm DB) — kiểm đúng nhánh catch của hai hàm bọc. Lỗi DB
+  // thật (bảng bộ đếm mất) được kiểm bằng probe live Ngày 19.
+  it("fail-closed: bộ đếm lỗi → ĐÓNG (allowed:false, counterUnavailable:true, Retry-After 60)", async () => {
+    const r = await checkRateLimitFailClosed({
+      key: `${PREFIX}closed:${Date.now()}`,
+      limit: 0,
+      windowMs: 60_000,
+    });
+    assert.equal(r.allowed, false);
+    assert.equal(r.counterUnavailable, true);
+    assert.equal(r.retryAfterSeconds, 60);
+    assert.equal(r.remaining, 0);
+  });
+
+  it("fail-open: bộ đếm lỗi → MỞ (allowed:true, counterUnavailable:true) — chỉ tìm kiếm công khai", async () => {
+    const r = await checkRateLimitFailOpen({
+      key: `${PREFIX}open:${Date.now()}`,
+      limit: 0,
+      windowMs: 60_000,
+    });
+    assert.equal(r.allowed, true);
+    assert.equal(r.counterUnavailable, true);
+  });
+
+  it("bộ đếm bình thường → counterUnavailable:false, hành vi như checkRateLimit", async () => {
+    const key = `${PREFIX}ok:${Date.now()}`;
+    const closed = await checkRateLimitFailClosed({ key, limit: 1, windowMs: 60_000 });
+    assert.equal(closed.allowed, true);
+    assert.equal(closed.counterUnavailable, false);
+    const blocked = await checkRateLimitFailClosed({ key, limit: 1, windowMs: 60_000 });
+    assert.equal(blocked.allowed, false);
+    assert.equal(blocked.counterUnavailable, false);
+    const open = await checkRateLimitFailOpen({
+      key: `${PREFIX}ok2:${Date.now()}`,
+      limit: 1,
+      windowMs: 60_000,
+    });
+    assert.equal(open.allowed, true);
+    assert.equal(open.counterUnavailable, false);
+    await resetRateLimit(key);
   });
 });

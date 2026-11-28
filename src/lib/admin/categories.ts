@@ -95,6 +95,8 @@ export type CategorySaveConflict = { field: "slug"; message: string };
 // Ngày 14, xem findSlugClash trong pages.ts). Nháp hay đã xuất bản
 // đều chặn — vì dữ liệu cũ trùng thì route gốc ưu tiên trang tĩnh
 // (xem README "Trang tĩnh và danh mục — quy tắc ưu tiên slug").
+// Ngày 19 A1: chặn cả slug đã dùng cho bài tin tức (chiều ngược —
+// trước đây chỉ tin tức chặn danh mục, danh mục không chặn tin tức).
 async function findPageSlugClash(slug: string): Promise<CategorySaveConflict | null> {
   const pageClash = await db.page.findFirst({
     where: { slug },
@@ -102,6 +104,13 @@ async function findPageSlugClash(slug: string): Promise<CategorySaveConflict | n
   });
   if (pageClash) {
     return { field: "slug", message: "Đường dẫn này đã dùng cho một trang tĩnh." };
+  }
+  const newsClash = await db.newsArticle.findFirst({
+    where: { slug },
+    select: { id: true },
+  });
+  if (newsClash) {
+    return { field: "slug", message: "Đường dẫn này đã dùng cho một bài tin tức." };
   }
   return null;
 }

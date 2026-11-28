@@ -28,6 +28,7 @@ export default function NewsFilterBar({
         options={[
           { value: "all", label: "Tất cả trạng thái" },
           { value: "published", label: "Đã xuất bản" },
+          { value: "scheduled", label: "Hẹn giờ" },
           { value: "draft", label: "Nháp" },
         ]}
         value={status}

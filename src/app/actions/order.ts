@@ -15,7 +15,7 @@ import { deliveryConfig } from "@/config/delivery";
 import { getValidCartId } from "@/lib/cart";
 import { hashIp } from "@/lib/admin/rate-limit";
 import { clientIpFromHeaders } from "@/lib/admin/ip";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimitFailClosed } from "@/lib/rate-limit";
 import {
   effectiveReceiver,
   validateCheckoutForm,
@@ -119,23 +119,24 @@ export async function placeOrder(
   // Ngày 17 S8: giới hạn đặt hàng theo IP — 10 lần/10 phút, dùng
   // module rate-limit chung (S9). Kiểm SAU khi form hợp lệ (form
   // sai không tính vào quota) và TRƯỚC khi tạo đơn. Chỉ đếm IP đã
-  // băm (hashIp), không lưu IP thô. Lỗi DB của bộ đếm thì cho qua
-  // (fail-open, có log) để không chặn khách vì lỗi bộ đếm.
-  try {
+  // băm (hashIp), không lưu IP thô. Ngày 19 A4: bộ đếm DB lỗi thì
+  // ĐÓNG (từ chối đặt hàng, "Thử lại sau") — không cho qua nữa.
+  {
     const ip = clientIpFromHeaders(await headers());
-    const limited = await checkRateLimit({
+    const limited = await checkRateLimitFailClosed({
       key: `order:ip:${hashIp(ip)}`,
       limit: 10,
       windowMs: 10 * 60 * 1000,
     });
     if (!limited.allowed) {
-      return fail(values, {}, "Bạn đã đặt quá nhiều đơn trong thời gian ngắn, vui lòng thử lại sau.");
+      return fail(
+        values,
+        {},
+        limited.counterUnavailable
+          ? "Hệ thống đang bận, vui lòng thử lại sau."
+          : "Bạn đã đặt quá nhiều đơn trong thời gian ngắn, vui lòng thử lại sau.",
+      );
     }
-  } catch (error) {
-    console.error(
-      "[placeOrder] Lỗi kiểm tra giới hạn tốc độ, cho qua:",
-      error instanceof Error ? error.message : error,
-    );
   }
 
   let order;

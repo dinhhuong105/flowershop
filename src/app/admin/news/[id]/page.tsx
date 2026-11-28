@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/admin/auth";
 import { getAdminNews } from "@/lib/admin/news";
+import { formatVnDateTimeLocal } from "@/lib/vn-datetime";
 import { updateNewsAction } from "@/app/actions/admin";
 import NewsForm from "@/components/admin/NewsForm";
 
@@ -45,6 +46,7 @@ export default async function AdminEditNewsPage({
             author: article.author,
             seoTitle: article.seoTitle,
             seoDescription: article.seoDescription,
+            publishedAt: formatVnDateTimeLocal(article.publishedAt),
             isPublished: article.isPublished,
           }}
         />

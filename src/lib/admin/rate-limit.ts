@@ -30,6 +30,25 @@ export async function isAdminLoginRateLimited(ipHash: string): Promise<boolean> 
   return perIp >= ADMIN_LOGIN_MAX_PER_IP || global >= ADMIN_LOGIN_MAX_GLOBAL;
 }
 
+// Ngày 19 A4 — kiểm tra giới hạn đăng nhập, ĐÓNG khi bộ đếm DB
+// lỗi: `unavailable: true` thì tầng gọi phải TỪ CHỐI đăng nhập
+// (thông báo "Thử lại sau"), không được cho qua như trước. Dùng
+// cho cả đăng nhập lẫn nhập lại mật khẩu khi lưu ngân hàng.
+export async function checkAdminLoginLimit(ipHash: string): Promise<{
+  limited: boolean;
+  unavailable: boolean;
+}> {
+  try {
+    return { limited: await isAdminLoginRateLimited(ipHash), unavailable: false };
+  } catch (error) {
+    console.error(
+      "[admin login] Bộ đếm DB lỗi, ĐÓNG (fail-closed):",
+      error instanceof Error ? error.message : error,
+    );
+    return { limited: true, unavailable: true };
+  }
+}
+
 // Dọn các lần thử đã quá cửa sổ 15 phút (gọi khi đăng nhập thành công).
 export async function cleanupAdminLoginAttempts(): Promise<void> {
   const since = new Date(Date.now() - ADMIN_LOGIN_WINDOW_MINUTES * 60 * 1000);

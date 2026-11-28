@@ -28,6 +28,7 @@ export default async function AdminNewNewsModal() {
           author: "",
           seoTitle: "",
           seoDescription: "",
+          publishedAt: "",
           isPublished: false,
         }}
       />

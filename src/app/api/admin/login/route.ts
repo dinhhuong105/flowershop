@@ -7,8 +7,8 @@ import {
 } from "@/lib/admin/auth";
 import {
   cleanupAdminLoginAttempts,
+  checkAdminLoginLimit,
   hashIp,
-  isAdminLoginRateLimited,
   recordAdminLoginAttempt,
 } from "@/lib/admin/rate-limit";
 
@@ -76,10 +76,21 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const ipHash = hashIp(clientIpFromHeaders(request.headers));
-  if (await isAdminLoginRateLimited(ipHash)) {
-    const error = "Quá nhiều lần đăng nhập sai, vui lòng thử lại sau 15 phút.";
+  // Ngày 19 A4: bộ đếm DB lỗi → ĐÓNG (429 "Thử lại sau"), không
+  // cho đăng nhập khi không đếm được lần sai.
+  const loginLimit = await checkAdminLoginLimit(ipHash);
+  if (loginLimit.limited) {
+    const error = loginLimit.unavailable
+      ? "Hệ thống đang bận, vui lòng thử lại sau."
+      : "Quá nhiều lần đăng nhập sai, vui lòng thử lại sau 15 phút.";
     if (isJson) {
-      return NextResponse.json({ ok: false, error }, { status: 429 });
+      return NextResponse.json(
+        { ok: false, error },
+        {
+          status: 429,
+          headers: { "Retry-After": loginLimit.unavailable ? "60" : "900" },
+        },
+      );
     }
     return NextResponse.redirect(
       redirectUrl(request, `/login?error=rate&u=${encodeURIComponent(username)}`),
@@ -88,7 +99,14 @@ export async function POST(request: Request): Promise<Response> {
 
   const ok = await verifyAdminCredentials(username, password);
   if (!ok) {
-    await recordAdminLoginAttempt(ipHash);
+    // Ghi lần sai vào bộ đếm; ghi lỗi thì chỉ log (đăng nhập vốn
+    // đã bị từ chối 401 — không để lỗi ghi bộ đếm biến thành 500).
+    await recordAdminLoginAttempt(ipHash).catch((error: unknown) => {
+      console.error(
+        "[admin login] Không ghi được lần sai vào bộ đếm:",
+        error instanceof Error ? error.message : error,
+      );
+    });
     if (isJson) {
       return NextResponse.json({ ok: false, error: GENERIC_ERROR }, { status: 401 });
     }

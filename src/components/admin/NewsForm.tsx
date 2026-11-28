@@ -32,6 +32,7 @@ import {
   MAX_NEWS_EXCERPT_LENGTH,
   MAX_NEWS_SEO_DESCRIPTION_LENGTH,
   MAX_NEWS_SEO_TITLE_LENGTH,
+  MAX_NEWS_TITLE_LENGTH,
 } from "@/lib/admin/news-validation";
 import {
   initialAdminNewsState,
@@ -47,6 +48,9 @@ export type NewsFormInitial = {
   author: string;
   seoTitle: string;
   seoDescription: string;
+  // Ngày-giờ đăng đã hẹn, dạng "YYYY-MM-DDTHH:mm" theo giờ VN
+  // (rỗng = không hẹn) — Ngày 19 A1.
+  publishedAt: string;
   isPublished: boolean;
 };
 
@@ -194,6 +198,9 @@ export default function NewsForm({
             className={inputClass}
           />
           {fieldError("title")}
+          <p className="mt-1 text-sm text-slate-500">
+            {(saved?.title ?? initial.title).length} / {MAX_NEWS_TITLE_LENGTH} ký tự.
+          </p>
         </div>
 
         <div>
@@ -413,6 +420,26 @@ export default function NewsForm({
           <p className="mt-1 text-sm text-slate-500">
             {(saved?.seoDescription ?? initial.seoDescription).length} /{" "}
             {MAX_NEWS_SEO_DESCRIPTION_LENGTH} ký tự. Để trống thì dùng tóm tắt của bài.
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="nf-publishedAt" className={labelClass}>
+            Ngày giờ đăng (không bắt buộc)
+          </label>
+          <input
+            id="nf-publishedAt"
+            name="publishedAt"
+            type="datetime-local"
+            defaultValue={saved?.publishedAt ?? initial.publishedAt}
+            aria-invalid={err("publishedAt") ? true : undefined}
+            aria-describedby={err("publishedAt") ? "publishedAt-error" : undefined}
+            className={inputClass}
+          />
+          {fieldError("publishedAt")}
+          <p className="mt-1 text-sm text-slate-500">
+            Giờ Việt Nam. Để trống thì đăng ngay khi xuất bản; hẹn giờ
+            tương lai thì bài chỉ hiện ra shop khi tới giờ đó.
           </p>
         </div>
 

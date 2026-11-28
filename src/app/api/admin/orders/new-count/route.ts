@@ -5,7 +5,7 @@ import {
   requireAdmin,
 } from "@/lib/admin/auth";
 import { hashIp } from "@/lib/admin/rate-limit";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimitFailClosed } from "@/lib/rate-limit";
 import {
   NEW_ORDER_COUNT_RATE_LIMIT,
   NEW_ORDER_COUNT_RATE_WINDOW_MS,
@@ -59,14 +59,21 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const ipHash = hashIp(clientIpFromHeaders(request.headers));
-  const limited = await checkRateLimit({
+  // Ngày 19 A4: bộ đếm DB lỗi → ĐÓNG (429 "Thử lại sau"), không
+  // trả 500 và không cho qua khi không đếm được.
+  const limited = await checkRateLimitFailClosed({
     key: `new-count:ip:${ipHash}`,
     limit: NEW_ORDER_COUNT_RATE_LIMIT,
     windowMs: NEW_ORDER_COUNT_RATE_WINDOW_MS,
   });
   if (!limited.allowed) {
     return NextResponse.json(
-      { ok: false, error: "Quá nhiều yêu cầu, vui lòng thử lại sau." },
+      {
+        ok: false,
+        error: limited.counterUnavailable
+          ? "Hệ thống đang bận, vui lòng thử lại sau."
+          : "Quá nhiều yêu cầu, vui lòng thử lại sau.",
+      },
       {
         status: 429,
         headers: {

@@ -149,8 +149,14 @@ export default async function AdminDashboardPage() {
       linkLabel: "Xem danh sách →",
       icon: ICON_CLIPBOARD,
       iconClass: "bg-blue-100 text-blue-600",
-      subText: `${stats.overduePendingCount} đơn đã quá hạn giao`,
-      subHref: "/admin/orders?tab=pending&overdue=1",
+      // Ngày 19 A3: dòng phụ "N đơn đã quá hạn giao" CHỈ hiện khi
+      // N > 0 — khi N = 0 thì không hiện dòng đỏ "0 đơn..." nữa.
+      ...(stats.overduePendingCount > 0
+        ? {
+            subText: `${stats.overduePendingCount} đơn đã quá hạn giao`,
+            subHref: "/admin/orders?tab=pending&overdue=1",
+          }
+        : {}),
     },
     {
       label: "Đơn giao hôm nay",

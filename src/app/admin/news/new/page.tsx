@@ -32,6 +32,7 @@ export default async function AdminNewNewsPage() {
             author: "",
             seoTitle: "",
             seoDescription: "",
+            publishedAt: "",
             isPublished: false,
           }}
         />

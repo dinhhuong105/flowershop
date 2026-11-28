@@ -2,8 +2,10 @@
 // shop (/tin-tuc, /tin-tuc/[slug]). Theo mẫu trang tĩnh
 // (pages.ts): chỉ bài isPublished mới trả về cho shop; nháp hoặc
 // không tồn tại → null (trang chi tiết trả 404). Tạo/sửa/xóa/xuất
-// bản đều ghi settings_audit (khóa "news:<slug>", ai + lúc nào)
-// trong cùng transaction với thay đổi.
+// bản đều ghi settings_audit (khóa "article:<slug>" theo bản Ngày
+// 18 của Claude, Message 68 — ai + lúc nào) trong cùng transaction
+// với thay đổi. Dòng nhật ký cũ khóa "news:<slug>" (Ngày 18) vẫn
+// hiện đúng khu vực "Tin tức" (xem activityAreaOf).
 
 import { cache } from "react";
 import { db } from "../db";
@@ -54,13 +56,38 @@ export function newsDisplayDate(article: {
   return article.publishedAt ?? article.createdAt;
 }
 
+// Điều kiện "đã tới giờ hiện ra shop" (Ngày 19 A1 — hẹn giờ xuất
+// bản): bài đã bật xuất bản NHƯNG publishedAt còn trong tương lai
+// thì chưa hiện (danh sách, chi tiết, tìm kiếm, sitemap). Bài
+// chưa hẹn giờ (publishedAt null) hiện ngay khi đã xuất bản.
+// `now` truyền vào để test được; mặc định giờ hiện tại.
+export function publishedVisibleWhere(now: Date = new Date()) {
+  return {
+    OR: [{ publishedAt: null }, { publishedAt: { lte: now } }],
+  };
+}
+
+// Nhãn trạng thái trong danh sách admin (bản Ngày 18 của Claude:
+// Nháp / Đã xuất bản / Hẹn giờ). Bài đã bật xuất bản nhưng
+// publishedAt còn trong tương lai → "Hẹn giờ" (chưa hiện ra shop).
+// `now` truyền vào để test được; mặc định giờ hiện tại.
+export function newsStatusLabel(
+  article: { isPublished: boolean; publishedAt: Date | null },
+  now: Date = new Date(),
+): "Nháp" | "Đã xuất bản" | "Hẹn giờ" {
+  if (!article.isPublished) return "Nháp";
+  if (article.publishedAt !== null && article.publishedAt > now) return "Hẹn giờ";
+  return "Đã xuất bản";
+}
+
 export type NewsListFilters = {
-  status?: "all" | "published" | "draft";
+  status?: "all" | "published" | "draft" | "scheduled";
   q?: string;
 };
 
 export async function listAdminNews(
   filters: NewsListFilters = {},
+  now: Date = new Date(),
 ): Promise<AdminNewsRow[]> {
   const q = (filters.q ?? "").trim();
   return db.newsArticle.findMany({
@@ -69,7 +96,9 @@ export async function listAdminNews(
         ? { isPublished: true }
         : filters.status === "draft"
           ? { isPublished: false }
-          : {}),
+          : filters.status === "scheduled"
+            ? { isPublished: true, publishedAt: { gt: now } }
+            : {}),
       ...(q === ""
         ? {}
         : {
@@ -128,9 +157,10 @@ export type PublishedNewsList = {
 export async function listPublishedNews(
   page = 1,
   pageSize: number = PAGE_SIZE,
+  now: Date = new Date(),
 ): Promise<PublishedNewsList> {
   const current = page >= 1 ? page : 1;
-  const where = { isPublished: true };
+  const where = { isPublished: true, ...publishedVisibleWhere(now) };
   const [rows, total] = await Promise.all([
     db.newsArticle.findMany({
       where,
@@ -164,11 +194,13 @@ export async function listPublishedNews(
 }
 
 // Bài đã xuất bản cho mặt shop: nháp/không tồn tại → null.
+// Bài hẹn giờ tương lai cũng → null (chưa tới giờ đăng, Ngày 19 A1).
 export async function getPublishedNewsBySlug(
   slug: string,
+  now: Date = new Date(),
 ): Promise<PublishedNewsArticle | null> {
   return db.newsArticle.findFirst({
-    where: { slug, isPublished: true },
+    where: { slug, isPublished: true, ...publishedVisibleWhere(now) },
     select: {
       id: true,
       slug: true,
@@ -240,9 +272,25 @@ async function findSlugClash(
   return null;
 }
 
-// publishedAt lúc tạo/sửa: xuất bản lần đầu mà đang null → now;
-// về nháp thì giữ nguyên publishedAt cũ (xuất bản lại giữ ngày
-// đăng gốc); đã có publishedAt thì không đổi.
+// publishedAt lúc tạo/sửa QUA FORM (Ngày 19 A1): giờ hẹn nhập
+// tay là chuẩn — kể cả lưu nháp (nháp hẹn giờ tương lai, bật xuất
+// bản sau vẫn giữ giờ hẹn đó). Không hẹn + đang xuất bản → now;
+// không hẹn + nháp → null (chưa có ngày đăng; bật xuất bản sau
+// bằng nút toggle sẽ đặt now, xem publishedAtForSave). Xóa giờ hẹn
+// đã có trên bài đang xuất bản → now (đăng ngay).
+function publishedAtForFormSave(
+  isPublished: boolean,
+  scheduled: Date | null,
+): Date | null {
+  if (scheduled !== null) return scheduled;
+  if (isPublished) return new Date();
+  return null;
+}
+
+// publishedAt khi BẬT/TẮT xuất bản bằng nút toggle (không qua
+// form): xuất bản lần đầu mà đang null → now; về nháp thì giữ
+// nguyên publishedAt cũ (xuất bản lại giữ ngày đăng gốc); đã có
+// publishedAt thì không đổi.
 function publishedAtForSave(
   isPublished: boolean,
   existingPublishedAt: Date | null,
@@ -266,14 +314,14 @@ export async function createAdminNews(
         coverImage: values.coverImage,
         author: values.author,
         isPublished: values.isPublished,
-        publishedAt: publishedAtForSave(values.isPublished, null),
+        publishedAt: publishedAtForFormSave(values.isPublished, values.publishedAt),
         seoTitle: values.seoTitle,
         seoDescription: values.seoDescription,
       },
       select: { id: true, slug: true },
     });
     await tx.settingsAudit.create({
-      data: { key: `news:${article.slug}`, oldValue: null, newValue: "created", updatedBy: "admin" },
+      data: { key: `article:${article.slug}`, oldValue: null, newValue: "created", updatedBy: "admin" },
     });
     return article;
   });
@@ -302,14 +350,14 @@ export async function updateAdminNews(
         coverImage: values.coverImage,
         author: values.author,
         isPublished: values.isPublished,
-        publishedAt: publishedAtForSave(values.isPublished, existing.publishedAt),
+        publishedAt: publishedAtForFormSave(values.isPublished, values.publishedAt),
         seoTitle: values.seoTitle,
         seoDescription: values.seoDescription,
       },
     });
     await tx.settingsAudit.create({
       data: {
-        key: `news:${values.slug}`,
+        key: `article:${values.slug}`,
         oldValue: existing.title,
         newValue: "updated",
         updatedBy: "admin",
@@ -360,7 +408,7 @@ export async function setAdminNewsPublished(
     });
     await tx.settingsAudit.create({
       data: {
-        key: `news:${existing.slug}`,
+        key: `article:${existing.slug}`,
         oldValue: existing.isPublished ? "published" : "draft",
         newValue: isPublished ? "news-published" : "news-draft",
         updatedBy: "admin",
@@ -382,7 +430,7 @@ export async function deleteAdminNews(id: number): Promise<DeleteNewsResult> {
     await tx.newsArticle.delete({ where: { id } });
     await tx.settingsAudit.create({
       data: {
-        key: `news:${existing.slug}`,
+        key: `article:${existing.slug}`,
         oldValue: existing.title,
         newValue: "deleted",
         updatedBy: "admin",

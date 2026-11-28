@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/admin/auth";
 import { getAdminNews } from "@/lib/admin/news";
+import { formatVnDateTimeLocal } from "@/lib/vn-datetime";
 import { updateNewsAction } from "@/app/actions/admin";
 import NewsForm from "@/components/admin/NewsForm";
 import ProductModal from "@/components/admin/ProductModal";
@@ -40,6 +41,7 @@ export default async function AdminEditNewsModal({
           author: article.author,
           seoTitle: article.seoTitle,
           seoDescription: article.seoDescription,
+          publishedAt: formatVnDateTimeLocal(article.publishedAt),
           isPublished: article.isPublished,
         }}
       />

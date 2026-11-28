@@ -17,6 +17,7 @@ function input(over: Partial<NewsFormInput> = {}): NewsFormInput {
     author: "Hoa Tươi",
     seoTitle: "",
     seoDescription: "",
+    publishedAt: "",
     isPublished: false,
     ...over,
   };
@@ -33,11 +34,16 @@ describe("validateNewsForm", () => {
     assert.equal(values?.author, "");
   });
 
-  it("tiêu đề bắt buộc: rỗng hoặc 1 ký tự → lỗi; 121 ký tự → lỗi", () => {
+  it("tiêu đề bắt buộc: rỗng, 1–2 ký tự → lỗi; 160 → qua; 161 → lỗi (bản Claude: 3–160)", () => {
     assert.ok(validateNewsForm(input({ title: "" })).errors.title);
     assert.ok(validateNewsForm(input({ title: "A" })).errors.title);
-    assert.ok(validateNewsForm(input({ title: "a".repeat(121) })).errors.title);
-    assert.equal(validateNewsForm(input({ title: "ab" })).errors.title, undefined);
+    assert.ok(validateNewsForm(input({ title: "ab" })).errors.title);
+    assert.equal(validateNewsForm(input({ title: "abc" })).errors.title, undefined);
+    assert.equal(
+      validateNewsForm(input({ title: "a".repeat(160) })).errors.title,
+      undefined,
+    );
+    assert.ok(validateNewsForm(input({ title: "a".repeat(161) })).errors.title);
   });
 
   it("slug nhập tay sai mẫu / trùng đường dẫn cố định → lỗi", () => {
@@ -48,16 +54,20 @@ describe("validateNewsForm", () => {
     assert.equal(validateNewsForm(input({ slug: "tin-hay" })).errors.slug, undefined);
   });
 
-  it("tóm tắt > 200 ký tự → lỗi; đúng 200 → qua", () => {
-    assert.ok(validateNewsForm(input({ excerpt: "x".repeat(201) })).errors.excerpt);
+  it("tóm tắt > 300 ký tự → lỗi; đúng 300 → qua (bản Claude: ≤ 300)", () => {
+    assert.ok(validateNewsForm(input({ excerpt: "x".repeat(301) })).errors.excerpt);
     assert.equal(
-      validateNewsForm(input({ excerpt: "x".repeat(200) })).errors.excerpt,
+      validateNewsForm(input({ excerpt: "x".repeat(300) })).errors.excerpt,
       undefined,
     );
   });
 
-  it("nội dung > 20.000 ký tự → lỗi", () => {
-    assert.ok(validateNewsForm(input({ content: "x".repeat(20001) })).errors.content);
+  it("nội dung > 30.000 ký tự → lỗi; đúng 30.000 → qua (bản Claude: ≤ 30.000)", () => {
+    assert.ok(validateNewsForm(input({ content: "x".repeat(30001) })).errors.content);
+    assert.equal(
+      validateNewsForm(input({ content: "x".repeat(30000) })).errors.content,
+      undefined,
+    );
   });
 
   it("tác giả > 100 ký tự → lỗi; ảnh đại diện sai scheme → lỗi", () => {
@@ -78,6 +88,22 @@ describe("validateNewsForm", () => {
       validateNewsForm(input({ seoDescription: "x".repeat(161) })).errors
         .seoDescription,
     );
+  });
+  it("hẹn giờ đăng (Ngày 19 A1): rỗng → null; giờ VN hợp lệ → Date UTC đúng; sai dạng/ngày không tồn tại → lỗi", () => {
+    const empty = validateNewsForm(input({ publishedAt: "" }));
+    assert.deepEqual(empty.errors, {});
+    assert.equal(empty.values?.publishedAt, null);
+    // 01/12/2026 08:30 giờ VN = 01:30 UTC cùng ngày.
+    const ok = validateNewsForm(input({ publishedAt: "2026-12-01T08:30" }));
+    assert.deepEqual(ok.errors, {});
+    assert.equal(ok.values?.publishedAt?.toISOString(), "2026-12-01T01:30:00.000Z");
+    // Nửa đêm giờ VN = 17:00 UTC hôm trước.
+    const midnight = validateNewsForm(input({ publishedAt: "2026-12-01T00:00" }));
+    assert.equal(midnight.values?.publishedAt?.toISOString(), "2026-11-30T17:00:00.000Z");
+    assert.ok(validateNewsForm(input({ publishedAt: "01/12/2026 08:30" })).errors.publishedAt);
+    assert.ok(validateNewsForm(input({ publishedAt: "2026-13-01T08:30" })).errors.publishedAt);
+    assert.ok(validateNewsForm(input({ publishedAt: "2026-02-30T08:30" })).errors.publishedAt);
+    assert.ok(validateNewsForm(input({ publishedAt: "2026-12-01T25:00" })).errors.publishedAt);
   });
 });
 

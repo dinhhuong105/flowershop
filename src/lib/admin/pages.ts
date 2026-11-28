@@ -212,7 +212,8 @@ function replaceConfirmConflict(values: PageFormValues): PageSaveConflict | null
 }
 
 // Slug không được trùng trang khác, không trùng slug danh mục
-// (B1), không trùng đường dẫn cố định (phòng thủ thêm — form đã
+// (B1), không trùng slug bài tin tức (Ngày 19 A1 — chiều ngược),
+// không trùng đường dẫn cố định (phòng thủ thêm — form đã
 // kiểm trước).
 async function findSlugClash(
   slug: string,
@@ -237,6 +238,13 @@ async function findSlugClash(
   });
   if (categoryClash) {
     return { field: "slug", message: "Đường dẫn này đã dùng cho một danh mục." };
+  }
+  const newsClash = await db.newsArticle.findFirst({
+    where: { slug },
+    select: { id: true },
+  });
+  if (newsClash) {
+    return { field: "slug", message: "Đường dẫn này đã dùng cho một bài tin tức." };
   }
   return null;
 }

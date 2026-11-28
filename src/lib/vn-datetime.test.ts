@@ -1,7 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { vnDayBounds } from "./admin/dashboard";
-import { formatVnDate, formatVnDateTime } from "./vn-datetime";
+import {
+  formatVnDate,
+  formatVnDateTime,
+  formatVnDateTimeLocal,
+  parseVnDateTimeLocal,
+} from "./vn-datetime";
 
 // Múi giờ dashboard (mục 4 verdict Ngày 10): Vercel chạy UTC nên
 // vùng rủi ro là 00:00–07:00 giờ VN, khi ngày UTC còn lùi một ngày
@@ -60,5 +65,39 @@ describe("ngày đăng tin tức — formatVnDate", () => {
     assert.equal(formatVnDate(new Date("2026-11-25T16:30:00Z")), "25/11/2026");
     // 17:30 UTC ngày 25 = 00:30 giờ VN ngày 26.
     assert.equal(formatVnDate(new Date("2026-11-25T17:30:00Z")), "26/11/2026");
+  });
+});
+
+describe("hẹn giờ đăng tin tức — parseVnDateTimeLocal / formatVnDateTimeLocal (Ngày 19 A1)", () => {
+  it("parse: giờ tường VN trừ 7 giờ ra UTC; nửa đêm VN = 17:00 UTC hôm trước", () => {
+    assert.equal(
+      parseVnDateTimeLocal("2026-12-01T08:30")?.toISOString(),
+      "2026-12-01T01:30:00.000Z",
+    );
+    assert.equal(
+      parseVnDateTimeLocal("2026-12-01T00:00")?.toISOString(),
+      "2026-11-30T17:00:00.000Z",
+    );
+    assert.equal(
+      parseVnDateTimeLocal("2026-12-01T23:59")?.toISOString(),
+      "2026-12-01T16:59:00.000Z",
+    );
+  });
+  it("parse: sai dạng / ngày-giờ không tồn tại → null", () => {
+    assert.equal(parseVnDateTimeLocal(""), null);
+    assert.equal(parseVnDateTimeLocal("2026-12-01 08:30"), null);
+    assert.equal(parseVnDateTimeLocal("2026-12-01T08:30:00"), null);
+    assert.equal(parseVnDateTimeLocal("2026-13-01T08:30"), null);
+    assert.equal(parseVnDateTimeLocal("2026-02-30T08:30"), null);
+    assert.equal(parseVnDateTimeLocal("2026-12-01T24:00"), null);
+    assert.equal(parseVnDateTimeLocal("2026-12-01T08:60"), null);
+  });
+  it("format + parse khứ hồi đúng giờ VN, kể cả nửa đêm", () => {
+    for (const iso of ["2026-11-30T17:00:00.000Z", "2026-12-01T01:30:00.000Z", "2026-12-01T16:59:00.000Z"]) {
+      const d = new Date(iso);
+      assert.equal(parseVnDateTimeLocal(formatVnDateTimeLocal(d))?.toISOString(), iso);
+    }
+    assert.equal(formatVnDateTimeLocal(new Date("2026-11-30T17:00:00.000Z")), "2026-12-01T00:00");
+    assert.equal(formatVnDateTimeLocal(null), "");
   });
 });

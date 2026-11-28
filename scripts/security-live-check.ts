@@ -170,6 +170,46 @@ async function main() {
     await db.adminLoginAttempt.deleteMany({});
   });
 
+  console.log("S7/S9 — tra cứu đơn + giới hạn (Ngày 19 A4):");
+  await check("mã sai → 404 thống nhất; 30 lần/phút, lần 31 trả 200 kèm thông báo giới hạn", async () => {
+    // Mã đúng định dạng (10 ký tự Crockford) nhưng không tồn tại.
+    // LƯU Ý Ngày 19 A4.1 KHÔNG ĐẠT: page App Router không đặt được
+    // mã 429, và chặn ở middleware bằng fetch route nội bộ đã gỡ
+    // (fetch Edge tới chính server local hỏng — xem ghi chú trong
+    // src/app/order/[code]/page.tsx). Giới hạn + fail-closed vẫn
+    // giữ ở mức page: lần 31 trả 200 kèm thông báo "tra cứu quá
+    // nhiều lần", không truy vấn thêm DB.
+    const code = "AAAAAAAAAA";
+    // Dọn trước: kiểm tra S1 trước đó cũng tra cứu /order/ nên bộ
+    // đếm có thể đã có sự kiện; dọn sau đặt trong finally để lần
+    // chạy sau không bị lệch dù assert có ném lỗi.
+    await db.rateLimitEvent.deleteMany({ where: { key: { startsWith: "lookup:" } } });
+    let last = 0;
+    let lastBody = "";
+    try {
+      for (let i = 0; i < 31; i++) {
+        const r = await fetchNoRedirect(`${BASE}/order/${code}`);
+        last = r.status;
+        if (i < 30) {
+          assert(r.status === 404, `lần ${i + 1} kỳ vọng 404, được ${r.status}`);
+        } else {
+          lastBody = await r.text();
+        }
+      }
+    } finally {
+      await db.rateLimitEvent.deleteMany({ where: { key: { startsWith: "lookup:" } } });
+    }
+    assertEq(last, 200);
+    assert(
+      lastBody.includes("Tra cứu quá nhiều lần"),
+      "lần 31 phải hiện thông báo giới hạn tra cứu",
+    );
+  });
+  await check("route nội bộ lookup-limit đã gỡ → 404", async () => {
+    const r = await fetchNoRedirect(`${BASE}/api/internal/lookup-limit`);
+    assertEq(r.status, 404);
+  });
+
   console.log("S3 — injection (tham số công khai):");
   const sqliPayloads = [
     "' OR 1=1--",

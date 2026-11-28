@@ -55,6 +55,7 @@ runStep("unit test bảo mật", npxBin, [
   "src/lib/markdown.test.ts",
   "src/lib/admin/uploads.test.ts",
   "src/lib/admin/news-validation.test.ts",
+  "src/lib/news-jsonld.test.ts",
   "src/lib/storage.test.ts",
   "src/lib/admin/ip.test.ts",
   "src/lib/admin/password.test.ts",

@@ -148,3 +148,59 @@ describe("va chạm slug danh mục ↔ trang tĩnh (Ngày 15 B1)", () => {
     assert.ok(category, "danh mục cùng slug vẫn tồn tại (dữ liệu cũ trùng)");
   });
 });
+
+describe("va chạm slug với tin tức, cả hai chiều (Ngày 19 A1)", () => {
+  const NEWS_SLUG = "test-ngay19-tin-tuc";
+
+  before(async () => {
+    await db.newsArticle.deleteMany({ where: { slug: NEWS_SLUG } });
+    await db.settingsAudit.deleteMany({ where: { key: `news:${NEWS_SLUG}` } });
+    await db.category.deleteMany({ where: { slug: NEWS_SLUG } });
+    await db.page.deleteMany({ where: { slug: NEWS_SLUG } });
+  });
+  after(async () => {
+    await db.newsArticle.deleteMany({ where: { slug: NEWS_SLUG } });
+    await db.settingsAudit.deleteMany({ where: { key: `news:${NEWS_SLUG}` } });
+    await db.category.deleteMany({ where: { slug: NEWS_SLUG } });
+    await db.page.deleteMany({ where: { slug: NEWS_SLUG } });
+  });
+
+  it("tạo danh mục / trang tĩnh trùng slug bài tin tức → từ chối (chiều ngược)", async () => {
+    const { createAdminNews } = await import("./news");
+    const created = await createAdminNews({
+      title: "Tin thử va chạm",
+      slug: NEWS_SLUG,
+      excerpt: "",
+      content: "Nội dung.",
+      coverImage: "",
+      author: "",
+      seoTitle: "",
+      seoDescription: "",
+      publishedAt: null,
+      isPublished: false,
+    });
+    assert.ok(!("conflict" in created), "phải tạo được bài tin tức trước");
+
+    const cat = await createAdminCategory(categoryValues(NEWS_SLUG));
+    assert.ok("conflict" in cat, "danh mục trùng slug tin tức phải bị chặn");
+    assert.equal(cat.conflict.field, "slug");
+    assert.match(cat.conflict.message, /bài tin tức/);
+
+    const { createAdminPage } = await import("./pages");
+    const page = await createAdminPage({
+      title: "Trang thử va chạm",
+      slug: NEWS_SLUG,
+      content: "Nội dung.",
+      seoTitle: "",
+      seoDescription: "",
+      sortOrder: 99,
+      isPublished: false,
+      showInFooter: false,
+      legacyPath: null,
+      confirmReplace: false,
+    });
+    assert.ok("conflict" in page, "trang tĩnh trùng slug tin tức phải bị chặn");
+    assert.equal(page.conflict.field, "slug");
+    assert.match(page.conflict.message, /bài tin tức/);
+  });
+});

@@ -2,10 +2,13 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { headers } from "next/headers";
 import {
   getPublishedNewsBySlugCached,
   newsDisplayDate,
 } from "@/lib/admin/news";
+import { articleJsonLd } from "@/lib/news-jsonld";
+import { escapeJsonForScript } from "@/lib/security-headers";
 import { getSettings } from "@/lib/settings-cache";
 import { renderMarkdown } from "@/lib/markdown";
 import { formatVnDate } from "@/lib/vn-datetime";
@@ -52,9 +55,22 @@ export default async function NewsDetailPage({ params }: Props) {
   const article = await getPublishedNewsBySlugCached(slug);
   // Nháp/không tồn tại → 404 (không lộ nội dung nháp).
   if (!article) notFound();
+  // Nonce CSP do middleware sinh mỗi request (cùng cách layout gốc
+  // gắn nonce cho JSON-LD Organization).
+  const nonce = (await headers()).get("x-nonce") ?? "";
 
   return (
     <>
+      {/* JSON-LD Article (Ngày 19 A1): chỉ trường có dữ liệu —
+          tác giả trống thì bỏ author (A2); thoát <, > và & để
+          không thoát khỏi thẻ script (S3). */}
+      <script
+        type="application/ld+json"
+        nonce={nonce === "" ? undefined : nonce}
+        dangerouslySetInnerHTML={{
+          __html: escapeJsonForScript(JSON.stringify(articleJsonLd(article))),
+        }}
+      />
       <div className="shell pb-12 pt-6">
         <p>
           <Link href="/tin-tuc" className="inline-flex min-h-11 items-center text-sm font-semibold text-green-800 hover:underline">

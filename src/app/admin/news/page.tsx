@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { requireAdmin } from "@/lib/admin/auth";
-import { listAdminNews, newsDisplayDate } from "@/lib/admin/news";
+import { listAdminNews, newsDisplayDate, newsStatusLabel } from "@/lib/admin/news";
 import AdminIconButton, { PencilIcon } from "@/components/admin/AdminIconButton";
 import DeleteNewsButton from "@/components/admin/DeleteNewsButton";
 import NewsFilterBar from "@/components/admin/NewsFilterBar";
@@ -30,7 +30,11 @@ export default async function AdminNewsPage({
   await requireAdmin();
   const params = await searchParams;
   const status =
-    params.status === "published" || params.status === "draft" ? params.status : "all";
+    params.status === "published" ||
+    params.status === "draft" ||
+    params.status === "scheduled"
+      ? params.status
+      : "all";
   const q = (params.q ?? "").trim();
   const articles = await listAdminNews({ status, q });
 
@@ -89,7 +93,7 @@ export default async function AdminNewsPage({
                     </td>
                     <td className="break-words px-4 py-3">{a.author === "" ? "—" : a.author}</td>
                     <td className="px-4 py-3">
-                      {a.isPublished ? "Đã xuất bản" : "Nháp"}
+                      {newsStatusLabel(a)}
                     </td>
                     <td className="px-4 py-3">{formatVnDateTime(newsDisplayDate(a))}</td>
                     <td className="px-4 py-3">
@@ -119,7 +123,7 @@ export default async function AdminNewsPage({
                   {a.title}
                 </Link>
                 <p className="mt-1 text-sm text-slate-500">
-                  /tin-tuc/{a.slug} · {a.isPublished ? "Đã xuất bản" : "Nháp"} ·{" "}
+                  /tin-tuc/{a.slug} · {newsStatusLabel(a)} ·{" "}
                   {a.author === "" ? "Không có tác giả" : a.author} ·{" "}
                   {formatVnDateTime(newsDisplayDate(a))}
                 </p>

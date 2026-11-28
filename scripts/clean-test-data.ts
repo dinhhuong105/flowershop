@@ -180,7 +180,13 @@ async function main(): Promise<void> {
       where: { slug: { startsWith: TEST_NEWS_SLUG_PREFIX } },
     });
     const deletedAudit = await db.settingsAudit.deleteMany({
-      where: { key: { startsWith: `news:${TEST_NEWS_SLUG_PREFIX}` } },
+      where: {
+        OR: [
+          { key: { startsWith: `article:${TEST_NEWS_SLUG_PREFIX}` } },
+          // Dòng cũ khóa "news:" (Ngày 18) nếu còn sót.
+          { key: { startsWith: `news:${TEST_NEWS_SLUG_PREFIX}` } },
+        ],
+      },
     });
     console.log(`[đã xóa] ${deleted.count} bài tin tức test + ${deletedAudit.count} dòng audit.`);
   }

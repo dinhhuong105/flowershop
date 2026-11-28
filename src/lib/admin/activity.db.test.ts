@@ -198,18 +198,26 @@ describe("resolveActivityKeys — khóa sản phẩm cũ đổi sang SKU lúc hi
     }
   });
 
-  it("lọc theo khu vực Tin tức chỉ thấy dòng news:", async () => {
+  it("lọc theo khu vực Tin tức thấy dòng article: (khóa mới, bản Claude) và dòng news: cũ", async () => {
     await db.settingsAudit.createMany({
       data: [
-        { key: "news:n18-test-bai", oldValue: null, newValue: "created", updatedBy: "admin" },
+        { key: "article:n18-test-bai", oldValue: null, newValue: "created", updatedBy: "admin" },
+        { key: "news:n18-test-bai-cu", oldValue: null, newValue: "created", updatedBy: "admin" },
       ],
     });
     try {
       const list = await listActivity({ area: "news" });
-      assert.ok(list.rows.every((r) => r.key.startsWith("news:")));
-      assert.ok(list.rows.some((r) => r.key === "news:n18-test-bai"));
+      assert.ok(list.rows.every((r) => r.key.startsWith("article:") || r.key.startsWith("news:")));
+      assert.ok(list.rows.some((r) => r.key === "article:n18-test-bai"));
+      assert.ok(list.rows.some((r) => r.key === "news:n18-test-bai-cu"));
+      // Khu vực + từ khóa cùng lúc: vẫn chỉ thấy dòng khớp cả hai.
+      const narrowed = await listActivity({ area: "news", q: "article:n18-test-bai" });
+      assert.ok(narrowed.rows.some((r) => r.key === "article:n18-test-bai"));
+      assert.ok(!narrowed.rows.some((r) => r.key === "news:n18-test-bai-cu"));
     } finally {
-      await db.settingsAudit.deleteMany({ where: { key: "news:n18-test-bai" } });
+      await db.settingsAudit.deleteMany({
+        where: { key: { in: ["article:n18-test-bai", "news:n18-test-bai-cu"] } },
+      });
     }
   });
 });

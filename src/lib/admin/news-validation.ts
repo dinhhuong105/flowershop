@@ -5,30 +5,35 @@
 // danh mục/sản phẩm/trang tĩnh.
 
 import { isReservedSlug } from "@/lib/reserved-slugs";
+import { parseVnDateTimeLocal } from "@/lib/vn-datetime";
 import {
   MAX_PAGE_SEO_DESCRIPTION_LENGTH,
   MAX_PAGE_SEO_TITLE_LENGTH,
   MAX_PAGE_SLUG_LENGTH,
-  MAX_PAGE_TITLE_LENGTH,
   MIN_PAGE_SLUG_LENGTH,
 } from "./page-validation";
 import { PRODUCT_SLUG_RE, slugifyName } from "./product-validation";
 
-// Giới hạn theo đặc tả Ngày 18 (§9 "Ngưỡng deploy" + mẫu trang
-// tĩnh): slug 2–60, tiêu đề 2–120, tóm tắt ≤ 200, nội dung ≤ 20.000,
-// tác giả ≤ 100, ảnh đại diện ≤ 500 ký tự (URL do máy chủ sinh khi
-// tải lên, hoặc dán URL), seoTitle ≤ 120, seoDescription ≤ 160.
-export const MAX_NEWS_TITLE_LENGTH = MAX_PAGE_TITLE_LENGTH;
+// Giới hạn theo bản Ngày 18 của Claude (Message 68, 28/11 — chuẩn
+// đối chiếu A1 Ngày 19, thay cho §9 ngay-17-dac-ta.md): tiêu đề
+// 3–160, tóm tắt ≤ 300, nội dung ≤ 30.000, seoTitle ≤ 120,
+// seoDescription ≤ 160; slug 2–60 (theo mẫu trang tĩnh), tác giả
+// ≤ 100, ảnh đại diện ≤ 500 ký tự (URL do máy chủ sinh khi tải
+// lên, hoặc dán URL).
+export const MIN_NEWS_TITLE_LENGTH = 3;
+export const MAX_NEWS_TITLE_LENGTH = 160;
 export const MIN_NEWS_SLUG_LENGTH = MIN_PAGE_SLUG_LENGTH;
 export const MAX_NEWS_SLUG_LENGTH = MAX_PAGE_SLUG_LENGTH;
-export const MAX_NEWS_EXCERPT_LENGTH = 200;
-export const MAX_NEWS_CONTENT_LENGTH = 20000;
+export const MAX_NEWS_EXCERPT_LENGTH = 300;
+export const MAX_NEWS_CONTENT_LENGTH = 30000;
 export const MAX_NEWS_AUTHOR_LENGTH = 100;
 export const MAX_NEWS_COVER_IMAGE_LENGTH = 500;
 export const MAX_NEWS_SEO_TITLE_LENGTH = MAX_PAGE_SEO_TITLE_LENGTH;
 export const MAX_NEWS_SEO_DESCRIPTION_LENGTH = MAX_PAGE_SEO_DESCRIPTION_LENGTH;
 
 // Dữ liệu thô từ FormData (mọi trường đều là chuỗi, trừ checkbox).
+// publishedAt: chuỗi "YYYY-MM-DDTHH:mm" theo giờ VN từ ô
+// datetime-local; rỗng = không hẹn giờ (Ngày 19 A1).
 export type NewsFormInput = {
   title: string;
   slug: string;
@@ -38,6 +43,7 @@ export type NewsFormInput = {
   author: string;
   seoTitle: string;
   seoDescription: string;
+  publishedAt: string;
   isPublished: boolean;
 };
 
@@ -50,6 +56,9 @@ export type NewsFormValues = {
   author: string;
   seoTitle: string;
   seoDescription: string;
+  // Ngày-giờ đăng đã hẹn (giờ VN → Date UTC); null = không hẹn
+  // (xuất bản lần đầu thì lấy giờ hiện tại, xem news.ts).
+  publishedAt: Date | null;
   isPublished: boolean;
 };
 
@@ -62,7 +71,8 @@ export type NewsFormErrors = Partial<
     | "coverImage"
     | "author"
     | "seoTitle"
-    | "seoDescription",
+    | "seoDescription"
+    | "publishedAt",
     string
   >
 >;
@@ -86,8 +96,8 @@ export function validateNewsForm(input: NewsFormInput): {
   const errors: NewsFormErrors = {};
 
   const title = input.title.trim();
-  if (title.length < 2 || title.length > MAX_NEWS_TITLE_LENGTH) {
-    errors.title = "Tiêu đề phải từ 2 đến 120 ký tự.";
+  if (title.length < MIN_NEWS_TITLE_LENGTH || title.length > MAX_NEWS_TITLE_LENGTH) {
+    errors.title = "Tiêu đề phải từ 3 đến 160 ký tự.";
   }
 
   // Slug trống → tự sinh từ tiêu đề; slug nhập tay phải đúng mẫu,
@@ -104,12 +114,12 @@ export function validateNewsForm(input: NewsFormInput): {
 
   const excerpt = input.excerpt.trim();
   if (excerpt.length > MAX_NEWS_EXCERPT_LENGTH) {
-    errors.excerpt = "Tóm tắt tối đa 200 ký tự.";
+    errors.excerpt = "Tóm tắt tối đa 300 ký tự.";
   }
 
   const content = input.content;
   if (content.length > MAX_NEWS_CONTENT_LENGTH) {
-    errors.content = "Nội dung tối đa 20.000 ký tự.";
+    errors.content = "Nội dung tối đa 30.000 ký tự.";
   }
 
   const coverImage = input.coverImage.trim();
@@ -134,6 +144,19 @@ export function validateNewsForm(input: NewsFormInput): {
     errors.seoDescription = "Mô tả SEO tối đa 160 ký tự.";
   }
 
+  // Hẹn giờ đăng (Ngày 19 A1): rỗng = không hẹn; có giá trị phải
+  // đúng dạng "YYYY-MM-DDTHH:mm" theo giờ VN (parseVnDateTimeLocal
+  // đã loại ngày-giờ không tồn tại). Không bắt buộc phải tương lai
+  // — cho phép lùi ngày đăng về quá khứ.
+  const publishedAtRaw = input.publishedAt.trim();
+  let publishedAt: Date | null = null;
+  if (publishedAtRaw !== "") {
+    publishedAt = parseVnDateTimeLocal(publishedAtRaw);
+    if (publishedAt === null) {
+      errors.publishedAt = "Ngày giờ đăng không hợp lệ, dùng dạng ngày-giờ Việt Nam.";
+    }
+  }
+
   if (Object.keys(errors).length > 0) return { errors, values: null };
   return {
     errors,
@@ -146,6 +169,7 @@ export function validateNewsForm(input: NewsFormInput): {
       author,
       seoTitle,
       seoDescription,
+      publishedAt,
       isPublished: input.isPublished,
     },
   };

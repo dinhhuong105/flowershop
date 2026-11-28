@@ -49,9 +49,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
   });
   // Trang tin tức (Ngày 18): /tin-tuc + các bài đã xuất bản
-  // (lastmod theo updatedAt); nháp không lộ.
+  // (lastmod theo updatedAt); nháp không lộ. Ngày 19 A1: bài hẹn
+  // giờ tương lai cũng không lộ.
   const news = await db.newsArticle.findMany({
-    where: { isPublished: true },
+    where: {
+      isPublished: true,
+      OR: [{ publishedAt: null }, { publishedAt: { lte: new Date() } }],
+    },
     select: { slug: true, updatedAt: true },
     orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
   });

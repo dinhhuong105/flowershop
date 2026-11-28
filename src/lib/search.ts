@@ -167,6 +167,8 @@ export async function searchNews(q: string): Promise<SearchNewsHit[]> {
   const wordConds = words.map(
     (w) => Prisma.sql`strpos(${searchText}, vi_unaccent(${w})) > 0`,
   );
+  // Ngày 19 A1: bài hẹn giờ tương lai chưa hiện (như danh sách/chi tiết).
+  const now = new Date();
   const rows = await db.$queryRaw<
     Array<{
       slug: string;
@@ -178,7 +180,7 @@ export async function searchNews(q: string): Promise<SearchNewsHit[]> {
   >(Prisma.sql`
     SELECT n."slug", n."title", n."excerpt", n."publishedAt", n."createdAt"
     FROM "news" AS n
-    WHERE n."isPublished" = true AND ${Prisma.join(wordConds, " AND ")}
+    WHERE n."isPublished" = true AND (n."publishedAt" IS NULL OR n."publishedAt" <= ${now}) AND ${Prisma.join(wordConds, " AND ")}
     ORDER BY n."publishedAt" DESC NULLS LAST, n."id" DESC
     LIMIT 5
   `);

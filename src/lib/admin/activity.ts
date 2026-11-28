@@ -22,7 +22,9 @@ export const ACTIVITY_AREAS = [
   "product",
   "category",
   "zone",
-  // Nhật ký tin tức (Ngày 18): khóa "news:<slug>[.<trường>]".
+  // Nhật ký tin tức (Ngày 18): khóa "article:<slug>[.<trường>]"
+  // (bản Ngày 18 của Claude); dòng cũ khóa "news:<slug>" vẫn thuộc
+  // khu vực Tin tức để nhật ký cũ hiển thị đúng.
   "news",
 ] as const;
 
@@ -56,6 +58,7 @@ export function activityAreaOf(key: string): ActivityArea {
   if (key.startsWith("category:")) return "category";
   if (key.startsWith("zone:")) return "zone";
   if (key.startsWith("news:")) return "news";
+  if (key.startsWith("article:")) return "news";
   const prefix = key.split(".")[0];
   switch (prefix) {
     case "general":
@@ -206,22 +209,39 @@ export async function listActivity(filters: ActivityFilters = {}): Promise<Activ
   if (filters.area) {
     // Khu vực dạng "xxx:" (trang tĩnh, sản phẩm, danh mục, khu vực,
     // tin tức) lọc theo tiền tố có dấu hai chấm; các nhóm cài đặt
-    // ("xxx.") lọc theo tiền tố có dấu chấm.
-    where.key =
+    // ("xxx.") lọc theo tiền tố có dấu chấm. Tin tức khớp cả khóa
+    // mới "article:" (bản Ngày 18 của Claude) lẫn khóa cũ "news:"
+    // (Ngày 18) để nhật ký cũ vẫn hiện.
+    if (filters.area === "news") {
+      where.OR = [
+        { key: { startsWith: "article:" } },
+        { key: { startsWith: "news:" } },
+      ];
+    } else if (
       filters.area === "page" ||
       filters.area === "product" ||
       filters.area === "category" ||
-      filters.area === "zone" ||
-      filters.area === "news"
-        ? { startsWith: `${filters.area}:` }
-        : { startsWith: `${filters.area}.` };
+      filters.area === "zone"
+    ) {
+      where.key = { startsWith: `${filters.area}:` };
+    } else {
+      where.key = { startsWith: `${filters.area}.` };
+    }
   }
   const q = (filters.q ?? "").trim();
   if (q !== "") {
-    where.OR = [
+    const qOr: Prisma.SettingsAuditWhereInput[] = [
       { key: { contains: q, mode: "insensitive" } },
       { updatedBy: { contains: q, mode: "insensitive" } },
     ];
+    if (where.OR) {
+      // Đã có OR theo khu vực (tin tức): kết hợp bằng AND để cả
+      // lọc khu vực lẫn từ khóa cùng đúng.
+      where.AND = [{ OR: where.OR }, { OR: qOr }];
+      delete where.OR;
+    } else {
+      where.OR = qOr;
+    }
   }
   const fromDate = filters.from ? vnDateStart(filters.from) : null;
   const toDate = filters.to ? vnDateStart(filters.to) : null;
