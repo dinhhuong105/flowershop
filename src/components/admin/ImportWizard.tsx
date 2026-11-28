@@ -96,6 +96,16 @@ export default function ImportWizard({
 }) {
   const [batch, setBatch] = useState<ImportBatchView | null>(initialBatch);
   const [step, setStep] = useState<number>(() => initialStep(initialBatch));
+  // Bảng "Các lô nhập gần đây" dùng prop `batches` (lấy lúc tải
+  // trang) nên sau khi chạy xong vẫn hiện lô cũ là "Chờ xử lý
+  // 0/0/0/0" trong khi bước 6 đã nói "Xong, tạo 25" — hợp nhất
+  // state `batch` mới nhất vào danh sách hiển thị (thay dòng cùng
+  // id, hoặc chèn lên đầu nếu lô mới tạo sau khi tải trang).
+  const displayBatches: ImportBatchView[] = batch
+    ? batches.some((b) => b.id === batch.id)
+      ? batches.map((b) => (b.id === batch.id ? batch : b))
+      : [batch, ...batches]
+    : batches;
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -760,7 +770,7 @@ export default function ImportWizard({
 
       <section className="rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="text-lg font-bold">Các lô nhập gần đây</h2>
-        {batches.length === 0 ? (
+        {displayBatches.length === 0 ? (
           <p className="mt-2 text-sm text-slate-500">Chưa có lô nhập nào.</p>
         ) : (
           <div className="mt-2 overflow-x-auto">
@@ -776,7 +786,7 @@ export default function ImportWizard({
                 </tr>
               </thead>
               <tbody>
-                {batches.map((b) => (
+                {displayBatches.map((b) => (
                   <tr key={b.id} className="border-b">
                     <td className="px-2 py-2 font-medium">{b.sourceName}</td>
                     <td className="px-2 py-2">{b.kind === "file" ? `Tệp (${b.fileName ?? ""})` : "Feed"}</td>

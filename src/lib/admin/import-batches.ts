@@ -17,7 +17,6 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import {
   MAX_IMPORT_ROWS,
-  detectFieldMapping,
   mergeSavedMapping,
   normalizeMappedRecord,
   parseCsv,
