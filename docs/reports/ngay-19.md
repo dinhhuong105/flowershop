@@ -369,3 +369,43 @@ không nằm trong repo nên không commit.
   động cluster tay, dựng lại DB bằng `rebuild-flower-db.mjs` +
   migrate + seed về đúng nền 20|0|3|0|4|24; cài lại Chrome. Mọi
   kiểm chứng Phần C đều chạy **sau** khi dựng lại DB.
+
+## 11. Kiểm chứng độc lập của Pi Em + ghi chú đẩy (28/11 ~11:0x)
+
+Pi Em chạy lại toàn bộ trên cây cuối `60e8167`, không tin mù số
+của điều phối viên:
+
+- Unit **432/432**, typecheck **0**, lint **0 lỗi / 2 warning**
+  cũ, `npm audit --omit=dev` **0**, `test:security` **TẤT CẢ
+  ĐẠT** (live-scan 21 PASS).
+- test:db: lần 1 **119/120** (1 fail race song song — đúng dạng
+  race điều phối viên đã ghi); chạy lại đủ dãy recreate →
+  test:db → clean **120/120 PASS**.
+- Build OK, First Load JS `/` **115 kB**; smoke local **20/21**
+  (chỉ sitemap-localhost FAIL theo thiết kế); `<head>` **4/4**.
+- CDP chạy lại từ đầu: probe-day19 **26/26 PASS** (A4.1 xác nhận
+  lại: tra cứu vượt hạn trả **200 + thông báo**, KHÔNG phải 429 —
+  đúng như §3 đã khai KHÔNG ĐẠT); probe-day19-totp **15/15
+  PASS**; DB cuối **20|0|3|0|4|24|0|0|0|0|0|0**.
+- Migration TOTP đọc lại: chỉ thêm (2 CREATE TABLE). Diff không
+  có giá trị `AUTH_ENCRYPTION_KEY` nào (chỉ tên biến +
+  `.env.example` trống). Diff middleware của commit A rỗng (thí
+  nghiệm middleware-fetch đã gỡ sạch).
+- **Mới — thoát hiểm `ADMIN_TOTP_DISABLE=1` ĐÃ kiểm với env
+  thật** (mục §10 "chưa kiểm" nay ĐẠT): probe mới
+  `~/workspace/day19-shots/probe-escape-hatch.ts` **4/4 PASS**
+  — không hatch: đúng mật khẩu → `totpRequired`; hatch bật:
+  đúng mật khẩu → vào thẳng `/admin` + có phiên đầy đủ; audit
+  ghi `totp.escape-used` đúng 1 dòng; trang ngân hàng hiện ô mã
+  TOTP khi 2FA bật. Probe có 1 lỗi nhỏ ở dòng đếm cuối (tên bảng
+  SQL sai `"NewsArticle"` thay vì `news`) — đã sửa; DB đã dọn
+  sạch sau probe (xóa cả 1 phiên + 1 audit lẻ của probe TOTP
+  trước đó).
+- **Còn mở sau kiểm độc lập:** cổng lưu-ngân-hàng-cần-TOTP chưa
+  có test submit form thật (mới chỉ kiểm ô mã hiện trên trang +
+  logic dùng chung đã test); đặt hàng fail-closed live qua CDP
+  checkout chưa probe; A4.1 vẫn KHÔNG ĐẠT (chờ quyết định ở §9);
+  vùng Neon chưa xác định → chưa đặt `vercel.json` regions.
+- Đẩy: tách ci.yml như Ngày 17/18 (token cũ không có quyền
+  workflow); remote HEAD sau đẩy ghi ở dưới sau khi Pi Em xác
+  minh bằng ls-remote.
