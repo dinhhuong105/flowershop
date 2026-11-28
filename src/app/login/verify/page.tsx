@@ -44,8 +44,7 @@ export default async function VerifyPage({
         </p>
         <VerifyForm serverError={serverError} />
         <p className="mt-4 text-sm text-ink-soft">
-          Mất điện thoại và mã khôi phục? Liên hệ chủ shop để tạm tắt bước này (xem hướng dẫn
-          vận hành), rồi đăng nhập lại.
+          Mất điện thoại và mã khôi phục? Liên hệ chủ shop để tạm tắt bước này, rồi đăng nhập lại.
         </p>
       </div>
     </div>

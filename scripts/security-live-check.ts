@@ -616,6 +616,14 @@ async function main() {
     const setCookie = r.headers.getSetCookie();
     const full = setCookie.find((c) => c.startsWith("admin_session="));
     assert(full, "thiếu cookie admin_session");
+    // Ngày 20 B3b: cờ cookie phiên đầy đủ trên header Set-Cookie
+    // thật (server chạy NODE_ENV=production nên Secure phải có).
+    // Next.js ghi SameSite=strict (chữ thường) nên so không phân
+    // biệt hoa/thường cho cờ này.
+    for (const flag of ["HttpOnly", "Secure", "Path=/"]) {
+      assert(full.includes(flag), `cookie admin_session thiếu cờ ${flag}: ${full}`);
+    }
+    assert(/samesite=strict/i.test(full), `cookie admin_session thiếu cờ SameSite=Strict: ${full}`);
     const token = full.split(";")[0].split("=")[1];
     verifiedSessionTokens.push(token);
     const admin = await fetchNoRedirect(`${BASE}/admin`, { headers: { cookie: cookie(token) } });

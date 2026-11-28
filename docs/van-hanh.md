@@ -145,9 +145,13 @@ chữ O/I), rồi tìm đơn đó trong `/admin/orders` bằng ô tìm kiếm.
 4. Cất **10 mã khôi phục** hiện ra một lần duy nhất ở nơi an toàn (quản lý mật khẩu hoặc giấy) — mỗi mã dùng được đúng một lần khi mất điện thoại; rời trang là không xem lại được.
 5. Từ nay đăng nhập cần thêm mã 6 số; lưu thông tin ngân hàng cần thêm mã 6 số (ngoài nhập lại mật khẩu).
 
-**Trước bước trên (agent/dev):** đặt biến môi trường `AUTH_ENCRYPTION_KEY` trên Vercel (Dashboard → Project → Settings → Environment Variables → Production). Sinh giá trị bằng lệnh `openssl rand -base64 32` trên máy dev (đúng 32 byte, base64) rồi dán vào — không in giá trị ra log/báo cáo/chat, không commit vào repo. Thiếu khóa thì trang Bảo mật báo rõ lý do và 2FA tự tắt (đăng nhập không đổi). Đổi khóa sau khi đã bật 2FA sẽ làm bí mật cũ không giải mã được — phải tắt 2FA rồi bật lại từ đầu.
+**Trước bước trên (agent/dev):** đặt biến môi trường `AUTH_ENCRYPTION_KEY` trên Vercel (Dashboard → Project → Settings → Environment Variables → Production). Sinh giá trị bằng lệnh `openssl rand -base64 32` trên máy dev (đúng 32 byte, base64) rồi dán vào — không in giá trị ra log/báo cáo/chat, không commit vào repo. **Cất một bản sao khóa vào trình quản lý mật khẩu của chủ shop** (cùng nơi cất 10 mã khôi phục) — nếu đổi/mất khóa thì 2FA hiện tại không còn xác minh được (bí mật cũ không giải mã được), phải đặt lại an toàn theo mục thoát hiểm bên dưới rồi bật lại 2FA từ đầu. Thiếu khóa thì trang Bảo mật báo rõ lý do và 2FA tự tắt (đăng nhập không đổi). Đổi khóa sau khi đã bật 2FA sẽ làm bí mật cũ không giải mã được — phải tắt 2FA rồi bật lại từ đầu.
 
-**Mất điện thoại + mã khôi phục (thoát hiểm):** chủ sở hữu Vercel đặt biến môi trường `ADMIN_TOTP_DISABLE=1` (Production) rồi redeploy — đăng nhập tạm thời chỉ cần mật khẩu. Mỗi lần dùng cơ chế này đều ghi nhật ký (`totp.escape-used`, xem ở Nhật ký hoạt động → Bảo mật). Xong việc gỡ biến này và redeploy để bật lại bước TOTP, rồi bật lại 2FA/tạo lại mã khôi phục nếu cần.
+**Mất điện thoại + mã khôi phục (thoát hiểm):** chủ sở hữu Vercel đặt biến môi trường `ADMIN_TOTP_DISABLE=1` (Production) rồi redeploy — đăng nhập tạm thời chỉ cần mật khẩu. Mỗi lần dùng cơ chế này đều ghi nhật ký (`totp.escape-used`, xem ở Nhật ký hoạt động → Bảo mật). Xong việc **gỡ biến này ngay và redeploy** để bật lại bước TOTP (không để biến thoát hiểm nằm lại trên production), rồi bật lại 2FA/tạo lại mã khôi phục nếu cần; sau khi bật lại, **kiểm tra lại trạng thái 2FA ở trang Bảo mật** (phải hiện "Đang bật") và thử đăng xuất → đăng nhập một lần để chắc chắn mã 6 số hoạt động.
+
+**Không đưa mã khôi phục hay khóa thật vào ảnh chụp/báo cáo** (quy tắc Ngày 20 B5 — ảnh/báo cáo chỉ dùng dữ liệu kiểm thử, và mã trong ảnh Ngày 19 là mã kiểm thử đã xóa ngay sau khi kiểm).
+
+**Lưu ý về gói Vercel (Ngày 20 B5):** gói Hobby của Vercel chỉ dành cho dự án phi thương mại; trước khi nhận đơn thật nên chuyển sang gói phù hợp (ghi chú vận hành chung, không chặn triển khai).
 
 **Lưu ý:** bật/tắt 2FA sẽ buộc đăng nhập lại mọi phiên admin khác (chỉ giữ phiên đang thao tác). Mã 6 số đổi mỗi 30 giây; nhập sai 5 lần trong 15 phút thì bị khóa tạm 15 phút.
 

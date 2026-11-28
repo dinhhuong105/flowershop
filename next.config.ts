@@ -24,8 +24,15 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // Ngày 20 B1: tra cứu đơn chứa thông tin cá nhân — no-store
+        // (đã có) + X-Robots-Tag: noindex (mới). Trang cũng có
+        // metadata robots index:false; header là lớp thứ hai để bot
+        // không lập chỉ mục cả khi chỉ đọc header.
         source: "/order/:code",
-        headers: [{ key: "Cache-Control", value: "no-store" }],
+        headers: [
+          { key: "Cache-Control", value: "no-store" },
+          { key: "X-Robots-Tag", value: "noindex" },
+        ],
       },
       {
         source: "/login",

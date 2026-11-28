@@ -118,8 +118,9 @@ export function isAdminConfigured(): boolean {
 }
 
 // Secure khi NODE_ENV=production; ADMIN_COOKIE_SECURE=false chỉ để
-// thử qua HTTP (README ghi KHÔNG tắt trên VPS thật).
-function isCookieSecure(): boolean {
+// thử qua HTTP (README ghi KHÔNG tắt trên VPS thật). Export để test
+// (Ngày 20 B3b): cờ Secure của cookie phiên được kiểm theo ma trận env.
+export function isCookieSecure(): boolean {
   const flag = (process.env.ADMIN_COOKIE_SECURE ?? "").trim().toLowerCase();
   if (flag === "false") return false;
   if (flag === "true") return true;

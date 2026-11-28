@@ -131,6 +131,31 @@ for (const f of serverFiles) {
   }
 }
 
+// ---------------- S2: cờ cookie phiên (Ngày 20 B3b) ----------------
+console.log("S2 — cờ cookie phiên (tĩnh):");
+// Cả hai cookie phiên (đầy đủ admin_session, chờ xác minh
+// admin_pending) phải ghi với HttpOnly + SameSite=Strict + Path="/"
+// + Secure theo isCookieSecure() (production → Secure). Cờ thật trên
+// header Set-Cookie được kiểm động ở security-live-check (sau
+// totp-verify) và probe CDP (sau đăng nhập có 2FA); đây là lớp tĩnh
+// để ai sửa code cũng không vô tình làm rơi cờ.
+const authSrc = readFileSync(path.join(ROOT, "src/lib/admin/auth.ts"), "utf8");
+for (const cookieName of ["ADMIN_SESSION_COOKIE", "ADMIN_PENDING_SESSION_COOKIE"]) {
+  const m = new RegExp(`store\\.set\\(${cookieName}, token, \\{([\\s\\S]*?)\\}\\);`).exec(authSrc);
+  if (!m) {
+    fail(`không tìm thấy lệnh ghi cookie ${cookieName} trong auth.ts`);
+    continue;
+  }
+  const opts = m[1];
+  const missing = [];
+  if (!/httpOnly:\s*true/.test(opts)) missing.push("httpOnly");
+  if (!/sameSite:\s*"strict"/.test(opts)) missing.push("sameSite=strict");
+  if (!/path:\s*"\/"/.test(opts)) missing.push("path=/");
+  if (!/secure:\s*isCookieSecure\(\)/.test(opts)) missing.push("secure=isCookieSecure()");
+  if (missing.length > 0) fail(`cookie ${cookieName} thiếu cờ: ${missing.join(", ")}`);
+  else ok(`cookie ${cookieName} đủ cờ HttpOnly/SameSite=Strict/Path=/Secure`);
+}
+
 // ---------------- S3: dangerouslySetInnerHTML + SQL thô ----------------
 console.log("S3 — dangerouslySetInnerHTML / SQL thô:");
 const DSI_ALLOWLIST = new Set([

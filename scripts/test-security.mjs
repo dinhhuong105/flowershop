@@ -51,6 +51,7 @@ runStep("unit test bảo mật", npxBin, [
   "--test",
   "src/lib/rate-limit.test.ts",
   "src/lib/admin/session-idle.test.ts",
+  "src/lib/admin/session-cookie.test.ts",
   "src/lib/security-headers.test.ts",
   "src/lib/markdown.test.ts",
   "src/lib/admin/uploads.test.ts",
