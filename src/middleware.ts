@@ -31,7 +31,12 @@ const LEGACY_REDIRECTS: Record<string, string> = {
 };
 
 function isAdminAreaPath(pathname: string): boolean {
-  return pathname === "/login" || pathname === "/admin" || pathname.startsWith("/admin/");
+  return (
+    pathname === "/login" ||
+    pathname === "/login/verify" ||
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/")
+  );
 }
 
 export function middleware(request: NextRequest) {

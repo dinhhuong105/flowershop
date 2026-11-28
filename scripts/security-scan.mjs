@@ -76,6 +76,7 @@ const API_PUBLIC = new Set([
   "src/app/uploads/[name]/route.ts", // ảnh sản phẩm công khai (tên do server sinh)
 ]);
 const API_LOGIN = "src/app/api/admin/login/route.ts"; // tạo phiên — KHÔNG gọi requireAdmin
+const API_TOTP_VERIFY = "src/app/api/admin/totp-verify/route.ts"; // đổi phiên chờ xác minh thành phiên đầy đủ — KHÔNG gọi requireAdmin (Ngày 19 Phần C)
 const apiRoutes = listFiles(path.join(ROOT, "src/app"), ["route.ts"]);
 for (const f of apiRoutes) {
   const r = rel(f);
@@ -85,6 +86,9 @@ for (const f of apiRoutes) {
   } else if (r === API_LOGIN) {
     if (/await\s+requireAdmin\s*\(\)/.test(src)) fail(`route login không được gọi requireAdmin: ${r}`);
     else ok(`route tạo phiên (ngoại lệ): ${r}`);
+  } else if (r === API_TOTP_VERIFY) {
+    if (/await\s+requireAdmin\s*\(\)/.test(src)) fail(`route totp-verify không được gọi requireAdmin: ${r}`);
+    else ok(`route đổi phiên chờ xác minh (ngoại lệ): ${r}`);
   } else if (/await\s+requireAdmin\s*\(\)/.test(src)) {
     ok(`route admin gọi requireAdmin(): ${r}`);
   } else {
@@ -103,6 +107,7 @@ const SERVER_ACTION_PUBLIC = new Set([
 ]);
 const serverFiles = listFiles(path.join(ROOT, "src/app/actions"), [".ts"]).concat(
   listFiles(path.join(ROOT, "src/app/admin/settings"), ["actions.ts"]),
+  listFiles(path.join(ROOT, "src/app/admin/security"), ["actions.ts"]),
 );
 for (const f of serverFiles) {
   const src = readFileSync(f, "utf8");
@@ -134,6 +139,7 @@ const DSI_ALLOWLIST = new Set([
   "src/app/tin-tuc/[slug]/page.tsx", // renderMarkdown (đã thoát HTML) — Ngày 18
   "src/components/order/BankTransferBox.tsx", // SVG QR do thư viện qrcode sinh
   "src/components/admin/BankQrPreview.tsx", // SVG QR do thư viện qrcode sinh
+  "src/components/admin/TotpSecurityForm.tsx", // SVG QR TOTP do thư viện qrcode sinh — Ngày 19 Phần C
   "src/components/admin/PageForm.tsx", // xem trước renderMarkdown
   "src/components/admin/NewsForm.tsx", // xem trước renderMarkdown — Ngày 18
 ]);

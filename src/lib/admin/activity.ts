@@ -26,6 +26,9 @@ export const ACTIVITY_AREAS = [
   // (bản Ngày 18 của Claude); dòng cũ khóa "news:<slug>" vẫn thuộc
   // khu vực Tin tức để nhật ký cũ hiển thị đúng.
   "news",
+  // Nhật ký bảo mật (Ngày 19 Phần C): khóa "totp.*" (bật/tắt 2FA,
+  // dùng mã khôi phục, tạo lại mã, xác minh sai, thoát hiểm).
+  "security",
 ] as const;
 
 export type ActivityArea = (typeof ACTIVITY_AREAS)[number];
@@ -41,6 +44,7 @@ export const ACTIVITY_AREA_LABELS: Record<ActivityArea, string> = {
   category: "Danh mục",
   zone: "Khu vực",
   news: "Tin tức",
+  security: "Bảo mật",
 };
 
 export function isActivityArea(value: string): value is ActivityArea {
@@ -51,7 +55,7 @@ export function isActivityArea(value: string): value is ActivityArea {
 // "general.*" → Chung, "contact.*" → Liên hệ, "bank.*" (+ "bank.notify") → Ngân hàng,
 // "telegram.*" → Telegram, "seo.*" → SEO, "page:<slug>" → Trang tĩnh,
 // "product:<id>[.<trường>]" → Sản phẩm, "category:<id>[.<trường>]" → Danh mục,
-// "zone:<id>[.<trường>]" → Khu vực (Ngày 17 P5).
+// "zone:<id>[.<trường>]" → Khu vực (Ngày 17 P5), "totp.*" → Bảo mật (Ngày 19 Phần C).
 export function activityAreaOf(key: string): ActivityArea {
   if (key.startsWith("page:")) return "page";
   if (key.startsWith("product:")) return "product";
@@ -59,6 +63,7 @@ export function activityAreaOf(key: string): ActivityArea {
   if (key.startsWith("zone:")) return "zone";
   if (key.startsWith("news:")) return "news";
   if (key.startsWith("article:")) return "news";
+  if (key.startsWith("totp.")) return "security";
   const prefix = key.split(".")[0];
   switch (prefix) {
     case "general":

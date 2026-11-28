@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import {
   clientIpFromHeaders,
+  createAdminPendingSession,
   createAdminSession,
   getAdminConfig,
   verifyAdminCredentials,
 } from "@/lib/admin/auth";
+import {
+  isTotpEscapeHatchActive,
+  isTotpLoginRequired,
+  recordTotpAudit,
+} from "@/lib/admin/totp-store";
 import {
   cleanupAdminLoginAttempts,
   checkAdminLoginLimit,
@@ -113,6 +119,23 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.redirect(
       redirectUrl(request, `/login?error=1&u=${encodeURIComponent(username)}`),
     );
+  }
+
+  // Ngày 19 Phần C — TOTP: đúng mật khẩu nhưng 2FA đang bật thì
+  // chỉ tạo phiên "chờ xác minh" (cookie riêng, hạn 5 phút), CHƯA
+  // tạo phiên đầy đủ; client chuyển sang /login/verify để nhập mã.
+  if (await isTotpLoginRequired()) {
+    await createAdminPendingSession();
+    await cleanupAdminLoginAttempts().catch(() => undefined);
+    if (isJson) return NextResponse.json({ ok: true, totpRequired: true });
+    return NextResponse.redirect(redirectUrl(request, "/login/verify"), {
+      status: 303,
+    });
+  }
+  // Thoát hiểm: 2FA đã bật nhưng ADMIN_TOTP_DISABLE=1 → bỏ qua
+  // bước TOTP lần này, ghi nhật ký mỗi lần dùng.
+  if (await isTotpEscapeHatchActive()) {
+    await recordTotpAudit("escape-used");
   }
 
   await createAdminSession();

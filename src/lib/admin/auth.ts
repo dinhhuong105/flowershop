@@ -18,6 +18,77 @@ export const ADMIN_SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 giờ tuyệt đ�
 // nhất; getAdminSession cập nhật nó mỗi lần dùng được).
 export const ADMIN_SESSION_IDLE_MS = 30 * 60 * 1000; // 30 phút
 
+// Phiên "chờ xác minh" TOTP (Ngày 19 Phần C): tạo sau khi nhập
+// đúng mật khẩu nhưng chưa nhập mã TOTP. Cookie RIÊNG
+// "admin_pending", hạn tuyệt đối 5 phút, KHÔNG truy cập được bất kỳ
+// route/action admin nào (getAdminSession/requireAdmin chỉ đọc
+// bảng admin_sessions, không đọc bảng này; cookie này cũng không
+// dùng được làm giá trị của admin_session vì token nằm ở bảng khác).
+export const ADMIN_PENDING_SESSION_COOKIE = "admin_pending";
+export const ADMIN_PENDING_SESSION_TTL_MS = 5 * 60 * 1000; // 5 phút
+
+// Tạo phiên chờ xác minh + ghi cookie; dọn phiên chờ hết hạn trước.
+export async function createAdminPendingSession(): Promise<string> {
+  const token = randomBytes(32).toString("base64url");
+  const now = new Date();
+  await db.adminPendingSession.deleteMany({ where: { expiresAt: { lte: now } } });
+  await db.adminPendingSession.create({
+    data: {
+      tokenHash: hashSessionToken(token),
+      expiresAt: new Date(now.getTime() + ADMIN_PENDING_SESSION_TTL_MS),
+    },
+  });
+  const store = await cookies();
+  store.set(ADMIN_PENDING_SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: "strict",
+    path: "/",
+    secure: isCookieSecure(),
+    maxAge: ADMIN_PENDING_SESSION_TTL_MS / 1000,
+  });
+  return token;
+}
+
+// Đọc phiên chờ xác minh từ cookie; null khi không có cookie, sai
+// token, hoặc hết hạn (dòng hết hạn bị xóa). Không cập nhật gì.
+export async function getAdminPendingSession() {
+  const store = await cookies();
+  const token = store.get(ADMIN_PENDING_SESSION_COOKIE)?.value;
+  if (!token) return null;
+  const session = await db.adminPendingSession.findUnique({
+    where: { tokenHash: hashSessionToken(token) },
+  });
+  if (!session) return null;
+  if (session.expiresAt.getTime() <= Date.now()) {
+    await db.adminPendingSession.deleteMany({ where: { id: session.id } });
+    return null;
+  }
+  return session;
+}
+
+// Hủy phiên chờ xác minh (sau khi xác minh xong hoặc hết hạn):
+// xóa dòng trong DB và cookie.
+export async function destroyAdminPendingSession(): Promise<void> {
+  const store = await cookies();
+  const token = store.get(ADMIN_PENDING_SESSION_COOKIE)?.value;
+  if (token) {
+    await db.adminPendingSession.deleteMany({
+      where: { tokenHash: hashSessionToken(token) },
+    });
+  }
+  store.delete(ADMIN_PENDING_SESSION_COOKIE);
+}
+
+// Buộc đăng nhập lại mọi phiên đầy đủ khác (Ngày 19 Phần C —
+// quyết định phiên khi bật/tắt 2FA: phiên đầy đủ CŨ bị thu hồi,
+// chỉ phiên đang thao tác được giữ). Dùng trong action bật/tắt 2FA.
+export async function revokeOtherAdminSessions(keepId: number): Promise<number> {
+  const { count } = await db.adminSession.deleteMany({
+    where: { id: { not: keepId } },
+  });
+  return count;
+}
+
 // Thuần, để test được: true khi phiên đã quá thời gian không hoạt động.
 export function isSessionIdle(lastSeenAt: Date, now: Date = new Date()): boolean {
   return now.getTime() - lastSeenAt.getTime() > ADMIN_SESSION_IDLE_MS;

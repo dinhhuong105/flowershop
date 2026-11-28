@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/admin/auth";
 import { getSettings } from "@/lib/settings-cache";
 import { countUnpaidBankTransferOrders } from "@/lib/admin/orders";
+import { isTotpLoginRequired } from "@/lib/admin/totp-store";
 import BankSettingsForm from "@/components/admin/BankSettingsForm";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,8 @@ export default async function AdminSettingsBankPage() {
   // Số đơn chuyển khoản chưa thu (Ngày 14 B5): để form hiện cảnh
   // báo khi đổi thông tin ngân hàng.
   const unpaidBankTransferCount = await countUnpaidBankTransferOrders();
+  // Ngày 19 Phần C: 2FA đang bật thì form lưu ngân hàng hiện thêm ô mã TOTP.
+  const totpEnabled = await isTotpLoginRequired();
 
   return (
     <div>
@@ -38,6 +41,7 @@ export default async function AdminSettingsBankPage() {
             bankEnabled: settings.bankEnabled,
           }}
           unpaidBankTransferCount={unpaidBankTransferCount}
+          totpEnabled={totpEnabled}
         />
       </div>
     </div>

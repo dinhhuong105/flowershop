@@ -168,7 +168,8 @@ const ITEMS: NavItem[] = [
       p === "/admin/shipping-zones" ||
       p.startsWith("/admin/shipping-zones/") ||
       p === "/admin/settings/bank" ||
-      p === "/admin/settings/telegram",
+      p === "/admin/settings/telegram" ||
+      p === "/admin/security",
     collapsible: true,
     children: [
       { label: "Chung", href: "/admin/settings/general", match: (p) => p === "/admin/settings/general" },
@@ -177,6 +178,7 @@ const ITEMS: NavItem[] = [
       { label: "Khu vực & phí giao hàng", href: "/admin/shipping-zones", match: (p) => p === "/admin/shipping-zones" || p.startsWith("/admin/shipping-zones/") },
       { label: "Ngân hàng & QR", href: "/admin/settings/bank", match: (p) => p === "/admin/settings/bank" },
       { label: "Telegram", href: "/admin/settings/telegram", match: (p) => p === "/admin/settings/telegram" },
+      { label: "Bảo mật", href: "/admin/security", match: (p) => p === "/admin/security" },
     ],
   },
   // Nhật ký hoạt động (Ngày 15 C1): mục thật, đứng riêng dưới nhóm

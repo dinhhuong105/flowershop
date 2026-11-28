@@ -33,6 +33,7 @@ const labelClass = "block text-sm font-semibold text-slate-900";
 export default function BankSettingsForm({
   initial,
   unpaidBankTransferCount,
+  totpEnabled = false,
 }: {
   initial: {
     bankCode: string;
@@ -43,6 +44,8 @@ export default function BankSettingsForm({
   };
   /** Số đơn chuyển khoản chưa thu lúc mở trang (Ngày 14 B5). */
   unpaidBankTransferCount: number;
+  /** 2FA đang bật thì lưu ngân hàng cần thêm mã TOTP (Ngày 19 Phần C). */
+  totpEnabled?: boolean;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -288,6 +291,27 @@ export default function BankSettingsForm({
             Thử sai quá 5 lần trong 15 phút sẽ bị khóa tạm cả đăng nhập.
           </p>
         </div>
+        {totpEnabled ? (
+          <div>
+            <label htmlFor="bk-totpCode" className={labelClass}>
+              Mã xác thực hai bước (6 số)
+            </label>
+            <input
+              id="bk-totpCode"
+              name="totpCode"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              required
+              maxLength={6}
+              placeholder="123456"
+              className={inputClass}
+            />
+            <p className="mt-1 text-sm text-slate-500">
+              2FA đang bật nên lưu ngân hàng cần thêm mã 6 số trong ứng dụng xác thực.
+            </p>
+          </div>
+        ) : null}
       </section>
 
       {/* Cảnh báo khi lưu (Ngày 14 B5): chỉ hiện khi form đã đổi và

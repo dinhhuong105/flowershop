@@ -32,6 +32,11 @@ const nextConfig: NextConfig = {
         headers: [{ key: "Cache-Control", value: "no-store" }],
       },
       {
+        // Ngày 19 Phần C: màn nhập mã TOTP cũng là dữ liệu quản trị.
+        source: "/login/verify",
+        headers: [{ key: "Cache-Control", value: "no-store" }],
+      },
+      {
         source: "/admin/:path*",
         headers: [{ key: "Cache-Control", value: "no-store" }],
       },

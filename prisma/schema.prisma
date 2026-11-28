@@ -314,3 +314,39 @@ model RateLimitEvent {
   @@index([key, createdAt])
   @@map("rate_limit_events")
 }
+
+// Xác thực hai bước TOTP cho admin (Ngày 19 Phần C): một dòng duy
+// nhất cho tài khoản admin (id cố định 1). Bí mật TOTP KHÔNG BAO
+// GIỜ lưu dạng rõ — chỉ lưu bản mã AES-256-GCM (xem
+// src/lib/admin/totp-crypto.ts; khóa từ AUTH_ENCRYPTION_KEY).
+// enabledAt null = đang trong bước cài đặt (chưa xác nhận bằng mã)
+// hoặc chưa bật. lastUsedStep chống dùng lại mã (bước 30 s đã dùng
+// thì từ chối). Mã khôi phục lưu dạng băm scrypt, dùng một lần
+// (xóa khỏi mảng khi đã dùng). Rollback: DROP TABLE
+// "admin_two_factor".
+model AdminTwoFactor {
+  id                  Int       @id @default(1)
+  encryptedSecret     String
+  enabledAt           DateTime?
+  lastUsedStep        Int?
+  recoveryCodeHashes  String[]  @default([])
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@map("admin_two_factor")
+}
+
+// Phiên "chờ xác minh" TOTP (Ngày 19 Phần C): tạo sau khi nhập
+// đúng mật khẩu nhưng chưa nhập mã TOTP. Chỉ lưu hash sha256 của
+// token (như AdminSession), hạn tuyệt đối 5 phút. Cookie riêng
+// "admin_pending" — KHÔNG dùng được làm phiên đầy đủ (bảng khác,
+// getAdminSession không đọc bảng này). Rollback: DROP TABLE
+// "admin_pending_sessions".
+model AdminPendingSession {
+  id        Int      @id @default(autoincrement())
+  tokenHash String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@map("admin_pending_sessions")
+}

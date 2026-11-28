@@ -36,6 +36,13 @@ export default function LoginForm({
       });
       const data: unknown = await res.json().catch(() => null);
       if (res.ok && data && typeof data === "object" && (data as { ok?: unknown }).ok === true) {
+        // Ngày 19 Phần C: 2FA đang bật → route trả totpRequired, sang
+        // màn nhập mã (phiên "chờ xác minh" đã được tạo).
+        if ((data as { totpRequired?: unknown }).totpRequired === true) {
+          router.push("/login/verify");
+          router.refresh();
+          return;
+        }
         router.push("/admin");
         router.refresh();
       } else {

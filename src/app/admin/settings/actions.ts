@@ -16,6 +16,8 @@ import {
   hashIp,
   recordAdminLoginAttempt,
 } from "@/lib/admin/rate-limit";
+import { checkRateLimitFailClosed, resetRateLimit } from "@/lib/rate-limit";
+import { isTotpLoginRequired, verifyTotpOrRecoveryCode } from "@/lib/admin/totp-store";
 import {
   recordSettingsAudit,
   saveSettingsToDb,
@@ -128,6 +130,32 @@ export async function saveBankSettingsAction(
       );
     });
     return { ok: false, message: "Mật khẩu không đúng, chưa lưu thay đổi.", errors: {} };
+  }
+  // Ngày 19 Phần C: khi 2FA đang bật, lưu ngân hàng cần thêm mã
+  // TOTP (ngoài nhập lại mật khẩu). Bộ đếm riêng totp:bank:ip để
+  // không khóa màn đăng nhập: 5 lần sai/15 phút, bộ đếm lỗi → ĐÓNG.
+  if (await isTotpLoginRequired()) {
+    const totpLimit = await checkRateLimitFailClosed({
+      key: `totp:bank:ip:${ipHash}`,
+      limit: 5,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!totpLimit.allowed) {
+      return {
+        ok: false,
+        message: totpLimit.counterUnavailable
+          ? "Hệ thống đang bận, vui lòng thử lại sau."
+          : "Quá nhiều lần thử mã, vui lòng thử lại sau 15 phút.",
+        errors: {},
+      };
+    }
+    const totpCode = formDataString(formData, "totpCode");
+    const totpOk =
+      totpCode !== "" && (await verifyTotpOrRecoveryCode(totpCode)).ok;
+    if (!totpOk) {
+      return { ok: false, message: "Mã xác thực không đúng, chưa lưu thay đổi.", errors: {} };
+    }
+    await resetRateLimit(`totp:bank:ip:${ipHash}`).catch(() => undefined);
   }
   const { values, errors } = validateBankValues({
     bankCode: formDataString(formData, "bankCode"),

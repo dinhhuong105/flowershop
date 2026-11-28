@@ -10,6 +10,10 @@ import { createHash, randomBytes } from "node:crypto";
 import { unlink } from "node:fs/promises";
 import path from "node:path";
 import { db } from "../src/lib/db";
+import { generateTotpSecret, totpCodeAt } from "../src/lib/admin/totp";
+import { encryptTotpSecret } from "../src/lib/admin/totp-crypto";
+import { generateRecoveryCodes, normalizeRecoveryCodeInput } from "../src/lib/admin/totp-store";
+import { hashAdminPassword } from "../src/lib/admin/password";
 
 const BASE = (process.argv[2] ?? "http://localhost:3000").replace(/\/$/, "");
 let pass = 0;
@@ -483,6 +487,221 @@ async function main() {
     assert(!/xóa nhật ký|xoa-nhat-ky|deleteActivity|delete-activity/i.test(body), "có đường xóa nhật ký");
   });
 
+  console.log("S1 mở rộng — TOTP (Ngày 19 Phần C):");
+  // Bật 2FA trực tiếp trong DB (bí mật mã hóa bằng khóa env — tsx
+  // đọc cùng .env với server). Thu hồi phiên khi bật/tắt 2FA là
+  // việc của action bật/tắt (đã test ở totp.db.test.ts + probe
+  // CDP); bật thẳng qua DB ở đây KHÔNG thu hồi phiên cũ.
+  const totpSecret = generateTotpSecret();
+  const totpRecoveryCodes = generateRecoveryCodes();
+  const totpRecoveryHashes: string[] = [];
+  // Băm dạng đã chuẩn hóa (không gạch nối) — đúng dạng lúc xác minh
+  // chuẩn hóa ra (băm dạng có gạch thì không bao giờ khớp).
+  for (const c of totpRecoveryCodes) {
+    totpRecoveryHashes.push(await hashAdminPassword(normalizeRecoveryCodeInput(c)!));
+  }
+  await db.adminTwoFactor.upsert({
+    where: { id: 1 },
+    create: {
+      id: 1,
+      encryptedSecret: encryptTotpSecret(totpSecret),
+      enabledAt: new Date(),
+      lastUsedStep: null,
+      recoveryCodeHashes: totpRecoveryHashes,
+    },
+    update: {
+      encryptedSecret: encryptTotpSecret(totpSecret),
+      enabledAt: new Date(),
+      lastUsedStep: null,
+      recoveryCodeHashes: totpRecoveryHashes,
+    },
+  });
+  async function mintPending(expiresAt?: Date) {
+    const token = randomBytes(32).toString("base64url");
+    const row = await db.adminPendingSession.create({
+      data: {
+        tokenHash: createHash("sha256").update(token).digest("hex"),
+        expiresAt: expiresAt ?? new Date(Date.now() + 5 * 60 * 1000),
+      },
+    });
+    return { token, id: row.id };
+  }
+  const pendingCookie = (token: string) => `admin_pending=${token}`;
+  const createdPendingIds: number[] = [];
+  const verifiedSessionTokens: string[] = [];
+  async function verifyCode(code: string, pendingToken: string) {
+    return fetch(`${BASE}/api/admin/totp-verify`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: BASE,
+        cookie: pendingCookie(pendingToken),
+      },
+      body: JSON.stringify({ code }),
+    });
+  }
+
+  await check("phiên chờ xác minh bị từ chối trên MỌI route admin (307, không dữ liệu)", async () => {
+    const p = await mintPending();
+    createdPendingIds.push(p.id);
+    for (const path of ["/admin", "/admin/products", "/admin/orders", "/admin/settings/general", "/admin/settings/bank", "/admin/security", "/admin/activity", "/admin/news"]) {
+      const r = await fetchNoRedirect(`${BASE}${path}`, { headers: { cookie: pendingCookie(p.token) } });
+      assert(r.status === 307 || r.status === 401 || r.status === 403, `${path} → ${r.status}`);
+      const body = await r.text();
+      // Chỉ kiểm DỮ LIỆU (như check S1 cũ): body 307 của Next có
+      // chứa <title> tĩnh của route ("Ngân hàng & QR", "Bảo mật")
+      // nhưng không chứa số liệu/đơn hàng/cài đặt.
+      assert(!/Đơn cần xử lý|Doanh thu|pendingCount/i.test(body), `${path} rò dữ liệu admin`);
+    }
+  });
+  await check("cookie chờ xác minh không dùng được làm phiên đầy đủ", async () => {
+    const p = await mintPending();
+    createdPendingIds.push(p.id);
+    const r = await fetchNoRedirect(`${BASE}/admin`, { headers: { cookie: cookie(p.token) } });
+    assertEq(r.status, 307);
+  });
+  await check("phiên chờ hết hạn → /login/verify redirect về /login", async () => {
+    const p = await mintPending(new Date(Date.now() - 1000));
+    createdPendingIds.push(p.id);
+    const r = await fetchNoRedirect(`${BASE}/login/verify`, { headers: { cookie: pendingCookie(p.token) } });
+    assertEq(r.status, 307);
+    assert((r.headers.get("location") ?? "").startsWith("/login"), `Location: ${r.headers.get("location")}`);
+  });
+  await check("server action với cookie chờ xác minh → bị chặn, không chạy", async () => {
+    const p = await mintPending();
+    createdPendingIds.push(p.id);
+    const r = await fetch(`${BASE}/admin/products`, {
+      method: "POST",
+      headers: { cookie: pendingCookie(p.token), origin: BASE, "Next-Action": "deadbeef" },
+      body: "",
+    });
+    assert(r.status !== 200, `status ${r.status}`);
+  });
+  await check("verify: thiếu Origin → 403; Origin evil → 403", async () => {
+    const p = await mintPending();
+    createdPendingIds.push(p.id);
+    const noOrigin = await fetch(`${BASE}/api/admin/totp-verify`, {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: pendingCookie(p.token) },
+      body: JSON.stringify({ code: "123456" }),
+    });
+    assertEq(noOrigin.status, 403);
+    const evil = await fetch(`${BASE}/api/admin/totp-verify`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: "https://evil.example", cookie: pendingCookie(p.token) },
+      body: JSON.stringify({ code: "123456" }),
+    });
+    assertEq(evil.status, 403);
+  });
+  await check("verify: 5 lần sai → lần 6 trả 429 (5 lần/15 phút)", async () => {
+    const p = await mintPending();
+    createdPendingIds.push(p.id);
+    try {
+      let last = 0;
+      for (let i = 0; i < 6; i++) {
+        const r = await verifyCode("000000", p.token);
+        last = r.status;
+        if (i < 5) assert(r.status === 401, `lần ${i + 1} kỳ vọng 401, được ${r.status}`);
+      }
+      assertEq(last, 429);
+    } finally {
+      await db.rateLimitEvent.deleteMany({ where: { key: { startsWith: "totp:" } } });
+    }
+  });
+  await check("verify: mã đúng → 200 + cookie phiên đầy đủ, vào được /admin", async () => {
+    const p = await mintPending();
+    createdPendingIds.push(p.id);
+    const r = await verifyCode(totpCodeAt(totpSecret)!, p.token);
+    assertEq(r.status, 200);
+    const setCookie = r.headers.getSetCookie();
+    const full = setCookie.find((c) => c.startsWith("admin_session="));
+    assert(full, "thiếu cookie admin_session");
+    const token = full.split(";")[0].split("=")[1];
+    verifiedSessionTokens.push(token);
+    const admin = await fetchNoRedirect(`${BASE}/admin`, { headers: { cookie: cookie(token) } });
+    assertEq(admin.status, 200);
+    await db.rateLimitEvent.deleteMany({ where: { key: { startsWith: "totp:" } } });
+  });
+  await check("verify: dùng lại đúng mã vừa dùng → 401 (chống dùng lại)", async () => {
+    // Reset bước đã dùng để mã hiện tại chưa bị check trước đó tiêu
+    // thụ (check "mã đúng" ngay trước đã dùng đúng mã của bước này).
+    await db.adminTwoFactor.update({ where: { id: 1 }, data: { lastUsedStep: null } });
+    const code = totpCodeAt(totpSecret)!;
+    const p1 = await mintPending();
+    createdPendingIds.push(p1.id);
+    const first = await verifyCode(code, p1.token);
+    assertEq(first.status, 200);
+    const setCookie = first.headers.getSetCookie();
+    const full = setCookie.find((c) => c.startsWith("admin_session="));
+    if (full) verifiedSessionTokens.push(full.split(";")[0].split("=")[1]);
+    const p2 = await mintPending();
+    createdPendingIds.push(p2.id);
+    const replay = await verifyCode(code, p2.token);
+    assertEq(replay.status, 401);
+    const data = (await replay.json()) as { error?: string };
+    assertEq(data.error, "Mã xác thực không đúng.");
+    await db.rateLimitEvent.deleteMany({ where: { key: { startsWith: "totp:" } } });
+  });
+  await check("verify: mã khôi phục dùng được đúng một lần", async () => {
+    const p1 = await mintPending();
+    createdPendingIds.push(p1.id);
+    const first = await verifyCode(totpRecoveryCodes[0], p1.token);
+    assertEq(first.status, 200);
+    const setCookie = first.headers.getSetCookie();
+    const full = setCookie.find((c) => c.startsWith("admin_session="));
+    if (full) verifiedSessionTokens.push(full.split(";")[0].split("=")[1]);
+    const p2 = await mintPending();
+    createdPendingIds.push(p2.id);
+    const reuse = await verifyCode(totpRecoveryCodes[0], p2.token);
+    assertEq(reuse.status, 401);
+    await db.rateLimitEvent.deleteMany({ where: { key: { startsWith: "totp:" } } });
+  });
+  await check("verify: không có open redirect (?next=https://evil.com)", async () => {
+    const p = await mintPending();
+    createdPendingIds.push(p.id);
+    const r = await fetchNoRedirect(`${BASE}/api/admin/totp-verify?next=https://evil.com`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", origin: BASE, cookie: pendingCookie(p.token) },
+      body: new URLSearchParams({ code: totpRecoveryCodes[1] }),
+    });
+    const loc = r.headers.get("location") ?? "";
+    assert(!loc.includes("evil.com"), `Location chứa evil.com: ${loc}`);
+    assertEq(r.status, 303);
+    const u = new URL(loc, BASE);
+    assertEq(u.origin, new URL(BASE).origin);
+    assertEq(u.pathname, "/admin");
+    await db.rateLimitEvent.deleteMany({ where: { key: { startsWith: "totp:" } } });
+  });
+  await check("trang /admin/security không lộ bí mật TOTP hay mã khôi phục", async () => {
+    const r = await fetchNoRedirect(`${BASE}/admin/security`, { headers: authHeaders });
+    assertEq(r.status, 200);
+    const body = await r.text();
+    assert(!body.includes(totpSecret), "HTML chứa bí mật TOTP dạng rõ");
+    for (const c of totpRecoveryCodes) {
+      assert(!body.includes(c), "HTML chứa mã khôi phục");
+    }
+    assert((r.headers.get("cache-control") ?? "").includes("no-store"), "thiếu no-store");
+  });
+  await check("phiên chờ hết hạn dùng để verify → 401, bắt đăng nhập lại", async () => {
+    const p = await mintPending(new Date(Date.now() - 1000));
+    createdPendingIds.push(p.id);
+    const r = await verifyCode(totpCodeAt(totpSecret)!, p.token);
+    assertEq(r.status, 401);
+    const data = (await r.json()) as { error?: string };
+    assert((data.error ?? "").includes("hết hạn"), `thông báo: ${data.error}`);
+  });
+
+  // Dọn riêng phần TOTP (kể cả khi một check trên FAIL giữa chừng).
+  await db.adminTwoFactor.deleteMany({ where: { id: 1 } });
+  for (const id of createdPendingIds) {
+    await db.adminPendingSession.deleteMany({ where: { id } });
+  }
+  for (const token of verifiedSessionTokens) {
+    await db.adminSession.deleteMany({ where: { tokenHash: createHash("sha256").update(token).digest("hex") } });
+  }
+  await db.rateLimitEvent.deleteMany({ where: { key: { startsWith: "totp:" } } });
+  await db.settingsAudit.deleteMany({ where: { key: { startsWith: "totp." } } });
+
   console.log("\nDọn dẹp...");
   for (const id of createdSessionIds) {
     await db.adminSession.deleteMany({ where: { id } });
@@ -505,6 +724,11 @@ main().catch(async (e) => {
   try {
     for (const id of createdSessionIds) await db.adminSession.deleteMany({ where: { id } });
     await db.adminLoginAttempt.deleteMany({});
+    // Dọn phần TOTP nếu crash giữa chừng (không để 2FA bật sót lại).
+    await db.adminTwoFactor.deleteMany({ where: { id: 1 } });
+    await db.adminPendingSession.deleteMany({});
+    await db.rateLimitEvent.deleteMany({ where: { key: { startsWith: "totp:" } } });
+    await db.settingsAudit.deleteMany({ where: { key: { startsWith: "totp." } } });
     await db.$disconnect();
   } catch { /* bỏ qua */ }
   process.exit(1);

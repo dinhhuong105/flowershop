@@ -40,9 +40,11 @@ export default async function LoginPage({
   const serverError =
     params.error === "rate"
       ? "Quá nhiều lần đăng nhập sai, vui lòng thử lại sau 15 phút."
-      : params.error === "1"
-        ? "Tên đăng nhập hoặc mật khẩu không đúng."
-        : null;
+      : params.error === "expired"
+        ? "Phiên xác minh đã hết hạn, vui lòng đăng nhập lại."
+        : params.error === "1"
+          ? "Tên đăng nhập hoặc mật khẩu không đúng."
+          : null;
   return (
     <div className="shell py-12">
       <div className="mx-auto max-w-md rounded-[3px] border border-line bg-white p-6">
