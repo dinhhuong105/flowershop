@@ -9,7 +9,7 @@
 
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
 import {
   createAdminCategory,
@@ -259,6 +259,8 @@ export async function createCategoryAction(
   }
   revalidatePath("/", "layout");
   revalidatePath("/admin/categories");
+  // Ngày 19 B2: danh mục menu cache theo tag "nav-categories".
+  revalidateTag("nav-categories");
   // 25/11: không redirect nữa — form tự điều hướng theo onSuccess
   // ("back" đóng popup, "list" về danh sách). Xem CategoryForm.
   return { ok: true, fieldErrors: {}, formError: null, values: null };
@@ -289,6 +291,8 @@ export async function updateCategoryAction(
   }
   revalidatePath("/", "layout");
   revalidatePath("/admin/categories");
+  // Ngày 19 B2: danh mục menu cache theo tag "nav-categories".
+  revalidateTag("nav-categories");
   return { ok: true, fieldErrors: {}, formError: null, values: null };
 }
 
@@ -312,6 +316,8 @@ export async function deleteCategoryAction(
   }
   revalidatePath("/", "layout");
   revalidatePath("/admin/categories");
+  // Ngày 19 B2: danh mục menu cache theo tag "nav-categories".
+  revalidateTag("nav-categories");
   return { ok: true, error: null };
 }
 
@@ -474,6 +480,10 @@ export async function createPageAction(
   }
   revalidatePath("/", "layout");
   revalidatePath("/admin/pages");
+  // Ngày 19 B2: trang tĩnh cache theo tag "footer-pages" /
+  // "published-pages" (chân trang, legacy map, tra theo slug).
+  revalidateTag("footer-pages");
+  revalidateTag("published-pages");
   return { ok: true, fieldErrors: {}, formError: null, values: null };
 }
 
@@ -502,6 +512,10 @@ export async function updatePageAction(
   }
   revalidatePath("/", "layout");
   revalidatePath("/admin/pages");
+  // Ngày 19 B2: trang tĩnh cache theo tag "footer-pages" /
+  // "published-pages" (chân trang, legacy map, tra theo slug).
+  revalidateTag("footer-pages");
+  revalidateTag("published-pages");
   return { ok: true, fieldErrors: {}, formError: null, values: null };
 }
 
@@ -530,6 +544,10 @@ export async function togglePageAction(
   if (!result.ok) return { ok: false, error: "Không tìm thấy trang." };
   revalidatePath("/", "layout");
   revalidatePath("/admin/pages");
+  // Ngày 19 B2: trang tĩnh cache theo tag "footer-pages" /
+  // "published-pages" (chân trang, legacy map, tra theo slug).
+  revalidateTag("footer-pages");
+  revalidateTag("published-pages");
   return { ok: true, error: null };
 }
 
@@ -668,5 +686,9 @@ export async function deletePageAction(id: number): Promise<DeletePageState> {
   }
   revalidatePath("/", "layout");
   revalidatePath("/admin/pages");
+  // Ngày 19 B2: trang tĩnh cache theo tag "footer-pages" /
+  // "published-pages" (chân trang, legacy map, tra theo slug).
+  revalidateTag("footer-pages");
+  revalidateTag("published-pages");
   return { ok: true, error: null };
 }

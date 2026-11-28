@@ -5,7 +5,7 @@ import { PAGE_SIZE } from "@/config/catalog";
 import { getCategoryPage } from "@/lib/catalog";
 import { hasActiveFilter, parseCatalogParams } from "@/lib/catalog-params";
 import { CATEGORY_DESCRIPTIONS } from "@/lib/category-descriptions";
-import { getPublishedPageBySlugCached } from "@/lib/admin/pages";
+import { getCachedPublishedPageBySlug } from "@/lib/pages-cache";
 import { getSettings } from "@/lib/settings-cache";
 import { renderMarkdown } from "@/lib/markdown";
 import Breadcrumb from "@/components/catalog/Breadcrumb";
@@ -34,9 +34,9 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   // trước, có thì dùng trang, không thì mới tra danh mục. Hai chiều
   // đều bị chặn lúc lưu nên va chạm mới không tạo ra được (xem
   // README "Trang tĩnh và danh mục — quy tắc ưu tiên slug").
-  // Tra dùng chung qua getPublishedPageBySlugCached (Ngày 15 B3):
+  // Tra dùng chung qua getCachedPublishedPageBySlug (Ngày 15 B3, cache Ngày 19 B2):
   // metadata + render gộp thành một query trong cùng request.
-  const page = await getPublishedPageBySlugCached(slug);
+  const page = await getCachedPublishedPageBySlug(slug);
   if (page) {
     const settings = await getSettings();
     return {
@@ -98,7 +98,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
   // nhánh không bao giờ tranh nhau — dữ liệu cũ trùng thì trang
   // tĩnh thắng (quy tắc ưu tiên, xem generateMetadata ở trên).
   // Dùng hàm tra đã cache theo request (Ngày 15 B3).
-  const page = await getPublishedPageBySlugCached(slug);
+  const page = await getCachedPublishedPageBySlug(slug);
   if (page) {
     return (
       <div className="shell pb-12 pt-6">

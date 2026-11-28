@@ -68,25 +68,36 @@ async function fetchCategoryPage(
   const total = rows.length > 0 ? Number(rows[0].total) : 0;
   const ids = rows.map((r) => r.id);
 
-  // Truy vấn 3: chi tiết sản phẩm theo id, giữ nguyên thứ tự của ids.
-  // Không select quan hệ category (Prisma sẽ tốn thêm 1 truy vấn nạp quan
-  // hệ): mọi sản phẩm ở đây đều thuộc cùng danh mục đã lấy ở truy vấn 1.
+  // Truy vấn 3+4 chạy song song (Ngày 19 B2): chi tiết sản phẩm theo
+  // id (giữ nguyên thứ tự của ids) và tag dịp thực sự có trong danh
+  // mục (không phụ thuộc bộ lọc) — hai lần đọc độc lập, trước đây
+  // nối tiếp. Không select quan hệ category (Prisma sẽ tốn thêm 1
+  // truy vấn nạp quan hệ): mọi sản phẩm ở đây đều thuộc cùng danh
+  // mục đã lấy ở truy vấn 1.
+  const [found, tagRows] = await Promise.all([
+    ids.length > 0
+      ? db.product.findMany({
+          where: { id: { in: ids } },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            price: true,
+            salePrice: true,
+            images: true,
+            isFastDelivery: true,
+            inStock: true,
+            sku: true,
+          },
+        })
+      : Promise.resolve([]),
+    db.product.findMany({
+      where: { categoryId: category.id, isActive: true },
+      select: { tags: true },
+    }),
+  ]);
   let products: ProductSummary[] = [];
   if (ids.length > 0) {
-    const found = await db.product.findMany({
-      where: { id: { in: ids } },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        price: true,
-        salePrice: true,
-        images: true,
-        isFastDelivery: true,
-        inStock: true,
-        sku: true,
-      },
-    });
     const byId = new Map(found.map((p) => [p.id, p]));
     products = ids.flatMap((id) => {
       const p = byId.get(id);
@@ -109,11 +120,6 @@ async function fetchCategoryPage(
     });
   }
 
-  // Truy vấn 4: tag dịp thực sự có trong danh mục (không phụ thuộc bộ lọc).
-  const tagRows = await db.product.findMany({
-    where: { categoryId: category.id, isActive: true },
-    select: { tags: true },
-  });
   const tagSet = new Set(tagRows.flatMap((r) => r.tags));
   const availableTags = tagLabels
     .filter((t) => tagSet.has(t.slug))

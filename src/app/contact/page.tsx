@@ -3,7 +3,7 @@ import Link from "next/link";
 import { telHref, zaloHref } from "@/config/site";
 import { getSettings } from "@/lib/settings-cache";
 import { redirectIfReplaced } from "@/lib/legacy-redirect";
-import { getLegacyReplacements } from "@/lib/admin/pages";
+import { getCachedLegacyReplacements as getLegacyReplacements } from "@/lib/pages-cache";
 import { resolveLegacyLink } from "@/lib/legacy-paths";
 
 type Props = {

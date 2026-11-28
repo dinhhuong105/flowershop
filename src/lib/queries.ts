@@ -1,7 +1,9 @@
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 
 export type NavCategory = {
+  id: number;
   name: string;
   slug: string;
 };
@@ -32,15 +34,39 @@ export type ProductSummary = {
 
 export type FeaturedProduct = ProductSummary;
 
-// Danh mục cho menu điều hướng, theo sortOrder, chỉ lấy name và slug.
-// Bọc bằng React cache để header và footer dùng chung một truy vấn trong
-// một lần tải trang.
-export const getNavCategories = cache(async (): Promise<NavCategory[]> => {
-  return db.category.findMany({
-    orderBy: { sortOrder: "asc" },
-    select: { name: true, slug: true },
-  });
-});
+// Danh mục cho menu điều hướng, theo sortOrder, chỉ lấy id/name/slug.
+// Cache hai lớp (Ngày 19 B2): unstable_cache tag "nav-categories"
+// (qua các request; action sửa danh mục gọi revalidateTag) + React
+// cache() (gộp các lần gọi trong cùng request — layout và trang chủ
+// dùng chung một lần đọc). Trước đây menu và trang chủ mỗi nơi một
+// truy vấn danh mục giống hệt nhau.
+const cachedNavCategories = unstable_cache(
+  async (): Promise<NavCategory[]> =>
+    db.category.findMany({
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, name: true, slug: true },
+    }),
+  ["nav-categories"],
+  { tags: ["nav-categories"] },
+);
+
+// Ngoài runtime Next (test tsx, script): unstable_cache ném
+// "incrementalCache missing" — đọc thẳng DB, không cache. Trong
+// request Next thì dùng cache như thường.
+async function readNavCategories(): Promise<NavCategory[]> {
+  try {
+    return await cachedNavCategories();
+  } catch {
+    return db.category.findMany({
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, name: true, slug: true },
+    });
+  }
+}
+
+export const getNavCategories = cache(
+  async (): Promise<NavCategory[]> => readNavCategories(),
+);
 
 // Dữ liệu trang chủ: mỗi danh mục kèm tối đa 4 sản phẩm đầu theo
 // sortOrder (chỉ isActive). Danh mục không có sản phẩm thì mảng rỗng
@@ -52,32 +78,36 @@ export type HomeCategorySection = HomeCategory & {
 export async function getHomeData(): Promise<{
   categories: HomeCategorySection[];
 }> {
-  const categories = await db.category.findMany({
-    orderBy: { sortOrder: "asc" },
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      products: { where: { isActive: true }, select: { id: true } },
-    },
-  });
-  const products = await db.product.findMany({
-    where: { isActive: true },
-    orderBy: [{ category: { sortOrder: "asc" } }, { sortOrder: "asc" }],
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      price: true,
-      salePrice: true,
-      images: true,
-      isFastDelivery: true,
-      inStock: true,
-      sku: true,
-      categoryId: true,
-      category: { select: { slug: true, name: true } },
-    },
-  });
+  // Hai lần đọc độc lập chạy song song (Ngày 19 B2): danh mục (đã
+  // cache, ấm = 0 truy vấn) + toàn bộ SP đang bán. Trước đây nối tiếp
+  // 4 truy vấn: danh mục menu, danh mục trang chủ (trùng), id SP theo
+  // danh mục, toàn bộ SP + nạp lại danh mục cho quan hệ SP.
+  // productCount đếm từ cùng mảng SP (mọi SP đang bán đều nằm trong
+  // đó) nên không cần truy vấn đếm riêng; slug/tên danh mục của SP
+  // lấy từ map danh mục trong JS, không select quan hệ category nữa.
+  const [categories, products] = await Promise.all([
+    getNavCategories(),
+    db.product.findMany({
+      where: { isActive: true },
+      orderBy: [{ category: { sortOrder: "asc" } }, { sortOrder: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        price: true,
+        salePrice: true,
+        images: true,
+        isFastDelivery: true,
+        inStock: true,
+        sku: true,
+        categoryId: true,
+      },
+    }),
+  ]);
+  const counts = new Map<number, number>();
+  for (const p of products) {
+    counts.set(p.categoryId, (counts.get(p.categoryId) ?? 0) + 1);
+  }
 
   const homeCategories: HomeCategorySection[] = categories.map((c) => {
     const firstFour = products
@@ -88,8 +118,8 @@ export async function getHomeData(): Promise<{
           id: p.id,
           name: p.name,
           slug: p.slug,
-          categorySlug: p.category.slug,
-          categoryName: p.category.name,
+          categorySlug: c.slug,
+          categoryName: c.name,
           price: p.price,
           salePrice: p.salePrice,
           images: p.images,
@@ -102,7 +132,7 @@ export async function getHomeData(): Promise<{
       id: c.id,
       name: c.name,
       slug: c.slug,
-      productCount: c.products.length,
+      productCount: counts.get(c.id) ?? 0,
       products: firstFour,
     };
   });

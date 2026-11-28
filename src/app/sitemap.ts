@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
 import { siteConfig } from "@/config/site";
-import { getLegacyReplacements } from "@/lib/admin/pages";
+import { getCachedLegacyReplacements as getLegacyReplacements } from "@/lib/pages-cache";
 
 // Sitemap (Ngày 9, lộ trình gốc): trang tĩnh + danh mục + sản phẩm
 // đang bán. force-dynamic để không truy vấn DB lúc `next build`

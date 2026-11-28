@@ -11,8 +11,10 @@ import {
 } from "@/lib/title-template";
 import { toAbsoluteImageUrl } from "@/lib/storage";
 import { escapeJsonForScript } from "@/lib/security-headers";
-import { listFooterPages } from "@/lib/admin/pages";
-import { getLegacyReplacements } from "@/lib/admin/pages";
+import {
+  getCachedFooterPages as listFooterPages,
+  getCachedLegacyReplacements as getLegacyReplacements,
+} from "@/lib/pages-cache";
 import TopBar from "@/components/layout/TopBar";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -112,20 +114,21 @@ export default async function RootLayout({
   // chạy không qua middleware (vd test render trực tiếp) thì nonce
   // rỗng — thẻ script vẫn render (CSP khi đó không có nonce để khớp).
   const nonce = h.get("x-nonce") ?? "";
-  const categories = isAdminArea ? [] : await getNavCategories();
-  const cartCount = isAdminArea ? 0 : await getCartCount();
-  // Cài đặt shop (Ngày 11 B5): tên/logo/hotline/Zalo/địa chỉ/giờ
-  // mở cửa/mạng xã hội cho Header/Footer/TopBar/nút nổi. Khu vực
-  // quản trị không cần — không đọc thừa.
-  const settings = isAdminArea ? null : await getSettings();
-  // Trang tĩnh cho chân trang (Ngày 13 B4): chỉ trang đã xuất bản +
-  // showInFooter; khu vực quản trị không cần.
-  const footerPages = isAdminArea ? [] : await listFooterPages();
-  // Đường dẫn cũ đã có trang thay thế (Ngày 14 C3): Footer đổi
-  // link cũ sang trang mới; khu vực quản trị không cần.
-  const legacyReplacements = isAdminArea
-    ? new Map<string, string>()
-    : await getLegacyReplacements();
+  // 5 lần đọc độc lập của layout chạy song song (Ngày 19 B2): trước
+  // đây await nối tiếp nên mỗi lần đọc cộng một vòng RTT tới DB.
+  // Khu vực quản trị không cần Header/Footer shop — không đọc thừa.
+  // Cài đặt + danh mục + trang chân trang/legacy đã cache qua các
+  // request (unstable_cache có tag); giỏ không có cookie thì 0 truy vấn.
+  const [categories, cartCount, settings, footerPages, legacyReplacements] =
+    isAdminArea
+      ? [[], 0, null, [], new Map<string, string>()]
+      : await Promise.all([
+          getNavCategories(),
+          getCartCount(),
+          getSettings(),
+          listFooterPages(),
+          getLegacyReplacements(),
+        ]);
   return (
     <html lang="vi">
       {/* Gắn class `js` để hiệu ứng reveal không giấu nội dung khi tắt JS. */}
