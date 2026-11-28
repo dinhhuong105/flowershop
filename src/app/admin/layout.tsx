@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import AdminShell from "@/components/admin/AdminShell";
 import { requireAdmin } from "@/lib/admin/auth";
 import { getAdminDashboardStats } from "@/lib/admin/dashboard";
+import {
+  isTotpKeyUnavailable,
+  recordTotpKeyUnavailableAudit,
+} from "@/lib/admin/totp-store";
 
 export const dynamic = "force-dynamic";
 
@@ -36,11 +40,18 @@ export default async function AdminLayout({
 }) {
   await requireAdmin();
   const stats = await getAdminDashboardStats();
+  // A2: 2FA bật nhưng khóa mã hóa không dùng được → biểu ngữ đỏ ở
+  // mọi trang admin (qua AdminShell) + audit giới hạn 1 dòng/giờ.
+  const totpKeyUnavailable = await isTotpKeyUnavailable();
+  if (totpKeyUnavailable) {
+    await recordTotpKeyUnavailableAudit();
+  }
   return (
     <AdminShell
       pendingCount={stats.pendingCount}
       latestPendingCode={stats.latestPendingCode}
       modal={modal}
+      totpKeyUnavailable={totpKeyUnavailable}
     >
       {children}
     </AdminShell>

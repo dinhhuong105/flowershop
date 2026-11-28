@@ -1,5 +1,6 @@
-// Test DB cho TOTP (Ngày 19 Phần C): luồng bật/tắt, xác minh mã,
-// mã khôi phục dùng một lần, thu hồi phiên khác, thiếu khóa → tắt.
+// Test DB cho TOTP (Ngày 19 Phần C, sửa A2 Ngày 20 bản sau Retry):
+// luồng bật/tắt, xác minh mã, mã khôi phục dùng một lần, thu hồi
+// phiên khác, khóa không dùng được → ĐÓNG (chỉ mã khôi phục).
 // Chạy: npx tsx --test src/lib/admin/totp.db.test.ts
 // Dọn sạch sau test: dòng 2FA, phiên đã tạo, nhật ký totp.*.
 process.loadEnvFile(".env");
@@ -10,17 +11,20 @@ import { after, before, describe, it } from "node:test";
 import { db } from "@/lib/db";
 import { totpCodeAt } from "./totp";
 import { decryptTotpSecret } from "./totp-crypto";
+import { hashSessionToken, revokeOtherAdminSessions } from "./auth";
 import {
   TOTP_ROW_ID,
   confirmTotpSetup,
   disableTotp,
   getTotpStatus,
+  isTotpEscapeHatchActive,
+  isTotpKeyUnavailable,
   isTotpLoginRequired,
+  recordTotpKeyUnavailableAudit,
   regenerateRecoveryCodes,
   startTotpSetup,
   verifyTotpOrRecoveryCode,
 } from "./totp-store";
-import { hashSessionToken, revokeOtherAdminSessions } from "./auth";
 
 const savedKey = process.env.AUTH_ENCRYPTION_KEY;
 const TEST_KEY = randomBytes(32).toString("base64");
@@ -152,16 +156,113 @@ describe("xác minh mã + mã khôi phục", () => {
   });
 });
 
-describe("thiếu khóa → tính năng tắt; tắt 2FA", () => {
-  it("xóa khóa env → isTotpLoginRequired false dù đã bật", async () => {
-    assert.equal(await isTotpLoginRequired(), true);
+describe("A2: khóa không dùng được → ĐÓNG, chỉ mã khôi phục", () => {
+  let secret = "";
+  let recoveryCodes: string[] = [];
+
+  before(async () => {
+    const started = await startTotpSetup();
+    secret = started.secret;
+    const confirmed = await confirmTotpSetup(totpCodeAt(secret)!);
+    assert.equal(confirmed.ok, true);
+    if (confirmed.ok) recoveryCodes = confirmed.recoveryCodes;
+    assert.equal(await isTotpKeyUnavailable(), false);
+  });
+
+  it("thiếu khóa env → vẫn yêu cầu 2FA; mã 6 số bị từ chối; mã khôi phục dùng được đúng một lần", async () => {
     delete process.env.AUTH_ENCRYPTION_KEY;
-    assert.equal(await isTotpLoginRequired(), false);
-    assert.deepEqual(await verifyTotpOrRecoveryCode("123456"), { ok: false });
-    process.env.AUTH_ENCRYPTION_KEY = TEST_KEY;
+    try {
+      assert.equal(await isTotpKeyUnavailable(), true);
+      assert.equal(await isTotpLoginRequired(), true);
+      assert.equal((await getTotpStatus()).keyUnavailable, true);
+      const code = totpCodeAt(secret)!;
+      assert.deepEqual(await verifyTotpOrRecoveryCode(code), { ok: false });
+      const first = await verifyTotpOrRecoveryCode(recoveryCodes[0]);
+      assert.deepEqual(first, { ok: true, usedRecovery: true });
+      const second = await verifyTotpOrRecoveryCode(recoveryCodes[0]);
+      assert.deepEqual(second, { ok: false });
+    } finally {
+      process.env.AUTH_ENCRYPTION_KEY = TEST_KEY;
+    }
+    assert.equal(await isTotpKeyUnavailable(), false);
     assert.equal(await isTotpLoginRequired(), true);
   });
 
+  it("khóa sai (độ dài đúng nhưng khác khóa) → đóng như thiếu khóa; mã khôi phục vẫn dùng được", async () => {
+    const wrongKey = randomBytes(32).toString("base64");
+    process.env.AUTH_ENCRYPTION_KEY = wrongKey;
+    try {
+      assert.equal(await isTotpKeyUnavailable(), true);
+      assert.deepEqual(await verifyTotpOrRecoveryCode(totpCodeAt(secret)!), {
+        ok: false,
+      });
+      assert.deepEqual(await verifyTotpOrRecoveryCode(recoveryCodes[1]), {
+        ok: true,
+        usedRecovery: true,
+      });
+    } finally {
+      process.env.AUTH_ENCRYPTION_KEY = TEST_KEY;
+    }
+    assert.equal(await isTotpKeyUnavailable(), false);
+  });
+
+  it("bản mã hỏng 1 bit → đóng; mã 6 số bị từ chối; mã khôi phục vẫn dùng được", async () => {
+    const row = await db.adminTwoFactor.findUnique({ where: { id: TOTP_ROW_ID } });
+    assert.ok(row);
+    const raw = Buffer.from(row.encryptedSecret, "base64");
+    const corrupted = Buffer.from(raw);
+    corrupted[corrupted.length - 1] ^= 0x01;
+    await db.adminTwoFactor.update({
+      where: { id: TOTP_ROW_ID },
+      data: { encryptedSecret: corrupted.toString("base64") },
+    });
+    try {
+      assert.equal(await isTotpKeyUnavailable(), true);
+      assert.equal(await isTotpLoginRequired(), true);
+      assert.deepEqual(await verifyTotpOrRecoveryCode(totpCodeAt(secret)!), {
+        ok: false,
+      });
+      assert.deepEqual(await verifyTotpOrRecoveryCode(recoveryCodes[2]), {
+        ok: true,
+        usedRecovery: true,
+      });
+    } finally {
+      // Khôi phục bản mã gốc để các test sau còn dùng được 2FA.
+      await db.adminTwoFactor.update({
+        where: { id: TOTP_ROW_ID },
+        data: { encryptedSecret: row.encryptedSecret },
+      });
+    }
+    assert.equal(await isTotpKeyUnavailable(), false);
+  });
+
+  it("thoát hiểm ADMIN_TOTP_DISABLE=1 vẫn hoạt động khi khóa hỏng", async () => {
+    delete process.env.AUTH_ENCRYPTION_KEY;
+    process.env.ADMIN_TOTP_DISABLE = "1";
+    try {
+      assert.equal(await isTotpKeyUnavailable(), true);
+      assert.equal(await isTotpEscapeHatchActive(), true);
+      assert.equal(await isTotpLoginRequired(), false);
+    } finally {
+      delete process.env.ADMIN_TOTP_DISABLE;
+      process.env.AUTH_ENCRYPTION_KEY = TEST_KEY;
+    }
+    assert.equal(await isTotpLoginRequired(), true);
+  });
+
+  it("audit totp.key-unavailable giới hạn 1 dòng/giờ", async () => {
+    await db.settingsAudit.deleteMany({ where: { key: "totp.key-unavailable" } });
+    await recordTotpKeyUnavailableAudit();
+    await recordTotpKeyUnavailableAudit();
+    await recordTotpKeyUnavailableAudit();
+    const count = await db.settingsAudit.count({
+      where: { key: "totp.key-unavailable" },
+    });
+    assert.equal(count, 1);
+  });
+});
+
+describe("thiếu khóa → tính năng tắt; tắt 2FA", () => {
   it("disableTotp: xóa dòng, hết hiệu lực, nhật ký có dòng tắt", async () => {
     await disableTotp();
     assert.equal((await getTotpStatus()).enabled, false);

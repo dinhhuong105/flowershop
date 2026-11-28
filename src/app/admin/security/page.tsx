@@ -29,6 +29,7 @@ export default async function AdminSecurityPage() {
       <div className="mt-6 max-w-2xl">
         <TotpSecurityForm
           keyAvailable={status.keyAvailable}
+          keyUnavailable={status.keyUnavailable}
           enabled={status.enabled}
           enabledAt={status.enabledAt ? status.enabledAt.toISOString() : null}
           recoveryRemaining={status.recoveryRemaining}

@@ -67,6 +67,8 @@ một phần (vd `090****567`) và trạng thái đơn. Nếu khách báo "khôn
 tìm thấy đơn": kiểm tra mã khách nhập (đủ 10 ký tự, không lẫn
 chữ O/I), rồi tìm đơn đó trong `/admin/orders` bằng ô tìm kiếm.
 
+**Quyết định A4.1 (Ngày 20, chốt ở mức Low):** khi bộ đếm giới hạn tốc độ tra cứu bị lỗi, trang tra cứu trả 200 kèm thông báo thân thiện và không lộ dữ liệu đơn (chặn ở cấp trang, đóng khi bộ đếm lỗi); không dùng middleware-fetch để trả 429. Trang có `Cache-Control: no-store` và `X-Robots-Tag: noindex`.
+
 ## 2. Quản lý sản phẩm và danh mục
 
 ### Sản phẩm (`/admin/products`)
@@ -168,7 +170,7 @@ chữ O/I), rồi tìm đơn đó trong `/admin/orders` bằng ô tìm kiếm.
 4. Cất **10 mã khôi phục** hiện ra một lần duy nhất ở nơi an toàn (quản lý mật khẩu hoặc giấy) — mỗi mã dùng được đúng một lần khi mất điện thoại; rời trang là không xem lại được.
 5. Từ nay đăng nhập cần thêm mã 6 số; lưu thông tin ngân hàng cần thêm mã 6 số (ngoài nhập lại mật khẩu).
 
-**Trước bước trên (agent/dev):** đặt biến môi trường `AUTH_ENCRYPTION_KEY` trên Vercel (Dashboard → Project → Settings → Environment Variables → Production). Sinh giá trị bằng lệnh `openssl rand -base64 32` trên máy dev (đúng 32 byte, base64) rồi dán vào — không in giá trị ra log/báo cáo/chat, không commit vào repo. **Cất một bản sao khóa vào trình quản lý mật khẩu của chủ shop** (cùng nơi cất 10 mã khôi phục) — nếu đổi/mất khóa thì 2FA hiện tại không còn xác minh được (bí mật cũ không giải mã được), phải đặt lại an toàn theo mục thoát hiểm bên dưới rồi bật lại 2FA từ đầu. Thiếu khóa thì trang Bảo mật báo rõ lý do và 2FA tự tắt (đăng nhập không đổi). Đổi khóa sau khi đã bật 2FA sẽ làm bí mật cũ không giải mã được — phải tắt 2FA rồi bật lại từ đầu.
+**Trước bước trên (agent/dev):** đặt biến môi trường `AUTH_ENCRYPTION_KEY` trên Vercel (Dashboard → Project → Settings → Environment Variables → Production). Sinh giá trị bằng lệnh `openssl rand -base64 32` trên máy dev (đúng 32 byte, base64) rồi dán vào — không in giá trị ra log/báo cáo/chat, không commit vào repo. **Cất một bản sao khóa vào trình quản lý mật khẩu của chủ shop** (cùng nơi cất 10 mã khôi phục) — nếu đổi/mất khóa thì 2FA hiện tại không còn xác minh được (bí mật cũ không giải mã được), phải đặt lại an toàn theo mục thoát hiểm bên dưới rồi bật lại 2FA từ đầu. **(Ngày 20 bản sau Retry, A2 — hành vi đã đổi: khóa không dùng được thì 2FA ĐÓNG chứ không tự tắt.)** Nếu 2FA đã bật mà khóa bị thiếu/đổi/hỏng, trang Bảo mật và mọi trang admin hiện biểu ngữ đỏ "2FA đã bật nhưng khóa mã hóa không dùng được — chỉ đăng nhập được bằng mã khôi phục"; mã 6 số không còn vào được, chỉ còn **mã khôi phục** (mỗi mã dùng một lần) hoặc cờ thoát hiểm mới đăng nhập được. Cách gỡ: đăng nhập bằng một mã khôi phục, vào **Cài đặt → Bảo mật** tắt 2FA rồi bật lại từ đầu với khóa đúng; hoặc dùng cờ thoát hiểm (xem dưới) rồi tắt/bật lại 2FA. Không bao giờ tự tắt 2FA chỉ vì thiếu khóa.
 
 **Mất điện thoại + mã khôi phục (thoát hiểm):** chủ sở hữu Vercel đặt biến môi trường `ADMIN_TOTP_DISABLE=1` (Production) rồi redeploy — đăng nhập tạm thời chỉ cần mật khẩu. Mỗi lần dùng cơ chế này đều ghi nhật ký (`totp.escape-used`, xem ở Nhật ký hoạt động → Bảo mật). Xong việc **gỡ biến này ngay và redeploy** để bật lại bước TOTP (không để biến thoát hiểm nằm lại trên production), rồi bật lại 2FA/tạo lại mã khôi phục nếu cần; sau khi bật lại, **kiểm tra lại trạng thái 2FA ở trang Bảo mật** (phải hiện "Đang bật") và thử đăng xuất → đăng nhập một lần để chắc chắn mã 6 số hoạt động.
 

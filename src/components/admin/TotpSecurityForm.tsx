@@ -82,12 +82,15 @@ function RecoveryCodesBox({
 
 export default function TotpSecurityForm({
   keyAvailable,
+  keyUnavailable,
   enabled,
   enabledAt,
   recoveryRemaining,
   escapeHatchOn,
 }: {
   keyAvailable: boolean;
+  // A2: đã bật nhưng khóa mã hóa không dùng được.
+  keyUnavailable?: boolean;
   enabled: boolean;
   enabledAt: string | null;
   recoveryRemaining: number;
@@ -169,7 +172,16 @@ export default function TotpSecurityForm({
             : ""}
           {enabled ? ` · còn ${recoveryRemaining} mã khôi phục` : ""}
         </p>
-        {!keyAvailable ? (
+        {enabled && keyUnavailable ? (
+          <p
+            role="alert"
+            data-testid="totp-key-unavailable-banner"
+            className="mt-3 text-sm font-medium text-red-700"
+          >
+            2FA đã bật nhưng khóa mã hóa không dùng được — chỉ đăng nhập được bằng mã khôi
+            phục
+          </p>
+        ) : !keyAvailable ? (
           <p role="alert" className="mt-3 text-sm font-medium text-red-700">
             Chưa cấu hình khóa mã hóa (AUTH_ENCRYPTION_KEY) nên tính năng 2FA đang tắt. Đăng nhập
             vẫn chỉ cần mật khẩu. Đặt khóa trong biến môi trường (xem hướng dẫn vận hành) rồi

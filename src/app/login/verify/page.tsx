@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getAdminPendingSession, getAdminSession, isAdminConfigured } from "@/lib/admin/auth";
+import { isTotpKeyUnavailable } from "@/lib/admin/totp-store";
 import VerifyForm from "@/components/admin/VerifyForm";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,9 @@ export default async function VerifyPage({
       : params.error === "1"
         ? "Mã xác thực không đúng."
         : null;
+  // A2: khóa mã hóa không dùng được → trang xác minh cũng hiện câu
+  // này để người dùng biết chỉ còn mã khôi phục dùng được.
+  const keyUnavailable = await isTotpKeyUnavailable();
   return (
     <div className="shell py-12">
       <div className="mx-auto max-w-md rounded-[3px] border border-line bg-white p-6">
@@ -42,7 +46,7 @@ export default async function VerifyPage({
           Nhập mã 6 số trong ứng dụng xác thực (Google Authenticator, Authy, 1Password) hoặc
           một mã khôi phục đã lưu khi bật 2FA. Mã chỉ có hiệu lực trong vài chục giây.
         </p>
-        <VerifyForm serverError={serverError} />
+        <VerifyForm serverError={serverError} keyUnavailable={keyUnavailable} />
         <p className="mt-4 text-sm text-ink-soft">
           Mất điện thoại và mã khôi phục? Liên hệ chủ shop để tạm tắt bước này, rồi đăng nhập lại.
         </p>

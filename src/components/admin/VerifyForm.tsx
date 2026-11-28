@@ -9,7 +9,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function VerifyForm({ serverError }: { serverError: string | null }) {
+export default function VerifyForm({
+  serverError,
+  keyUnavailable,
+}: {
+  serverError: string | null;
+  // A2: khóa mã hóa không dùng được → chỉ mã khôi phục mới vào được.
+  keyUnavailable?: boolean;
+}) {
   const router = useRouter();
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(serverError);
@@ -46,6 +53,15 @@ export default function VerifyForm({ serverError }: { serverError: string | null
 
   return (
     <form action="/api/admin/totp-verify" method="post" onSubmit={onSubmit} className="mt-6 space-y-4">
+      {keyUnavailable ? (
+        <p
+          role="alert"
+          data-testid="totp-key-unavailable-banner"
+          className="rounded-[3px] border border-danger/40 bg-danger/5 px-4 py-3 text-sm font-medium text-danger"
+        >
+          2FA đã bật nhưng khóa mã hóa không dùng được — chỉ đăng nhập được bằng mã khôi phục
+        </p>
+      ) : null}
       {error ? (
         <p
           role="alert"

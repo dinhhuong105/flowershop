@@ -8,8 +8,10 @@ import {
 } from "@/lib/admin/auth";
 import {
   isTotpEscapeHatchActive,
+  isTotpKeyUnavailable,
   isTotpLoginRequired,
   recordTotpAudit,
+  recordTotpKeyUnavailableAudit,
 } from "@/lib/admin/totp-store";
 import {
   cleanupAdminLoginAttempts,
@@ -124,7 +126,12 @@ export async function POST(request: Request): Promise<Response> {
   // Ngày 19 Phần C — TOTP: đúng mật khẩu nhưng 2FA đang bật thì
   // chỉ tạo phiên "chờ xác minh" (cookie riêng, hạn 5 phút), CHƯA
   // tạo phiên đầy đủ; client chuyển sang /login/verify để nhập mã.
+  // A2: khóa mã hóa không dùng được thì vẫn đi nhánh này (đóng,
+  // chỉ mã khôi phục) — không tự tắt 2FA; ghi audit giới hạn 1/giờ.
   if (await isTotpLoginRequired()) {
+    if (await isTotpKeyUnavailable()) {
+      await recordTotpKeyUnavailableAudit();
+    }
     await createAdminPendingSession();
     await cleanupAdminLoginAttempts().catch(() => undefined);
     if (isJson) return NextResponse.json({ ok: true, totpRequired: true });

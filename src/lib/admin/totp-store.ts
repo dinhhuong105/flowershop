@@ -1,5 +1,6 @@
-// Tầng lưu trữ + xác minh TOTP (Ngày 19 Phần C): đọc/ghi bảng
-// admin_two_factor, mã khôi phục, nhật ký audit.
+// Tầng lưu trữ + xác minh TOTP (Ngày 19 Phần C, sửa A2 Ngày 20 bản
+// sau Retry): đọc/ghi bảng admin_two_factor, mã khôi phục, nhật ký
+// audit.
 //
 // - Bí mật chỉ tồn tại dạng mã hóa trong DB (decrypt ngay lúc
 //   dùng, không lưu lại đâu khác, không đưa vào log/lỗi trả về).
@@ -7,9 +8,12 @@
 //   gây nhầm 0/O/1/I), lưu băm scrypt (tái dùng hashAdminPassword /
 //   verifyAdminPassword của đăng nhập), dùng một lần (xóa khỏi mảng
 //   khi đã dùng).
-// - isTotpLoginRequired(): 2FA có hiệu lực ở lần đăng nhập này =
-//   đã bật (enabledAt != null) VÀ có khóa mã hóa VÀ không có thoát
-//   hiểm. Thiếu khóa → tính năng tự tắt (không chặn đăng nhập).
+// - A2: 2FA đã bật mà KHÔNG giải mã được bí mật (thiếu/sai khóa,
+//   bản mã hỏng) thì ĐÓNG — chỉ đăng nhập bằng mã khôi phục (băm
+//   độc lập với khóa nên vẫn kiểm được) hoặc cờ thoát hiểm
+//   ADMIN_TOTP_DISABLE=1; KHÔNG nhận mã 6 số; KHÔNG tự tắt 2FA.
+//   isTotpLoginRequired() = đã bật VÀ không có thoát hiểm (không
+//   còn phụ thuộc khóa khả dụng như Ngày 19).
 
 import { randomBytes } from "node:crypto";
 import { db } from "@/lib/db";
@@ -17,7 +21,6 @@ import { hashAdminPassword, verifyAdminPassword } from "./password";
 import {
   decryptTotpSecret,
   encryptTotpSecret,
-  getTotpEncryptionKey,
   isTotpAvailable,
   isTotpEscapeHatchOn,
 } from "./totp-crypto";
@@ -37,26 +40,49 @@ export type TotpStatus = {
   recoveryRemaining: number;
   // Có khóa mã hóa để dùng tính năng không.
   keyAvailable: boolean;
+  // A2: đã bật nhưng KHÔNG giải mã được bí mật (thiếu/sai khóa,
+  // bản mã hỏng) → đăng nhập chỉ còn mã khôi phục / thoát hiểm.
+  keyUnavailable: boolean;
   // Thoát hiểm đang bật không.
   escapeHatchOn: boolean;
 };
 
 export async function getTotpStatus(): Promise<TotpStatus> {
   const row = await db.adminTwoFactor.findUnique({ where: { id: TOTP_ROW_ID } });
+  const enabled = row !== null && row.enabledAt !== null;
+  let keyUnavailable = false;
+  if (enabled && row !== null) {
+    try {
+      decryptTotpSecret(row.encryptedSecret);
+    } catch {
+      keyUnavailable = true;
+    }
+  }
   return {
     configured: row !== null,
-    enabled: row !== null && row.enabledAt !== null,
+    enabled,
     enabledAt: row?.enabledAt ?? null,
     recoveryRemaining: row?.recoveryCodeHashes.length ?? 0,
     keyAvailable: isTotpAvailable(),
+    keyUnavailable,
     escapeHatchOn: isTotpEscapeHatchOn(),
   };
 }
 
-// 2FA có hiệu lực ở lần đăng nhập này không.
+// A2: 2FA đã bật nhưng không giải mã được bí mật (thiếu/sai khóa
+// mã hóa, hoặc bản mã đã hỏng). Trả false khi chưa bật.
+export async function isTotpKeyUnavailable(): Promise<boolean> {
+  const status = await getTotpStatus();
+  return status.enabled && status.keyUnavailable;
+}
+
+// 2FA có hiệu lực ở lần đăng nhập này không. A2: chỉ còn hai điều
+// kiện — đã bật VÀ không có thoát hiểm. Thiếu/lệch khóa KHÔNG làm
+// tắt tính năng nữa (xem isTotpKeyUnavailable): lúc đó chỉ còn
+// mã khôi phục được chấp nhận ở verifyTotpOrRecoveryCode.
 export async function isTotpLoginRequired(): Promise<boolean> {
   const status = await getTotpStatus();
-  return status.enabled && status.keyAvailable && !status.escapeHatchOn;
+  return status.enabled && !status.escapeHatchOn;
 }
 
 // Thoát hiểm đang có hiệu lực không: 2FA đã bật NHƯNG
@@ -69,7 +95,7 @@ export async function isTotpEscapeHatchActive(): Promise<boolean> {
 
 // Ghi nhật ký audit 2FA (không lưu bí mật/mã — chỉ hành động).
 // action: enabled | disabled | recovery-used | failed |
-// recovery-regenerated | escape-used.
+// recovery-regenerated | escape-used | key-unavailable.
 export async function recordTotpAudit(action: string): Promise<void> {
   const detail: Record<string, string> = {
     enabled: "Đã bật xác thực hai bước",
@@ -78,6 +104,8 @@ export async function recordTotpAudit(action: string): Promise<void> {
     failed: "Xác minh mã sai",
     "recovery-regenerated": "Đã tạo lại 10 mã khôi phục",
     "escape-used": "Bỏ qua bước TOTP (ADMIN_TOTP_DISABLE=1)",
+    "key-unavailable":
+      "2FA đã bật nhưng khóa mã hóa không dùng được — chỉ đăng nhập được bằng mã khôi phục",
   };
   await recordSettingsAudit(`totp.${action}`, null, detail[action] ?? action, "admin").catch(
     (error: unknown) => {
@@ -87,6 +115,27 @@ export async function recordTotpAudit(action: string): Promise<void> {
       );
     },
   );
+}
+
+// A2: ghi audit `totp.key-unavailable`, giới hạn một dòng mỗi giờ
+// (tránh spam nhật ký khi mọi trang admin đều phát hiện trạng thái
+// này). Không bao giờ ném lỗi — nhật ký không được chặn đăng nhập
+// hay hiển thị trang.
+export async function recordTotpKeyUnavailableAudit(): Promise<void> {
+  try {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recent = await db.settingsAudit.findFirst({
+      where: { key: "totp.key-unavailable", createdAt: { gte: oneHourAgo } },
+      select: { id: true },
+    });
+    if (recent) return;
+    await recordTotpAudit("key-unavailable");
+  } catch (error: unknown) {
+    console.error(
+      "[totp] Không ghi được nhật ký key-unavailable:",
+      error instanceof Error ? error.message : error,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -139,6 +188,11 @@ async function hashRecoveryCodes(codes: string[]): Promise<string[]> {
 // Trả { ok, usedRecovery }. Thành công bằng mã TOTP → cập nhật
 // lastUsedStep (chống dùng lại); bằng mã khôi phục → xóa mã đó
 // khỏi mảng (dùng một lần). Thất bại → không đổi gì trong DB.
+//
+// A2: mã khôi phục được thử TRƯỚC và không phụ thuộc khóa mã hóa
+// (băm độc lập với khóa nên vẫn kiểm được khi khóa thiếu/sai hay
+// bản mã hỏng). Mã 6 số chỉ được thử khi giải mã được bí mật —
+// khóa không dùng được thì mã 6 số luôn bị từ chối.
 // ---------------------------------------------------------------------------
 
 export type TotpCodeCheck = { ok: true; usedRecovery: boolean } | { ok: false };
@@ -149,9 +203,9 @@ export async function verifyTotpOrRecoveryCode(
 ): Promise<TotpCodeCheck> {
   const row = await db.adminTwoFactor.findUnique({ where: { id: TOTP_ROW_ID } });
   if (row === null || row.enabledAt === null) return { ok: false };
-  if (getTotpEncryptionKey() === null) return { ok: false };
 
   // Mã khôi phục thử trước khi là TOTP (định dạng khác hẳn 6 số).
+  // Không cần khóa mã hóa ở nhánh này.
   const recovery = normalizeRecoveryCodeInput(rawCode);
   if (recovery !== null) {
     for (const hash of row.recoveryCodeHashes) {
@@ -167,6 +221,8 @@ export async function verifyTotpOrRecoveryCode(
     return { ok: false };
   }
 
+  // Mã 6 số: cần giải mã được bí mật. Khóa thiếu/sai hay bản mã
+  // hỏng → từ chối (không tự tắt 2FA, không nhận mã 6 số).
   let secret: string;
   try {
     secret = decryptTotpSecret(row.encryptedSecret);

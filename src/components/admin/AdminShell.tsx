@@ -34,6 +34,7 @@ export default function AdminShell({
   pendingCount,
   latestPendingCode,
   modal,
+  totpKeyUnavailable,
 }: {
   children: React.ReactNode;
   pendingCount: number;
@@ -44,6 +45,9 @@ export default function AdminShell({
   // .admin-shell để giữ font sans, nhưng ngoài <main> để không
   // dính hiệu ứng vào trang của nội dung chính.
   modal?: React.ReactNode;
+  // A2: 2FA đã bật nhưng khóa mã hóa không dùng được → biểu ngữ đỏ
+  // ở mọi trang admin (câu chữ đúng đặc tả).
+  totpKeyUnavailable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -186,6 +190,16 @@ export default function AdminShell({
             </form>
           </div>
         </header>
+        {totpKeyUnavailable ? (
+          <p
+            role="alert"
+            data-testid="totp-key-unavailable-banner"
+            className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 print:hidden sm:px-6 lg:px-8"
+          >
+            2FA đã bật nhưng khóa mã hóa không dùng được — chỉ đăng nhập được bằng mã khôi
+            phục
+          </p>
+        ) : null}
         <main id="noi-dung-chinh" className="px-4 py-6 sm:px-6 lg:px-8">
           {children}
         </main>
